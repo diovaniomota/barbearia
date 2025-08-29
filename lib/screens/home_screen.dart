@@ -1,4 +1,5 @@
 import 'package:barbearia/screens/book_appointment_screen.dart';
+import 'package:barbearia/screens/services_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/barber.dart';
@@ -218,7 +219,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ServicesScreen(),
+                          ),
+                        );
+                      },
                       child: Text(
                         'Ver todos',
                         style: TextStyle(color: theme.colorScheme.primary),
