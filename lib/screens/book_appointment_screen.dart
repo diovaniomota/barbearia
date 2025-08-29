@@ -1,8 +1,10 @@
+// lib/screens/book_appointment_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
 
-/// Modelo leve para a listagem de barbeiros vindos do Supabase.
+// ... (o modelo BarberLite continua o mesmo)
 class BarberLite {
   final String id;
   final String name;
@@ -16,21 +18,19 @@ class BarberLite {
     required this.rating,
   });
 
-  /// Aceita vários nomes de coluna para evitar "column does not exist".
   factory BarberLite.fromMap(Map<String, dynamic> map) {
-    // rating pode ser null / num / string ou ter outro nome
     final rawRating = map['rating'] ?? map['score'] ?? map['stars'];
     final doubleRating = rawRating is num
         ? rawRating.toDouble()
         : double.tryParse('${rawRating ?? ''}') ?? 0.0;
 
-    // tenta vários nomes possíveis para a foto
-    final avatar = (map['avatar_url'] ??
-            map['avatar'] ??
-            map['photo_url'] ??
-            map['image_url'] ??
-            '')
-        .toString();
+    final avatar =
+        (map['avatar_url'] ??
+                map['avatar'] ??
+                map['photo_url'] ??
+                map['image_url'] ??
+                '')
+            .toString();
 
     return BarberLite(
       id: (map['id'] ?? '').toString(),
@@ -44,7 +44,6 @@ class BarberLite {
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key, this.service});
 
-  /// Serviço pré‑selecionado (quando vier da lista de serviços). Pode ser null.
   final Service? service;
 
   @override
@@ -61,7 +60,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  // Estado da lista de barbeiros (Supabase)
   bool _loadingBarbers = true;
   String? _barbersError;
   List<BarberLite> _barbers = const [];
@@ -70,7 +68,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   void initState() {
     super.initState();
     _selectedService = widget.service;
-    if (_selectedService != null) _currentStep = 1; // pula a etapa do serviço
+    if (_selectedService != null) _currentStep = 1;
     _loadBarbers();
   }
 
@@ -81,7 +79,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     super.dispose();
   }
 
-  /// Busca barbeiros do Supabase.
   Future<void> _loadBarbers() async {
     setState(() {
       _loadingBarbers = true;
@@ -89,7 +86,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     });
 
     try {
-      // Seleciona tudo para não quebrar com nomes de coluna diferentes
       final data = await Supabase.instance.client
           .from('barbers')
           .select('*')
@@ -141,7 +137,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           }
         },
         steps: [
-          // 0) Serviço
           Step(
             isActive: _currentStep >= 0,
             title: const Text('Escolha o Serviço'),
@@ -149,19 +144,20 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_selectedService == null)
-                  _SelectServicePlaceholder(onSelect: (s) {
-                    setState(() {
-                      _selectedService = s;
-                      _currentStep = 1;
-                    });
-                  })
+                  // ALTERAÇÃO AQUI: Usando o novo widget que busca dados reais
+                  _SelectServiceFromSupabase(
+                    onSelect: (s) {
+                      setState(() {
+                        _selectedService = s;
+                        _currentStep = 1;
+                      });
+                    },
+                  )
                 else
                   _ServiceHeader(service: _selectedService!),
               ],
             ),
           ),
-
-          // 1) Barbeiro (lista vinda do Supabase)
           Step(
             isActive: _currentStep >= 1,
             title: const Text('Escolha o Barbeiro'),
@@ -195,20 +191,20 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     child: Text('Nenhum barbeiro encontrado.'),
                   )
                 else
-                  ..._barbers.map((b) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _barberTile(
-                          id: b.id,
-                          name: b.name,
-                          avatarUrl: b.avatarUrl,
-                          rating: b.rating,
-                        ),
-                      )),
+                  ..._barbers.map(
+                    (b) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _barberTile(
+                        id: b.id,
+                        name: b.name,
+                        avatarUrl: b.avatarUrl,
+                        rating: b.rating,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-
-          // 2) Data e horário
           Step(
             isActive: _currentStep >= 2,
             title: const Text('Data e Horário'),
@@ -252,8 +248,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ],
             ),
           ),
-
-          // 3) Dados pessoais
           Step(
             isActive: _currentStep >= 3,
             title: const Text('Dados Pessoais'),
@@ -283,7 +277,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     );
   }
 
-  /// Card simples de barbeiro
   Widget _barberTile({
     required String id,
     required String name,
@@ -299,13 +292,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected
-              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.25)
+              ? theme.colorScheme.primaryContainer.withAlpha(64)
               : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected
                 ? theme.colorScheme.primary
-                : theme.colorScheme.outline.withValues(alpha: 0.2),
+                : theme.colorScheme.outline.withAlpha(51),
           ),
         ),
         child: Row(
@@ -313,8 +306,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             CircleAvatar(
               radius: 22,
               backgroundColor: theme.colorScheme.primary,
-              foregroundImage:
-                  (avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+              foregroundImage: (avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : null,
               child: (avatarUrl.isEmpty)
                   ? Icon(Icons.person, color: theme.colorScheme.onPrimary)
                   : null,
@@ -328,11 +322,16 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(Icons.star,
-                          size: 16, color: theme.colorScheme.primary),
+                      Icon(
+                        Icons.star,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
                       const SizedBox(width: 4),
-                      Text(rating.toStringAsFixed(1),
-                          style: theme.textTheme.bodySmall),
+                      Text(
+                        rating.toStringAsFixed(1),
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ],
@@ -359,8 +358,7 @@ class _ServiceHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
+        border: Border.all(color: theme.colorScheme.outline.withAlpha(51)),
       ),
       child: Row(
         children: [
@@ -372,8 +370,10 @@ class _ServiceHeader extends StatelessWidget {
               children: [
                 Text(service.name, style: theme.textTheme.titleMedium),
                 const SizedBox(height: 2),
-                Text('${service.formattedPrice} • ${service.duration}',
-                    style: theme.textTheme.bodySmall),
+                Text(
+                  '${service.formattedPrice} • ${service.duration}',
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
           ),
@@ -383,27 +383,68 @@ class _ServiceHeader extends StatelessWidget {
   }
 }
 
-/// Placeholder simples: lista alguns serviços exemplo.
-/// No app final, você pode abrir ServicesScreen e retornar o Service escolhido.
-class _SelectServicePlaceholder extends StatelessWidget {
-  const _SelectServicePlaceholder({required this.onSelect});
+// NOVO WIDGET: Busca e exibe os serviços do Supabase
+class _SelectServiceFromSupabase extends StatefulWidget {
+  const _SelectServiceFromSupabase({required this.onSelect});
   final void Function(Service) onSelect;
 
   @override
+  State<_SelectServiceFromSupabase> createState() =>
+      __SelectServiceFromSupabaseState();
+}
+
+class __SelectServiceFromSupabaseState
+    extends State<_SelectServiceFromSupabase> {
+  late final Future<List<Service>> _servicesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _servicesFuture = _fetchServices();
+  }
+
+  Future<List<Service>> _fetchServices() async {
+    final response = await Supabase.instance.client
+        .from('services')
+        .select()
+        .order('name');
+    return (response as List)
+        .map((serviceData) => Service.fromMap(serviceData))
+        .toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final sample = Service.getSampleServices();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Selecione um serviço abaixo (exemplo):'),
-        const SizedBox(height: 8),
-        ...sample.map((s) => ListTile(
-              leading: const Icon(Icons.content_cut),
-              title: Text(s.name),
-              subtitle: Text('${s.formattedPrice} • ${s.duration}'),
-              onTap: () => onSelect(s),
-            )),
-      ],
+    return FutureBuilder<List<Service>>(
+      future: _servicesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erro: ${snapshot.error}'));
+        }
+        final services = snapshot.data ?? [];
+        if (services.isEmpty) {
+          return const Center(child: Text('Nenhum serviço encontrado.'));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Selecione um serviço abaixo:'),
+            const SizedBox(height: 8),
+            ...services.map(
+              (s) => ListTile(
+                leading: const Icon(Icons.content_cut),
+                title: Text(s.name),
+                subtitle: Text('${s.formattedPrice} • ${s.duration}'),
+                onTap: () => widget.onSelect(s),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

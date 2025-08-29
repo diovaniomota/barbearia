@@ -1,237 +1,310 @@
+import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/barber.dart';
 import 'package:barbearia/models/service.dart';
-import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:barbearia/widgets/barber_card.dart';
 import 'package:barbearia/widgets/service_card.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Future<List<Service>>? _popularServicesFuture;
+  // NOVO: Future para buscar os barbeiros
+  Future<List<Barber>>? _barbersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Carrega os dados iniciais de serviços e barbeiros
+    _loadData();
+  }
+
+  /// Carrega todos os dados necessários para a tela.
+  void _loadData() {
+    _popularServicesFuture = _fetchPopularServices();
+    _barbersFuture = _fetchBarbers();
+  }
+
+  /// Busca os serviços populares no Supabase.
+  Future<List<Service>> _fetchPopularServices() async {
+    final response = await Supabase.instance.client
+        .from('services')
+        .select()
+        .order('name')
+        .limit(3);
+    return (response as List)
+        .map((serviceData) => Service.fromMap(serviceData))
+        .toList();
+  }
+
+  /// NOVO: Busca os barbeiros no Supabase.
+  Future<List<Barber>> _fetchBarbers() async {
+    final response = await Supabase.instance.client
+        .from('barbers') // Busca na tabela 'barbers'
+        .select()
+        .order('name');
+    // Usa o construtor Barber.fromMap que você já tem
+    return (response as List)
+        .map((barberData) => Barber.fromMap(barberData))
+        .toList();
+  }
+
+  /// Função de atualização (agora atualiza serviços E barbeiros).
+  Future<void> _handleRefresh() async {
+    setState(() {
+      _loadData();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final barbers = Barber.getSampleBarbers();
-    final popularServices = Service.getSampleServices().take(3).toList();
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Bem-vindo!',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Agende seu horário na melhor barbearia',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.7),
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.notifications_outlined,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-                      onPressed: () {},
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Botão de ação rápida
-              Container(
-                width: double.infinity,
-                height: 120,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primary,
-                      Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      // Escolhe um serviço válido para iniciar o fluxo
-                      if (popularServices.isNotEmpty) {
-                        final service = popularServices.first;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                BookAppointmentScreen(service: service),
-                          ),
-                        );
-                      } else {
-                        // Se não tiver popularServices, você pode:
-                        // 1) Navegar para a tela de Serviços para o usuário escolher
-                        // Navigator.of(context).pushNamed('/services'); // se tiver rota
-                        // 2) Ou mostrar um aviso
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text('Nenhum serviço disponível no momento.'),
-                          ),
-                        );
-                      }
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header (sem alterações)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Agendar Horário',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onPrimary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Escolha seu barbeiro e horário',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onPrimary
-                                            .withValues(alpha: 0.9),
-                                      ),
-                                ),
-                              ],
+                          Text(
+                            'Bem-vindo!',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimary
-                                  .withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.calendar_month,
-                              size: 32,
-                              color: Theme.of(context).colorScheme.onPrimary,
+                          const SizedBox(height: 4),
+                          Text(
+                            'Agende seu horário na melhor barbearia',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withAlpha(178),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Serviços Populares
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Serviços Populares',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.notifications_outlined,
+                          color: theme.colorScheme.onPrimaryContainer,
                         ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      // Se tiver rota para a lista de serviços:
-                      // Navigator.of(context).pushNamed('/services');
-                    },
-                    child: Text(
-                      'Ver todos',
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary),
+                        onPressed: () {},
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: popularServices.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 16),
-                  itemBuilder: (context, index) {
-                    return ServiceCard(
-                      service: popularServices[index],
-                      isCompact: true,
+                  ],
+                ),
+                const SizedBox(height: 32),
+
+                // Card de Agendamento (sem alterações)
+                FutureBuilder<List<Service>>(
+                  future: _popularServicesFuture,
+                  builder: (context, snapshot) {
+                    final popularServices = snapshot.data ?? [];
+                    return Container(
+                      width: double.infinity,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.primary.withAlpha(204),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BookAppointmentScreen(
+                                  service: popularServices.isNotEmpty
+                                      ? popularServices.first
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Agendar Horário',
+                                        style: theme.textTheme.headlineSmall
+                                            ?.copyWith(
+                                              color:
+                                                  theme.colorScheme.onPrimary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Escolha seu barbeiro e horário',
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: theme.colorScheme.onPrimary
+                                                  .withAlpha(230),
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.onPrimary
+                                        .withAlpha(51),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.calendar_month,
+                                    size: 32,
+                                    color: theme.colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
-              ),
-              const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-              // Nossos Barbeiros
-              Text(
-                'Nossos Barbeiros',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
+                // Seção de Serviços Populares (sem alterações)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Serviços Populares',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
-              ),
-              const SizedBox(height: 16),
-              ...barbers.map(
-                (barber) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: BarberCard(barber: barber),
+                    TextButton(
+                      onPressed: () {},
+                      child: Text(
+                        'Ver todos',
+                        style: TextStyle(color: theme.colorScheme.primary),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 120,
+                  child: FutureBuilder<List<Service>>(
+                    future: _popularServicesFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Erro: ${snapshot.error}'));
+                      }
+                      final popularServices = snapshot.data ?? [];
+                      if (popularServices.isEmpty) {
+                        return const Center(
+                          child: Text('Nenhum serviço encontrado.'),
+                        );
+                      }
+                      return ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: popularServices.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 16),
+                        itemBuilder: (context, index) {
+                          return ServiceCard(
+                            service: popularServices[index],
+                            isCompact: true,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Nossos Barbeiros (MODIFICADO)
+                Text(
+                  'Nossos Barbeiros',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // FutureBuilder para exibir os barbeiros do Supabase
+                FutureBuilder<List<Barber>>(
+                  future: _barbersFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Erro ao buscar barbeiros: ${snapshot.error}',
+                        ),
+                      );
+                    }
+                    final barbers = snapshot.data ?? [];
+                    if (barbers.isEmpty) {
+                      return const Center(
+                        child: Text('Nenhum barbeiro encontrado.'),
+                      );
+                    }
+                    // Cria uma coluna com os cards dos barbeiros
+                    return Column(
+                      children: barbers
+                          .map(
+                            (barber) => Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: BarberCard(barber: barber),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

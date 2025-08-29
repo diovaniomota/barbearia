@@ -5,10 +5,7 @@ import 'package:barbearia/models/appointment.dart';
 class AppointmentCard extends StatelessWidget {
   final Appointment appointment;
 
-  const AppointmentCard({
-    super.key,
-    required this.appointment,
-  });
+  const AppointmentCard({super.key, required this.appointment});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +37,10 @@ class AppointmentCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(context).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -56,7 +56,7 @@ class AppointmentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            
+
             Row(
               children: [
                 ClipRRect(
@@ -71,7 +71,9 @@ class AppointmentCard extends StatelessWidget {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -99,7 +101,9 @@ class AppointmentCard extends StatelessWidget {
                       Text(
                         'Cliente: ${appointment.clientName}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -108,11 +112,13 @@ class AppointmentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            
+
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -143,7 +149,7 @@ class AppointmentCard extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
               const SizedBox(height: 12),
               Container(
@@ -153,7 +159,9 @@ class AppointmentCard extends StatelessWidget {
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Column(
@@ -163,7 +171,9 @@ class AppointmentCard extends StatelessWidget {
                       'Observações:',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -177,7 +187,7 @@ class AppointmentCard extends StatelessWidget {
                 ),
               ),
             ],
-            
+
             if (appointment.status == AppointmentStatus.pending ||
                 appointment.status == AppointmentStatus.confirmed) ...[
               const SizedBox(height: 12),
@@ -187,10 +197,21 @@ class AppointmentCard extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {},
-                        icon: Icon(Icons.cancel_outlined, size: 16, color: Theme.of(context).colorScheme.error),
-                        label: Text('Cancelar', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        icon: Icon(
+                          Icons.cancel_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        label: Text(
+                          'Cancelar',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Theme.of(context).colorScheme.error),
+                          side: BorderSide(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                       ),
                     ),
@@ -199,8 +220,17 @@ class AppointmentCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: () {},
-                      icon: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.onPrimary),
-                      label: Text('Reagendar', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                      icon: Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                      label: Text(
+                        'Reagendar',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -216,11 +246,7 @@ class AppointmentCard extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 4),
         Flexible(
           child: Text(
