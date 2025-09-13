@@ -1,3 +1,4 @@
+import 'package:barbearia/screens/edit_Profile.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,9 +13,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? userData;
   String? errorMessage;
   bool isLoading = true;
-
   int totalAppointments = 0;
-  double? avgRating; // média de avaliações (reviews)
+  double? avgRating;
 
   @override
   void initState() {
@@ -24,6 +24,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadAll() async {
     final supabase = Supabase.instance.client;
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -40,22 +46,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .select('name, email, phone, avatar_url')
           .eq('id', user.id)
           .maybeSingle();
+
       // Ajuste a coluna de vínculo (user_id / customer_id) conforme seu schema
       final apptRes = await supabase
           .from('appointments')
           .select('id')
-          .eq(
-            'user_id',
-            user.id,
-          ); // <- mude para 'customer_id' se for o seu caso
+          .eq('user_id', user.id);
+
       final apptCount = (apptRes as List).length;
 
       // 3) Média de avaliações (reviews)
-      // Ajuste a coluna de vínculo e o nome do campo de nota (rating) se for diferente
       final reviews = await supabase
           .from('reviews')
           .select('rating')
-          .eq('user_id', user.id); // ou .eq('customer_id', user.id)
+          .eq('user_id', user.id);
+
       double? rating;
       if (reviews != null && reviews is List && reviews.isNotEmpty) {
         final nums = reviews
@@ -81,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'avatar_url': user.userMetadata?['avatar_url'],
             };
         totalAppointments = apptCount;
-        avgRating = rating; // pode ser null
+        avgRating = rating;
         isLoading = false;
       });
     } on PostgrestException catch (e) {
@@ -97,6 +102,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Método para navegar para EditProfile e aguardar o resultado
+  Future<void> _navigateToEditProfile() async {
+    final data = userData ?? {};
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfile(
+          name: (data['name'] ?? '').toString(),
+          phone: data['phone']?.toString(),
+          email: data['email']?.toString(),
+        ),
+      ),
+    );
+
+    // Se retornou dados, significa que houve alteração
+    if (result != null) {
+      // Pequeno delay para garantir que o Supabase processou a atualização
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _loadAll(); // Recarrega os dados
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -108,10 +136,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              errorMessage!,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadAll,
+                  child: const Text('Tentar Novamente'),
+                ),
+              ],
             ),
           ),
         ),
@@ -123,159 +161,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Header
-              Text(
-                'Perfil',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Profile Picture and Info (mantendo seu layout antigo)
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.3,
+      body: RefreshIndicator(
+        onRefresh: _loadAll, // Permite pull-to-refresh
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics:
+                const AlwaysScrollableScrollPhysics(), // Necessário para o RefreshIndicator
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Header
+                Text(
+                  'Perfil',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
                   ),
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Column(
+                const SizedBox(height: 32),
+
+                // Profile Picture and Info
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: 0.3,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: theme.colorScheme.primary,
+                        backgroundImage: avatarUrl != null
+                            ? NetworkImage(avatarUrl)
+                            : null,
+                        child: avatarUrl == null
+                            ? Icon(
+                                Icons.person,
+                                size: 50,
+                                color: theme.colorScheme.onPrimary,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        (data['name'] ?? 'Sem nome').toString(),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (data['phone'] ?? 'Sem telefone').toString(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (data['email'] ?? 'Sem email').toString(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Menu Options
+                _buildMenuOption(
+                  context,
+                  icon: Icons.edit_outlined,
+                  title: 'Editar Perfil',
+                  onTap: _navigateToEditProfile, // Usa o novo método
+                ),
+                _buildMenuOption(
+                  context,
+                  icon: Icons.history,
+                  title: 'Histórico de Agendamentos',
+                  onTap: () {
+                    // TODO: navegue para histórico
+                  },
+                ),
+                _buildMenuOption(
+                  context,
+                  icon: Icons.favorite_outline,
+                  title: 'Serviços Favoritos',
+                  onTap: () {
+                    // TODO
+                  },
+                ),
+                _buildMenuOption(
+                  context,
+                  icon: Icons.notifications_outlined,
+                  title: 'Notificações',
+                  onTap: () {
+                    // TODO
+                  },
+                ),
+                _buildMenuOption(
+                  context,
+                  icon: Icons.help_outline,
+                  title: 'Ajuda e Suporte',
+                  onTap: () {
+                    // TODO
+                  },
+                ),
+                _buildMenuOption(
+                  context,
+                  icon: Icons.info_outline,
+                  title: 'Sobre o App',
+                  onTap: () {
+                    // TODO
+                  },
+                ),
+                const SizedBox(height: 32),
+
+                // Stats Cards
+                Row(
                   children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundColor: theme.colorScheme.primary,
-                      backgroundImage: avatarUrl != null
-                          ? NetworkImage(avatarUrl)
-                          : null,
-                      child: avatarUrl == null
-                          ? Icon(
-                              Icons.person,
-                              size: 50,
-                              color: theme.colorScheme.onPrimary,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      (data['name'] ?? 'Sem nome').toString(),
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      (data['phone'] ?? 'Sem telefone').toString(),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.7,
-                        ),
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.schedule,
+                        value: totalAppointments.toString(),
+                        label: 'Agendamentos',
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      (data['email'] ?? 'Sem email').toString(),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.7,
-                        ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.star,
+                        value: (avgRating?.toStringAsFixed(1) ?? '—'),
+                        label: 'Avaliação',
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              // Menu Options (iguais aos anteriores)
-              _buildMenuOption(
-                context,
-                icon: Icons.edit_outlined,
-                title: 'Editar Perfil',
-                onTap: () {
-                  // TODO: navegue para tela de edição
-                },
-              ),
-              _buildMenuOption(
-                context,
-                icon: Icons.history,
-                title: 'Histórico de Agendamentos',
-                onTap: () {
-                  // TODO: navegue para histórico
-                },
-              ),
-              _buildMenuOption(
-                context,
-                icon: Icons.favorite_outline,
-                title: 'Serviços Favoritos',
-                onTap: () {
-                  // TODO
-                },
-              ),
-              _buildMenuOption(
-                context,
-                icon: Icons.notifications_outlined,
-                title: 'Notificações',
-                onTap: () {
-                  // TODO
-                },
-              ),
-              _buildMenuOption(
-                context,
-                icon: Icons.help_outline,
-                title: 'Ajuda e Suporte',
-                onTap: () {
-                  // TODO
-                },
-              ),
-              _buildMenuOption(
-                context,
-                icon: Icons.info_outline,
-                title: 'Sobre o App',
-                onTap: () {
-                  // TODO
-                },
-              ),
-              const SizedBox(height: 32),
-
-              // Stats Cards (dinâmicos agora)
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      icon: Icons.schedule,
-                      value: totalAppointments.toString(),
-                      label: 'Agendamentos',
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      icon: Icons.star,
-                      value: (avgRating?.toStringAsFixed(1) ?? '—'),
-                      label: 'Avaliação',
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ====== helpers de UI (mesmos que você usava) ======
   Widget _buildMenuOption(
     BuildContext context, {
     required IconData icon,
