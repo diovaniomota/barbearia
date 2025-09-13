@@ -1,15 +1,13 @@
-// lib/screens/book_appointment_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
-// ... (o modelo BarberLite continua o mesmo)
 class BarberLite {
   final String id;
   final String name;
-  final String avatarUrl; // pode vir vazio
-  final double rating; // opcional
+  final String avatarUrl;
+  final double rating;
 
   BarberLite({
     required this.id,
@@ -114,6 +112,52 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  Future<void> _saveAppointment() async {
+    if (_selectedService == null ||
+        _selectedBarberId == null ||
+        _selectedDateTime == null ||
+        _nameController.text.isEmpty ||
+        _phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preencha todos os campos antes de salvar.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+
+      final response = await Supabase.instance.client
+          .from('appointments')
+          .insert({
+            'service_id': _selectedService!.id,
+            'barber_id': _selectedBarberId,
+            'scheduled_at': _selectedDateTime!.toUtc().toIso8601String(),
+            'customer_name': _nameController.text.trim(),
+            'customer_phone': _phoneController.text.trim(),
+            if (userId != null) 'user_id': userId,
+          })
+          .select()
+          .single();
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Agendamento confirmado!')));
+
+      Navigator.pop(context, response);
+    } on PostgrestException catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro Supabase: ${e.message}')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro inesperado: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -129,11 +173,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           if (_currentStep < 3) {
             setState(() => _currentStep++);
           } else {
-            // TODO: salvar no Supabase (appointments)
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Agendamento confirmado!')),
-            );
-            Navigator.pop(context);
+            _saveAppointment();
           }
         },
         steps: [
@@ -144,7 +184,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_selectedService == null)
-                  // ALTERAÇÃO AQUI: Usando o novo widget que busca dados reais
                   _SelectServiceFromSupabase(
                     onSelect: (s) {
                       setState(() {
@@ -260,12 +299,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
-                const SizedBox(height: 8),
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    MaskTextInputFormatter(
+                      mask: '(##) #####-####',
+                      filter: {'#': RegExp(r'[0-9]')},
+                    ),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Telefone',
+                    hintText: '(00) 00000-0000',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                 ),
@@ -383,7 +428,6 @@ class _ServiceHeader extends StatelessWidget {
   }
 }
 
-// NOVO WIDGET: Busca e exibe os serviços do Supabase
 class _SelectServiceFromSupabase extends StatefulWidget {
   const _SelectServiceFromSupabase({required this.onSelect});
   final void Function(Service) onSelect;

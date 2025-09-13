@@ -41,8 +41,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('id', user.id)
           .maybeSingle();
       // Ajuste a coluna de vínculo (user_id / customer_id) conforme seu schema
-      final apptRes = await supabase.from('appointments').select('id').eq(
-          'user_id', user.id); // <- mude para 'customer_id' se for o seu caso
+      final apptRes = await supabase
+          .from('appointments')
+          .select('id')
+          .eq(
+            'user_id',
+            user.id,
+          ); // <- mude para 'customer_id' se for o seu caso
       final apptCount = (apptRes as List).length;
 
       // 3) Média de avaliações (reviews)
@@ -64,9 +69,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       setState(() {
-        userData = profile ??
+        userData =
+            profile ??
             {
-              'name': user.userMetadata?['name'] ??
+              'name':
+                  user.userMetadata?['name'] ??
                   user.email?.split('@').first ??
                   'Sem nome',
               'email': user.email ?? 'Sem email',
@@ -135,8 +142,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color:
-                      theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -144,8 +152,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     CircleAvatar(
                       radius: 50,
                       backgroundColor: theme.colorScheme.primary,
-                      backgroundImage:
-                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      backgroundImage: avatarUrl != null
+                          ? NetworkImage(avatarUrl)
+                          : null,
                       child: avatarUrl == null
                           ? Icon(
                               Icons.person,
@@ -167,16 +176,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       (data['phone'] ?? 'Sem telefone').toString(),
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       (data['email'] ?? 'Sem email').toString(),
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                   ],
@@ -288,11 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            icon,
-            color: theme.colorScheme.primary,
-            size: 20,
-          ),
+          child: Icon(icon, color: theme.colorScheme.primary, size: 20),
         ),
         title: Text(
           title,
