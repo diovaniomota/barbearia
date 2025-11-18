@@ -145,11 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => BookAppointmentScreen(
-                                  service: popularServices.isNotEmpty
-                                      ? popularServices.first
-                                      : null,
-                                ),
+                                builder: (_) => const BookAppointmentScreen(),
                               ),
                             );
                           },
@@ -259,6 +255,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 16),
                         itemBuilder: (context, index) {
                           return ServiceCard(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BookAppointmentScreen(
+                                    service: popularServices[index],
+                                  ),
+                                ),
+                              );
+                            },
                             service: popularServices[index],
                             isCompact: true,
                           );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditProfile extends StatefulWidget {
@@ -305,10 +306,17 @@ class _EditProfileState extends State<EditProfile> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          inputFormatters: [
+                            MaskTextInputFormatter(
+                              mask: '(##) #####-####',
+                              filter: {'#': RegExp(r'[0-9]')},
+                            ),
+                          ],
                           controller: _phoneCtrl,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
                           decoration: _inputDecoration(
+                            hint: '(00) 00000-0000',
                             'Telefone',
                             prefixIcon: const Icon(Icons.phone_outlined),
                           ),
