@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/login_screen.dart';
 import 'package:barbearia/screens/main_navigation.dart';
+import 'package:barbearia/screens/admin/admin_navigation.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -32,9 +33,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // Check authentication state
         final session = snapshot.hasData ? snapshot.data!.session : null;
-        
+
         if (session != null) {
-          return const MainNavigation();
+          return FutureBuilder<bool>(
+            future: _isAdmin(),
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const LoadingScreen();
+              }
+              return snap.data == true
+                  ? const AdminNavigation()
+                  : const MainNavigation();
+            },
+          );
         } else {
           return const LoginScreen();
         }
@@ -49,7 +60,7 @@ class LoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: Center(
@@ -104,5 +115,19 @@ class LoadingScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<bool> _isAdmin() async {
+  try {
+    final profile = await AuthService.getUserProfile();
+    final user = Supabase.instance.client.auth.currentUser;
+    final metaIsAdmin =
+        (((user?.userMetadata) ?? const {})['is_admin'] == true) ||
+        (((user?.appMetadata) ?? const {})['is_admin'] == true);
+    final tableIsAdmin = (profile?['is_admin'] == true);
+    return metaIsAdmin || tableIsAdmin;
+  } catch (_) {
+    return false;
   }
 }

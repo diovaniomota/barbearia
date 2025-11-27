@@ -5,16 +5,15 @@ Future<void> ensureUserRow() async {
   final user = supabase.auth.currentUser;
   if (user == null) return;
 
-  final existing =
-      await supabase.from('users').select('id').eq('id', user.id).maybeSingle();
-
-  if (existing == null) {
-    await supabase.from('users').insert({
+  try {
+    await supabase.from('users').upsert({
       'id': user.id,
       'name': user.userMetadata?['name'] ?? user.email?.split('@').first,
       'email': user.email,
       'phone': user.userMetadata?['phone'],
       'avatar_url': user.userMetadata?['avatar_url'],
-    });
+    }, onConflict: 'id');
+  } catch (_) {
+    // Silencia falhas transitórias; a próxima operação de app corrige o estado
   }
 }

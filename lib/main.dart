@@ -1,7 +1,6 @@
-import 'package:barbearia/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:barbearia/theme.dart';
-import 'package:barbearia/screens/main_navigation.dart';
+import 'package:barbearia/screens/role_choice_screen.dart';
 import 'package:barbearia/supabase/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/utils/user_bootstrap.dart'; // << importa o helper
@@ -34,16 +33,13 @@ class BarbeariaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-
     return MaterialApp(
       title: 'Barbearia',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
-      // Se tem sessão -> vai direto pra home; senão -> Login
-      home: session == null ? const LoginScreen() : const MainNavigation(),
+      home: const RoleChoiceScreen(),
     );
   }
 }

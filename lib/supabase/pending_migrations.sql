@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     email text NOT NULL,
     phone text,
     avatar_url text,
+    is_admin boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -239,5 +240,16 @@ BEGIN
     
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'handle_updated_at' AND tgrelid = 'public.reviews'::regclass) THEN
         CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.reviews FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+    END IF;
+END$$;
+
+-- Safe add column is_admin if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_admin'
+    ) THEN
+        ALTER TABLE public.users ADD COLUMN is_admin boolean DEFAULT false;
     END IF;
 END$$;

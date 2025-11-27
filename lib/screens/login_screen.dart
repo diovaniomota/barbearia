@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/main_navigation.dart';
+import 'package:barbearia/screens/admin/admin_navigation.dart';
 import 'package:barbearia/screens/register_screen.dart';
 import 'package:barbearia/utils/user_bootstrap.dart'; // <- ensureUserRow()
 
@@ -38,10 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
       await ensureUserRow();
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-      );
+      await _navigateAfterLogin();
     }
   }
 
@@ -60,10 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // 🔑 garante a linha do usuário na tabela `users`
         await ensureUserRow();
 
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainNavigation()),
-        );
+        await _navigateAfterLogin();
       }
     } on AuthException catch (error) {
       if (!mounted) return;
@@ -83,6 +78,30 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _navigateAfterLogin() async {
+    try {
+      final profile = await AuthService.getUserProfile();
+      final user = Supabase.instance.client.auth.currentUser;
+      final metaIsAdmin =
+          (((user?.userMetadata) ?? const {})['is_admin'] == true) ||
+          (((user?.appMetadata) ?? const {})['is_admin'] == true);
+      final tableIsAdmin = (profile?['is_admin'] == true);
+      final isAdmin = metaIsAdmin || tableIsAdmin;
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              isAdmin ? const AdminNavigation() : const MainNavigation(),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
+      );
     }
   }
 
@@ -122,8 +141,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              theme.colorScheme.shadow.withValues(alpha: 0.1),
+                          color: theme.colorScheme.shadow.withValues(
+                            alpha: 0.1,
+                          ),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -174,8 +194,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide(
-                            color: theme.colorScheme.outline
-                                .withValues(alpha: 0.3),
+                            color: theme.colorScheme.outline.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -192,9 +213,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Digite seu email';
                         }
-                        final ok =
-                            RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$')
-                                .hasMatch(value);
+                        final ok = RegExp(
+                          r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$',
+                        ).hasMatch(value);
                         if (!ok) return 'Digite um email válido';
                         return null;
                       },
@@ -210,11 +231,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         hintText: 'Digite sua senha',
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
                           onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -222,8 +246,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide(
-                            color: theme.colorScheme.outline
-                                .withValues(alpha: 0.3),
+                            color: theme.colorScheme.outline.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -310,8 +335,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       'ou',
                       style: TextStyle(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                     ),
                   ),
@@ -331,7 +357,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     : () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                              builder: (_) => const RegisterScreen()),
+                            builder: (_) => const RegisterScreen(),
+                          ),
                         );
                       },
                 style: OutlinedButton.styleFrom(
@@ -344,10 +371,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: const Text(
                   'Criar nova conta',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
 
@@ -370,7 +394,8 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-                'Digite seu email para receber as instruções de recuperação:'),
+              'Digite seu email para receber as instruções de recuperação:',
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
