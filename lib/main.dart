@@ -4,9 +4,12 @@ import 'package:barbearia/screens/role_choice_screen.dart';
 import 'package:barbearia/supabase/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/utils/user_bootstrap.dart'; // << importa o helper
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('pt_BR');
 
   try {
     await SupabaseConfig.initialize(
@@ -39,6 +42,13 @@ class BarbeariaApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [Locale('pt', 'BR')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ],
       home: const RoleChoiceScreen(),
     );
   }

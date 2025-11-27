@@ -34,26 +34,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Busca os serviços populares no Supabase.
   Future<List<Service>> _fetchPopularServices() async {
-    final response = await Supabase.instance.client
-        .from('services')
-        .select()
-        .order('name')
-        .limit(3);
-    return (response as List)
-        .map((serviceData) => Service.fromMap(serviceData))
-        .toList();
+    try {
+      final response = await Supabase.instance.client
+          .from('services')
+          .select()
+          .order('name')
+          .limit(3);
+      return (response as List)
+          .map((serviceData) => Service.fromMap(serviceData))
+          .toList();
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('oauth_client_id')) {
+        try {
+          await Supabase.instance.client.auth.signOut();
+          final response = await Supabase.instance.client
+              .from('services')
+              .select()
+              .order('name')
+              .limit(3);
+          return (response as List)
+              .map((serviceData) => Service.fromMap(serviceData))
+              .toList();
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   /// NOVO: Busca os barbeiros no Supabase.
   Future<List<Barber>> _fetchBarbers() async {
-    final response = await Supabase.instance.client
-        .from('barbers') // Busca na tabela 'barbers'
-        .select()
-        .order('name');
-    // Usa o construtor Barber.fromMap que você já tem
-    return (response as List)
-        .map((barberData) => Barber.fromMap(barberData))
-        .toList();
+    try {
+      final response = await Supabase.instance.client
+          .from('barbers')
+          .select()
+          .order('name');
+      return (response as List)
+          .map((barberData) => Barber.fromMap(barberData))
+          .toList();
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('oauth_client_id')) {
+        try {
+          await Supabase.instance.client.auth.signOut();
+          final response = await Supabase.instance.client
+              .from('barbers')
+              .select()
+              .order('name');
+          return (response as List)
+              .map((barberData) => Barber.fromMap(barberData))
+              .toList();
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   /// Função de atualização (agora atualiza serviços E barbeiros).

@@ -125,15 +125,6 @@ class BarberCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(
-                            Icons.schedule,
-                            size: 14,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.5),
-                          ),
-                          const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               barber.availableDays.join(', '),

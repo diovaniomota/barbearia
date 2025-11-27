@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class Service {
   final String id;
   final String name;
@@ -15,8 +17,8 @@ class Service {
     required this.imageUrl,
   });
 
-  String get formattedPrice => 'R\$ ${price.toStringAsFixed(2)}';
-  String get duration => '${durationMinutes}min';
+  String get formattedPrice => NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(price);
+  String get duration => '${durationMinutes} min';
 
   // Helpers sem underscore (evita lint chato)
   static double parseDouble(dynamic v) {

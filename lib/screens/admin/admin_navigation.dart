@@ -3,6 +3,7 @@ import 'package:barbearia/screens/admin/dashboard_screen.dart';
 import 'package:barbearia/screens/admin/services_admin_screen.dart';
 import 'package:barbearia/screens/admin/barbers_admin_screen.dart';
 import 'package:barbearia/screens/admin/appointments_admin_screen.dart';
+import 'package:barbearia/screens/admin/financial_admin_screen.dart';
 
 class AdminNavigation extends StatefulWidget {
   const AdminNavigation({super.key});
@@ -19,6 +20,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
     ServicesAdminScreen(),
     BarbersAdminScreen(),
     AppointmentsAdminScreen(),
+    FinancialAdminScreen(),
   ];
 
   @override
@@ -44,6 +46,8 @@ class _AdminNavigationState extends State<AdminNavigation> {
               setState(() => _currentIndex = index),
           backgroundColor: const Color.fromARGB(0, 34, 8, 180),
           elevation: 0,
+          indicatorColor: theme.colorScheme.primaryContainer,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           destinations: [
             NavigationDestination(
               icon: Icon(
@@ -52,9 +56,9 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ),
               selectedIcon: Icon(
                 Icons.dashboard,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
-              label: 'Dashboard',
+              label: 'Dash',
             ),
             NavigationDestination(
               icon: Icon(
@@ -63,7 +67,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ),
               selectedIcon: Icon(
                 Icons.content_cut,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
               label: 'Serviços',
             ),
@@ -74,7 +78,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ),
               selectedIcon: Icon(
                 Icons.person,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
               label: 'Barbeiros',
             ),
@@ -85,9 +89,20 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ),
               selectedIcon: Icon(
                 Icons.calendar_today,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
-              label: 'Agendamentos',
+              label: 'Agenda',
+            ),
+            NavigationDestination(
+              icon: Icon(
+                Icons.attach_money_outlined,
+                color: theme.colorScheme.onSurface,
+              ),
+              selectedIcon: Icon(
+                Icons.attach_money,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+              label: 'Caixa',
             ),
           ],
         ),
