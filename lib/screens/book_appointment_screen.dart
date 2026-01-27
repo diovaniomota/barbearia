@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 class BarberLite {
   final String id;
@@ -50,9 +52,13 @@ class BookAppointmentScreen extends StatefulWidget {
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   int _currentStep = 0;
 
-  Service? _selectedService;
+  List<Service> _selectedServices = const [];
   String? _selectedBarberId;
   DateTime? _selectedDateTime;
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  List<TimeOfDay> _availableSlots = const [];
+  Set<String> _takenSlots = const {};
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -64,9 +70,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedService = widget.service;
-    if (_selectedService != null) _currentStep = 1;
+    if (widget.service != null) {
+      _selectedServices = [widget.service!];
+      _currentStep = 1;
+    }
     _loadBarbers();
+    initializeDateFormatting('pt_BR');
   }
 
   @override
@@ -96,25 +105,161 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         _barbers = parsed;
         _loadingBarbers = false;
       });
-    } on PostgrestException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _barbersError = 'Erro Supabase: ${e.message}';
-        _loadingBarbers = false;
-      });
     } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('oauth_client_id')) {
+        try {
+          await Supabase.instance.client.auth.signOut();
+          final data = await Supabase.instance.client
+              .from('barbers')
+              .select('*')
+              .order('name');
+          final list = (data as List).cast<Map<String, dynamic>>();
+          final parsed = list.map(BarberLite.fromMap).toList();
+          if (!mounted) return;
+          setState(() {
+            _barbers = parsed;
+            _loadingBarbers = false;
+          });
+          return;
+        } catch (_) {}
+      }
       if (!mounted) return;
       setState(() {
-        _barbersError = 'Erro inesperado: $e';
+        _barbersError = 'Erro: $e';
         _loadingBarbers = false;
       });
     }
   }
 
+  Future<void> _refreshSlots() async {
+    final barberId = _selectedBarberId;
+    final selDate = _selectedDate;
+    if (barberId == null || selDate == null) {
+      setState(() {
+        _availableSlots = const [];
+        _takenSlots = const {};
+        _selectedTime = null;
+        _selectedDateTime = null;
+      });
+      return;
+    }
+    try {
+      final dow = selDate.weekday; // 1..7 (Seg..Dom)
+      final avRows = await Supabase.instance.client
+          .from('barber_availability')
+          .select('*')
+          .eq('barber_id', barberId)
+          .eq('day_of_week', dow == 7 ? 0 : dow)
+          .limit(1);
+      TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
+      TimeOfDay end = const TimeOfDay(hour: 18, minute: 0);
+      bool enabled = true;
+      if (avRows is List && avRows.isNotEmpty) {
+        final row = avRows.first as Map<String, dynamic>;
+        enabled = (row['is_available'] ?? true) == true;
+        final st = '${row['start_time'] ?? '09:00:00'}'.split(':');
+        final et = '${row['end_time'] ?? '18:00:00'}'.split(':');
+        start = TimeOfDay(
+          hour: int.tryParse(st[0]) ?? 9,
+          minute: int.tryParse(st[1]) ?? 0,
+        );
+        end = TimeOfDay(
+          hour: int.tryParse(et[0]) ?? 18,
+          minute: int.tryParse(et[1]) ?? 0,
+        );
+      }
+      final slots = <TimeOfDay>[];
+      if (enabled) {
+        var cur = DateTime(
+          selDate.year,
+          selDate.month,
+          selDate.day,
+          start.hour,
+          start.minute,
+        );
+        final endDt = DateTime(
+          selDate.year,
+          selDate.month,
+          selDate.day,
+          end.hour,
+          end.minute,
+        );
+        while (cur.isBefore(endDt) || cur.isAtSameMomentAs(endDt)) {
+          slots.add(TimeOfDay(hour: cur.hour, minute: cur.minute));
+          cur = cur.add(const Duration(minutes: 30));
+        }
+      }
+      final startOfDay = DateTime(
+        selDate.year,
+        selDate.month,
+        selDate.day,
+      ).toUtc();
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      dynamic takenRows;
+      try {
+        takenRows = await Supabase.instance.client
+            .from('appointments')
+            .select('scheduled_at,status')
+            .eq('barber_id', barberId)
+            .gte('scheduled_at', startOfDay.toIso8601String())
+            .lt('scheduled_at', endOfDay.toIso8601String())
+            .or(
+              'status.eq.scheduled,status.eq.confirmed,status.eq.in_progress',
+            );
+      } catch (_) {
+        takenRows = await Supabase.instance.client
+            .from('appointments')
+            .select('scheduled_at')
+            .eq('barber_id', barberId)
+            .gte('scheduled_at', startOfDay.toIso8601String())
+            .lt('scheduled_at', endOfDay.toIso8601String());
+      }
+      final taken = <String>{};
+      if (takenRows is List) {
+        for (final r in takenRows) {
+          final map = r as Map<String, dynamic>;
+          final st = (map['status'] ?? '').toString();
+          if (st.isNotEmpty && (st == 'cancelled' || st == 'no_show')) {
+            continue;
+          }
+          final ts = map['scheduled_at']?.toString() ?? '';
+          if (ts.isEmpty) continue;
+          final dt = DateTime.tryParse(ts);
+          if (dt == null) continue;
+          final local = dt.toLocal();
+          final key =
+              '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+          taken.add(key);
+        }
+      }
+      setState(() {
+        _availableSlots = slots;
+        _takenSlots = taken;
+        _selectedTime = null;
+        _selectedDateTime = null;
+      });
+    } catch (e) {
+      setState(() {
+        _availableSlots = const [];
+        _takenSlots = const {};
+        _selectedTime = null;
+        _selectedDateTime = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar horários: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _saveAppointment() async {
-    if (_selectedService == null ||
-        _selectedBarberId == null ||
-        _selectedDateTime == null ||
+    final barberId = _selectedBarberId;
+    final dt = _selectedDateTime;
+    if (_selectedServices.isEmpty ||
+        barberId == null ||
+        dt == null ||
         _nameController.text.isEmpty ||
         _phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -126,31 +271,250 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
 
     try {
+      dynamic conflict;
+      try {
+        conflict = await Supabase.instance.client
+            .from('appointments')
+            .select('id,status')
+            .eq('barber_id', barberId)
+            .eq('scheduled_at', dt.toUtc().toIso8601String())
+            .or('status.eq.scheduled,status.eq.confirmed,status.eq.in_progress')
+            .limit(1);
+      } catch (_) {
+        conflict = await Supabase.instance.client
+            .from('appointments')
+            .select('id')
+            .eq('barber_id', barberId)
+            .eq('scheduled_at', dt.toUtc().toIso8601String())
+            .limit(1);
+      }
+      if (conflict is List && conflict.isNotEmpty) {
+        await showDialog(
+          context: context,
+          builder: (ctx) {
+            final theme = Theme.of(ctx);
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.error_outline, color: theme.colorScheme.error),
+                  const SizedBox(width: 8),
+                  const Text('Horário indisponível'),
+                ],
+              ),
+              content: const Text(
+                'Este barbeiro já possui agendamento neste horário.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+        return;
+      }
       final userId = Supabase.instance.client.auth.currentUser?.id;
+      final payload = _selectedServices.map((s) {
+        return {
+          'service_id': s.id,
+          'barber_id': barberId,
+          'scheduled_at': dt.toUtc().toIso8601String(),
+          'customer_name': _nameController.text.trim(),
+          'customer_phone': _phoneController.text.trim(),
+          if (userId != null) 'customer_id': userId,
+        };
+      }).toList();
 
-      final response = await Supabase.instance.client
+      final insertQuery = Supabase.instance.client
           .from('appointments')
-          .insert({
-            'service_id': _selectedService!.id,
-            'barber_id': _selectedBarberId,
-            'scheduled_at': _selectedDateTime!.toUtc().toIso8601String(),
-            'customer_name': _nameController.text.trim(),
-            'customer_phone': _phoneController.text.trim(),
-            if (userId != null) 'user_id': userId,
-          })
-          .select()
-          .single();
+          .insert(payload);
+      dynamic response;
+      if (userId != null) {
+        response = await insertQuery.select();
+      } else {
+        await insertQuery;
+        response = payload;
+      }
+      await showDialog(
+        context: context,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          final barber = _barbers.firstWhere(
+            (b) => b.id == _selectedBarberId,
+            orElse: () => BarberLite(
+              id: '',
+              name: 'Sem barbeiro',
+              avatarUrl: '',
+              rating: 0.0,
+            ),
+          );
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Agendamento confirmado')),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Barbeiro: ${barber.name}'),
+                const SizedBox(height: 6),
+                Text('Data/Hora: ${_formatDateTime(_selectedDateTime!)}'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _selectedServices
+                      .map((s) => Chip(label: Text(s.name)))
+                      .toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
 
-      await _showConfirmationDialog();
       Navigator.pop(context, response);
     } on PostgrestException catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro Supabase: ${e.message}')));
+      final isRls = e.message.toLowerCase().contains('row-level security');
+      if (isRls) {
+        try {
+          final rpc = await Supabase.instance.client.rpc(
+            'create_appointments_bulk',
+            params: {
+              'payload': _selectedServices.map((s) {
+                return {
+                  'service_id': s.id,
+                  'barber_id': barberId,
+                  'scheduled_at': dt.toUtc().toIso8601String(),
+                  'customer_name': _nameController.text.trim(),
+                  'customer_phone': _phoneController.text.trim(),
+                };
+              }).toList(),
+            },
+          );
+          await showDialog(
+            context: context,
+            builder: (ctx) {
+              final theme = Theme.of(ctx);
+              final barber = _barbers.firstWhere(
+                (b) => b.id == _selectedBarberId,
+                orElse: () => BarberLite(
+                  id: '',
+                  name: 'Sem barbeiro',
+                  avatarUrl: '',
+                  rating: 0.0,
+                ),
+              );
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Agendamento confirmado')),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Barbeiro: ${barber.name}'),
+                    const SizedBox(height: 6),
+                    Text('Data/Hora: ${_formatDateTime(_selectedDateTime!)}'),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _selectedServices
+                          .map((s) => Chip(label: Text(s.name)))
+                          .toList(),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+          Navigator.pop(context, rpc);
+          return;
+        } catch (_) {}
+      }
+      await showDialog(
+        context: context,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.error_outline, color: theme.colorScheme.error),
+                const SizedBox(width: 8),
+                const Text('Falha ao agendar'),
+              ],
+            ),
+            content: Text('Erro: ${e.message}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro inesperado: $e')));
+      await showDialog(
+        context: context,
+        builder: (ctx) {
+          final theme = Theme.of(ctx);
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.error_outline, color: theme.colorScheme.error),
+                const SizedBox(width: 8),
+                const Text('Erro inesperado'),
+              ],
+            ),
+            content: Text('$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -208,9 +572,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       body: Stepper(
         currentStep: _currentStep,
         onStepCancel: () {
-          if (_currentStep > 0) setState(() => _currentStep--);
+          if (_currentStep > 0) {
+            setState(() => _currentStep--);
+          } else {
+            Navigator.pop(context);
+          }
         },
         onStepContinue: () {
+          if (_currentStep == 0) {
+            if (_selectedServices.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Selecione ao menos um serviço.')),
+              );
+              return;
+            }
+            setState(() => _currentStep = 1);
+            return;
+          }
           if (_currentStep < 3) {
             setState(() => _currentStep++);
           } else {
@@ -224,17 +602,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_selectedService == null)
-                  _SelectServiceFromSupabase(
-                    onSelect: (s) {
-                      setState(() {
-                        _selectedService = s;
-                        _currentStep = 1;
-                      });
-                    },
-                  )
-                else
-                  _ServiceHeader(service: _selectedService!),
+                if (_selectedServices.isNotEmpty)
+                  _SelectedServicesHeader(services: _selectedServices),
+                _MultiSelectServicesFromSupabase(
+                  initialSelectedIds: _selectedServices
+                      .map((s) => s.id)
+                      .toSet(),
+                  onChange: (list) {
+                    setState(() {
+                      _selectedServices = list;
+                    });
+                  },
+                ),
               ],
             ),
           ),
@@ -291,40 +670,69 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _selectedDateTime == null
-                      ? 'Nenhum horário selecionado'
-                      : 'Selecionado: $_selectedDateTime',
-                ),
-                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () async {
                     final now = DateTime.now();
                     final date = await showDatePicker(
                       context: context,
+                      locale: const Locale('pt', 'BR'),
                       firstDate: now,
                       lastDate: now.add(const Duration(days: 60)),
                       initialDate: now,
                     );
                     if (date == null) return;
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: const TimeOfDay(hour: 9, minute: 0),
-                    );
-                    if (time == null) return;
                     if (!mounted) return;
                     setState(() {
-                      _selectedDateTime = DateTime(
-                        date.year,
-                        date.month,
-                        date.day,
-                        time.hour,
-                        time.minute,
-                      );
+                      _selectedDate = DateTime(date.year, date.month, date.day);
                     });
+                    await _refreshSlots();
                   },
-                  child: const Text('Selecionar data e horário'),
+                  child: Text(
+                    _selectedDate == null
+                        ? 'Selecionar data'
+                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+                  ),
                 ),
+                const SizedBox(height: 12),
+                if (_selectedBarberId == null)
+                  const Text('Selecione um barbeiro no passo anterior.')
+                else if (_selectedDate == null)
+                  const Text('Selecione uma data para ver os horários.')
+                else if (_availableSlots.isEmpty)
+                  const Text('Sem horários disponíveis para este dia.')
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _availableSlots.map((t) {
+                      final label =
+                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+                      final taken = _takenSlots.contains(label);
+                      final selected = _selectedTime == t;
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: selected,
+                        onSelected: taken
+                            ? null
+                            : (v) {
+                                if (!v) return;
+                                setState(() {
+                                  _selectedTime = t;
+                                  _selectedDateTime = DateTime(
+                                    _selectedDate!.year,
+                                    _selectedDate!.month,
+                                    _selectedDate!.day,
+                                    t.hour,
+                                    t.minute,
+                                  );
+                                });
+                              },
+                        disabledColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceVariant,
+                      );
+                    }).toList(),
+                  ),
               ],
             ),
           ),
@@ -373,7 +781,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     final selected = _selectedBarberId == id;
 
     return InkWell(
-      onTap: () => setState(() => _selectedBarberId = id),
+      onTap: () async {
+        setState(() => _selectedBarberId = id);
+        await _refreshSlots();
+      },
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -406,20 +817,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 children: [
                   Text(name, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.star,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        rating.toStringAsFixed(1),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -456,12 +853,45 @@ class _ServiceHeader extends StatelessWidget {
               children: [
                 Text(service.name, style: theme.textTheme.titleMedium),
                 const SizedBox(height: 2),
-                Text(
-                  '${service.formattedPrice} • ${service.duration}',
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text(service.formattedPrice, style: theme.textTheme.bodySmall),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedServicesHeader extends StatelessWidget {
+  const _SelectedServicesHeader({required this.services});
+  final List<Service> services;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withAlpha(51)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.content_cut, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              Text('Serviços selecionados', style: theme.textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: services.map((s) => Chip(label: Text(s.name))).toList(),
           ),
         ],
       ),
@@ -476,6 +906,111 @@ class _SelectServiceFromSupabase extends StatefulWidget {
   @override
   State<_SelectServiceFromSupabase> createState() =>
       __SelectServiceFromSupabaseState();
+}
+
+class _MultiSelectServicesFromSupabase extends StatefulWidget {
+  const _MultiSelectServicesFromSupabase({
+    required this.onChange,
+    this.initialSelectedIds = const {},
+  });
+  final void Function(List<Service>) onChange;
+  final Set<String> initialSelectedIds;
+
+  @override
+  State<_MultiSelectServicesFromSupabase> createState() =>
+      _MultiSelectServicesFromSupabaseState();
+}
+
+class _MultiSelectServicesFromSupabaseState
+    extends State<_MultiSelectServicesFromSupabase> {
+  late final Future<List<Service>> _servicesFuture;
+  final Set<String> _selectedIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _servicesFuture = _fetchServices();
+    if (widget.initialSelectedIds.isNotEmpty) {
+      _selectedIds.addAll(widget.initialSelectedIds);
+    }
+  }
+
+  Future<List<Service>> _fetchServices() async {
+    final response = await Supabase.instance.client
+        .from('services')
+        .select()
+        .order('name');
+    return (response as List)
+        .map((serviceData) => Service.fromMap(serviceData))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Service>>(
+      future: _servicesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erro: ${snapshot.error}'));
+        }
+        final services = snapshot.data ?? [];
+        if (services.isEmpty) {
+          return const Center(child: Text('Nenhum serviço encontrado.'));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Selecione um ou mais serviços:'),
+            const SizedBox(height: 8),
+            ...services.map((s) {
+              final checked = _selectedIds.contains(s.id);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: checked,
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            _selectedIds.add(s.id);
+                          } else {
+                            _selectedIds.remove(s.id);
+                          }
+                        });
+                        final selected = services
+                            .where((it) => _selectedIds.contains(it.id))
+                            .toList();
+                        widget.onChange(selected);
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s.name),
+                          const SizedBox(height: 2),
+                          Text(
+                            s.formattedPrice,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class __SelectServiceFromSupabaseState
@@ -523,7 +1058,7 @@ class __SelectServiceFromSupabaseState
               (s) => ListTile(
                 leading: const Icon(Icons.content_cut),
                 title: Text(s.name),
-                subtitle: Text('${s.formattedPrice} • ${s.duration}'),
+                subtitle: Text(s.formattedPrice),
                 onTap: () => widget.onSelect(s),
               ),
             ),
@@ -532,4 +1067,9 @@ class __SelectServiceFromSupabaseState
       },
     );
   }
+}
+
+String _formatDateTime(DateTime dt) {
+  final f = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
+  return f.format(dt);
 }

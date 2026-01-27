@@ -8,6 +8,7 @@ CREATE TABLE public.users (
     email text NOT NULL,
     phone text,
     avatar_url text,
+    is_admin boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );

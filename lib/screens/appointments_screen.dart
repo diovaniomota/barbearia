@@ -133,7 +133,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           final appointment = appointments[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: _AppointmentCard(appointment: appointment),
+            child: _AppointmentCard(
+              appointment: appointment,
+              onDelete: _refreshAppointments,
+            ),
           );
         },
       ),
@@ -143,8 +146,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
 class _AppointmentCard extends StatelessWidget {
   final Map<String, dynamic> appointment;
+  final Future<void> Function() onDelete;
 
-  const _AppointmentCard({required this.appointment});
+  const _AppointmentCard({required this.appointment, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -235,130 +239,134 @@ class _AppointmentCard extends StatelessWidget {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header com status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 20),
-                    const SizedBox(width: 6),
-                    Text(
-                      statusText,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  'ID: ${appointment['id'].toString().substring(0, 8)}...',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Informações principais
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 18, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  '$formattedDate às $formattedTime',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            Row(
-              children: [
-                Icon(Icons.person, size: 18, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text('Cliente: $userName', style: theme.textTheme.bodyMedium),
-              ],
-            ),
-
-            const SizedBox(height: 4),
-
-            Row(
-              children: [
-                Icon(Icons.cut, size: 18, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  'Barbeiro: $barberName',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 4),
-
-            Row(
-              children: [
-                Icon(Icons.content_cut, size: 18, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Serviço: $serviceName',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-                Text(
-                  'R\$ $servicePrice',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-
-            // Botões de ação (se necessário)
-            if (status == 'pending') ...[
-              const SizedBox(height: 16),
+      child: InkWell(
+        onTap: () => _showCancelDialog(context, appointment['id']),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header com status
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton.icon(
-                    onPressed: () {
-                      // Implementar cancelamento
-                      _showCancelDialog(context, appointment['id']);
-                    },
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('Cancelar'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  Row(
+                    children: [
+                      Icon(statusIcon, color: statusColor, size: 20),
+                      const SizedBox(width: 6),
+                      Text(
+                        statusText,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      // Implementar confirmação
-                      _confirmAppointment(context, appointment['id']);
-                    },
-                    icon: const Icon(Icons.check, size: 16),
-                    label: const Text('Confirmar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                  Text(
+                    'ID: ${appointment['id'].toString().substring(0, 8)}...',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: Colors.grey[600],
                     ),
                   ),
                 ],
               ),
+
+              const SizedBox(height: 12),
+
+              // Informações principais
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 18, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$formattedDate às $formattedTime',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Icon(Icons.person, size: 18, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Text('Cliente: $userName', style: theme.textTheme.bodyMedium),
+                ],
+              ),
+
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Icon(Icons.cut, size: 18, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Barbeiro: $barberName',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 4),
+
+              Row(
+                children: [
+                  Icon(Icons.content_cut, size: 18, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Serviço: $serviceName',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Text(
+                    'R\$ $servicePrice',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Botões de ação (se necessário)
+              if (status == 'pending') ...[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () {
+                        // Implementar cancelamento
+                        _showCancelDialog(context, appointment['id']);
+                      },
+                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                      label: const Text('Cancelar'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        // Implementar confirmação
+                        await _confirmAppointment(context, appointment['id']);
+                      },
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('Confirmar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -367,31 +375,34 @@ class _AppointmentCard extends StatelessWidget {
   void _showCancelDialog(BuildContext context, String appointmentId) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Cancelar Agendamento'),
         content: const Text(
-          'Tem certeza que deseja cancelar este agendamento?',
+          'Tem certeza que deseja cancelar este agendamento? Esta ação não pode ser desfeita.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Não'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _updateAppointmentStatus(context, appointmentId, 'cancelled');
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _deleteAppointment(context, appointmentId);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Cancelar Agendamento'),
+            child: const Text('Sim, Cancelar'),
           ),
         ],
       ),
     );
   }
 
-  void _confirmAppointment(BuildContext context, String appointmentId) {
-    _updateAppointmentStatus(context, appointmentId, 'confirmed');
+  Future<void> _confirmAppointment(
+    BuildContext context,
+    String appointmentId,
+  ) async {
+    await _updateAppointmentStatus(context, appointmentId, 'confirmed');
   }
 
   Future<void> _updateAppointmentStatus(
@@ -418,13 +429,52 @@ class _AppointmentCard extends StatelessWidget {
         );
 
         // Trigger refresh da lista
-        (context.findAncestorStateOfType<_AppointmentsScreenState>())
-            ?._refreshAppointments();
+        await onDelete();
       }
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao atualizar agendamento: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAppointment(
+    BuildContext context,
+    String appointmentId,
+  ) async {
+    try {
+      // Mostra loading
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Excluindo agendamento...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      await Supabase.instance.client
+          .from('appointments')
+          .delete()
+          .eq('id', appointmentId);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Agendamento cancelado e excluído com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Trigger refresh da lista
+        await onDelete();
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir agendamento: $error')),
         );
       }
     }
