@@ -37,7 +37,6 @@ class BarberLite {
       rating: doubleRating,
     );
   }
-}
 
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key, this.service});
@@ -142,10 +141,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           .select()
           .single();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Agendamento confirmado!')));
-
+      await _showConfirmationDialog();
       Navigator.pop(context, response);
     } on PostgrestException catch (e) {
       ScaffoldMessenger.of(
@@ -156,6 +152,51 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('Erro inesperado: $e')));
     }
+  }
+
+  Future<void> _showConfirmationDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Agendamento confirmado!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_selectedService != null)
+                Text('Serviço: ${_selectedService!.name}'),
+              if (_selectedDateTime != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Quando: ${_selectedDateTime!.toLocal()}'),
+                ),
+              if (_selectedBarberId != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Barbeiro: ${_barbers.firstWhere(
+                          (b) => b.id == _selectedBarberId,
+                          orElse: () => BarberLite(
+                            id: _selectedBarberId!,
+                            name: 'Selecionado',
+                            avatarUrl: '',
+                            rating: 0,
+                          ),
+                        ).name}',
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
