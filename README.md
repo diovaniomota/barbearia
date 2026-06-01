@@ -1,16 +1,30 @@
-# flutter_application_1
+# Barbearia
 
-A new Flutter project.
+Aplicativo Flutter para agendamentos de barbearia, com suporte para Android,
+iOS, desktop e Web.
 
-## Getting Started
+## Rodar localmente
 
-This project is a starting point for a Flutter application.
+```sh
+flutter pub get
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Build web
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```sh
+flutter build web --release --base-href /
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Os arquivos estaticos ficam em `build/web`.
+
+## Deploy na Vercel
+
+O projeto ja inclui `vercel.json`. Ao importar o repositorio na Vercel, ela
+instala o Flutter stable, executa o build web e publica `build/web`.
+
+Configuracao usada:
+
+- Build command: `./flutter/bin/flutter build web --release --base-href /`
+- Output directory: `build/web`
+- Rewrite: todas as rotas apontam para `index.html`

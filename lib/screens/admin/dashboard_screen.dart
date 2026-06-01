@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import 'dart:math' as math;
 
 class DashboardScreen extends StatefulWidget {
@@ -17,11 +18,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _appointments = 0;
   List<_Slice> _slices = const [];
   List<_BarberRank> _barberMonth = const [];
+  DateTime? _dashboardMonth;
 
   @override
   void initState() {
     super.initState();
     _loadMonthDistribution();
+  }
+
+  String _dateOnly(DateTime value) {
+    return '${value.year.toString().padLeft(4, '0')}-'
+        '${value.month.toString().padLeft(2, '0')}-'
+        '${value.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _loadStats() async {
@@ -58,13 +66,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ];
 
       final now = DateTime.now();
-      final start = DateTime(now.year, now.month, 1).toIso8601String();
-      final end = DateTime(now.year, now.month + 1, 1).toIso8601String();
+      final start = DateTime(now.year, now.month, 1);
+      final end = DateTime(now.year, now.month + 1, 1);
       final monthRows = await supabase
           .from('appointments')
           .select('barber_id, barbers:barber_id(name)')
-          .gte('created_at', start)
-          .lt('created_at', end);
+          .gte('appointment_date', _dateOnly(start))
+          .lt('appointment_date', _dateOnly(end));
       final list = List<Map<String, dynamic>>.from(monthRows);
       final map = <String, _BarberRank>{};
       for (final r in list) {
@@ -113,18 +121,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     try {
       final supabase = Supabase.instance.client;
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, 1).toIso8601String();
-      final end = DateTime(now.year, now.month + 1, 1).toIso8601String();
-      final rows = await supabase
-          .from('appointments')
-          .select(
-            'barber_id, barbers:barber_id(name), services:service_id(price)',
-          )
-          .gte('created_at', start)
-          .lt('created_at', end);
+      var month = DateTime(DateTime.now().year, DateTime.now().month, 1);
+      var list = await _loadAppointmentsForMonth(supabase, month);
 
-      final list = List<Map<String, dynamic>>.from(rows);
+      if (list.isEmpty) {
+        final latestRows = await supabase
+            .from('appointments')
+            .select('appointment_date')
+            .order('appointment_date', ascending: false)
+            .limit(1);
+        final latestList = List<Map<String, dynamic>>.from(latestRows);
+        if (latestList.isNotEmpty) {
+          final latestDate = DateTime.tryParse(
+            latestList.first['appointment_date']?.toString() ?? '',
+          );
+          if (latestDate != null) {
+            month = DateTime(latestDate.year, latestDate.month, 1);
+            list = await _loadAppointmentsForMonth(supabase, month);
+          }
+        }
+      }
       final totals = <String, double>{};
       final counts = <String, int>{};
       final names = <String, String>{};
@@ -186,6 +202,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }).toList()..sort((a, b) => b.count.compareTo(a.count));
 
       setState(() {
+        _dashboardMonth = month;
         _slices = slices;
         _barberMonth = ranks;
         _loading = false;
@@ -196,6 +213,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadAppointmentsForMonth(
+    SupabaseClient supabase,
+    DateTime month,
+  ) async {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+    final rows = await supabase
+        .from('appointments')
+        .select(
+          'barber_id, barbers:barber_id(name), services:service_id(price)',
+        )
+        .gte('appointment_date', _dateOnly(start))
+        .lt('appointment_date', _dateOnly(end));
+    return List<Map<String, dynamic>>.from(rows);
   }
 
   @override
@@ -230,6 +263,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        if (_dashboardMonth != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat.yMMMM('pt_BR').format(_dashboardMonth!),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         ..._buildBarberMonth(theme),
                       ],
@@ -257,7 +297,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 220,
-                          child: _PieChart(slices: _slices),
+                          child: _slices.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'Sem dados para exibir',
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                )
+                              : _PieChart(slices: _slices),
                         ),
                         const SizedBox(height: 12),
                         Wrap(

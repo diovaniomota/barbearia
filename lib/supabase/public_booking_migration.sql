@@ -6,12 +6,30 @@ ALTER TABLE public.appointments
 
 ALTER TABLE public.appointments
   ADD COLUMN IF NOT EXISTS customer_name text,
-  ADD COLUMN IF NOT EXISTS customer_phone text;
+  ADD COLUMN IF NOT EXISTS customer_phone text,
+  ADD COLUMN IF NOT EXISTS attended_at timestamptz,
+  ADD COLUMN IF NOT EXISTS performed_service_ids text[] DEFAULT '{}'::text[];
 
 ALTER TABLE public.appointments
   DROP CONSTRAINT IF EXISTS appointments_customer_name_required,
   ADD CONSTRAINT appointments_customer_name_required
     CHECK (user_id IS NOT NULL OR NULLIF(trim(customer_name), '') IS NOT NULL);
+
+ALTER TABLE public.appointments
+  DROP CONSTRAINT IF EXISTS appointments_status_check,
+  ADD CONSTRAINT appointments_status_check
+    CHECK (
+      status IN (
+        'scheduled',
+        'confirmed',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'canceled',
+        'attended',
+        'no_show'
+      )
+    );
 
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 

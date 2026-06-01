@@ -115,6 +115,38 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
     }
   }
 
+  String _appointmentDateTime(Map<String, dynamic> appointment) {
+    final legacy = appointment['date_time']?.toString();
+    if (legacy != null && legacy.isNotEmpty) return legacy;
+
+    final date = appointment['appointment_date']?.toString() ?? '';
+    final time = appointment['appointment_time']?.toString() ?? '00:00:00';
+    if (date.isEmpty) return appointment['created_at']?.toString() ?? '';
+    return '${date}T$time';
+  }
+
+  String _dateOnly(String dateTime) {
+    final dt = DateTime.tryParse(dateTime);
+    if (dt != null) return DateFormat('yyyy-MM-dd').format(dt);
+    return dateTime.split('T').first.split(' ').first;
+  }
+
+  String _timeOnly(String dateTime) {
+    final dt = DateTime.tryParse(dateTime);
+    if (dt != null) {
+      return '${dt.hour.toString().padLeft(2, '0')}:'
+          '${dt.minute.toString().padLeft(2, '0')}:00';
+    }
+    final raw = dateTime.contains('T')
+        ? dateTime.split('T').last
+        : dateTime.split(' ').length > 1
+        ? dateTime.split(' ')[1]
+        : '00:00:00';
+    final parts = raw.split(':');
+    if (parts.length < 2) return '00:00:00';
+    return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}:00';
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -127,7 +159,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             .from('appointments')
             .select('''
               *,
-              users:customer_id(name, email, phone),
+              users:user_id(name, email, phone),
               barbers:barber_id(name),
               services:service_id(id, name)
             ''')
@@ -141,7 +173,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                 .from('appointments')
                 .select('''
                   *,
-                  users:customer_id(name, email, phone),
+                  users:user_id(name, email, phone),
                   barbers:barber_id(name),
                   services:service_id(id, name)
                 ''')
@@ -190,8 +222,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             barberName = first['name']?.toString() ?? '';
           }
         }
-        final scheduledAt = (a['date_time'] ?? a['created_at'] ?? '')
-            .toString();
+        final scheduledAt = _appointmentDateTime(a);
         final servicesSet = <String>{};
         final servicesItems = <Map<String, dynamic>>[];
         final servicesRaw = a['services'];
@@ -217,7 +248,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             'user_name': userName,
             'user_email': userEmail,
             'user_phone': userPhone,
-            'customer_id': (a['customer_id']?.toString() ?? ''),
+            'customer_id': (a['user_id']?.toString() ?? ''),
             'barber_name': barberName,
             'barber_id': barberId,
             'date_time': scheduledAt,
@@ -342,10 +373,11 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
           .from('appointments')
           .update(data)
           .eq('barber_id', barberId)
-          .eq('date_time', scheduledAt);
+          .eq('appointment_date', _dateOnly(scheduledAt))
+          .eq('appointment_time', _timeOnly(scheduledAt));
       final cid = (customerId ?? '').trim();
       if (cid.isNotEmpty) {
-        query = query.eq('customer_id', cid);
+        query = query.eq('user_id', cid);
       } else {
         final cn = (customerName ?? '').trim();
         final cp = (customerPhone ?? '').trim();
@@ -394,10 +426,11 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                   .from('appointments')
                   .update(retry)
                   .eq('barber_id', barberId)
-                  .eq('date_time', scheduledAt);
+                  .eq('appointment_date', _dateOnly(scheduledAt))
+                  .eq('appointment_time', _timeOnly(scheduledAt));
               final cid2 = (customerId ?? '').trim();
               if (cid2.isNotEmpty) {
-                q2 = q2.eq('customer_id', cid2);
+                q2 = q2.eq('user_id', cid2);
               } else {
                 final cn2 = (customerName ?? '').trim();
                 final cp2 = (customerPhone ?? '').trim();
@@ -436,10 +469,11 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     .from('appointments')
                     .update(fix)
                     .eq('barber_id', barberId)
-                    .eq('date_time', scheduledAt);
+                    .eq('appointment_date', _dateOnly(scheduledAt))
+                    .eq('appointment_time', _timeOnly(scheduledAt));
                 final cid3 = (customerId ?? '').trim();
                 if (cid3.isNotEmpty) {
-                  q3 = q3.eq('customer_id', cid3);
+                  q3 = q3.eq('user_id', cid3);
                 } else {
                   final cn3 = (customerName ?? '').trim();
                   final cp3 = (customerPhone ?? '').trim();
@@ -963,6 +997,22 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (_appointments.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withAlpha(40),
+                        ),
+                      ),
+                      child: Text(
+                        'Nenhum agendamento neste período.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
                   ...List.generate(_appointments.length, (index) {
                     final a = _appointments[index];
                     final theme = Theme.of(context);
@@ -1001,42 +1051,35 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        userName.isEmpty ? 'Cliente' : userName,
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      if (userEmail.isNotEmpty)
-                                        Text(
-                                          userEmail,
-                                          style: theme.textTheme.bodySmall,
-                                        ),
-                                    ],
+                                Text(
+                                  userName.isEmpty ? 'Cliente' : userName,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                if (scheduledLabel.isNotEmpty)
+                                if (userEmail.isNotEmpty)
+                                  Text(
+                                    userEmail,
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                if (scheduledLabel.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
                                   Row(
-                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Icon(Icons.schedule, size: 16),
                                       const SizedBox(width: 6),
-                                      Text(
-                                        scheduledLabel,
-                                        style: theme.textTheme.bodySmall,
+                                      Expanded(
+                                        child: Text(
+                                          scheduledLabel,
+                                          style: theme.textTheme.bodySmall,
+                                        ),
                                       ),
                                     ],
                                   ),
+                                ],
                               ],
                             ),
                             const SizedBox(height: 8),
