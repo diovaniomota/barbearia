@@ -73,7 +73,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     super.initState();
     if (widget.service != null) {
       _selectedServices = [widget.service!];
-      _currentStep = 1;
     }
     _loadBarbers();
     initializeDateFormatting('pt_BR');
