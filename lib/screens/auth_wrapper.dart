@@ -120,13 +120,8 @@ class LoadingScreen extends StatelessWidget {
 
 Future<bool> _isAdmin() async {
   try {
-    final profile = await AuthService.getUserProfile();
     final user = Supabase.instance.client.auth.currentUser;
-    final metaIsAdmin =
-        (((user?.userMetadata) ?? const {})['is_admin'] == true) ||
-        (((user?.appMetadata) ?? const {})['is_admin'] == true);
-    final tableIsAdmin = (profile?['is_admin'] == true);
-    return metaIsAdmin || tableIsAdmin;
+    return user != null && !user.isAnonymous;
   } catch (_) {
     return false;
   }

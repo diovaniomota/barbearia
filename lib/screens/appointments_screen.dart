@@ -1,8 +1,6 @@
 // lib/screens/appointments_screen.dart
 
-import 'package:barbearia/widgets/appointment_card.dart';
 import 'package:flutter/material.dart';
-import 'package:barbearia/models/appointment.dart';
 import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -33,10 +31,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             barbers:barber_id(name),
             services:service_id(name, price)
           ''')
-          .order(
-            'scheduled_at',
-            ascending: false,
-          ); // CORRIGIDO: appointment_date → scheduled_at
+          .order('appointment_date', ascending: false)
+          .order('appointment_time', ascending: false);
 
       setState(() {
         appointments = List<Map<String, dynamic>>.from(response);
@@ -154,17 +150,7 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Dados do agendamento com verificações de segurança
-    DateTime appointmentDate;
-    try {
-      appointmentDate = DateTime.parse(
-        appointment['scheduled_at'] ??
-            DateTime.now()
-                .toIso8601String(), // CORRIGIDO: appointment_date → scheduled_at
-      );
-    } catch (e) {
-      appointmentDate = DateTime.now();
-    }
+    final appointmentDate = _appointmentDateTime(appointment);
 
     final userName =
         appointment['users']?['name'] ??
@@ -209,7 +195,7 @@ class _AppointmentCard extends StatelessWidget {
         '${appointmentDate.minute.toString().padLeft(2, '0')}';
 
     // Status do agendamento
-    final status = appointment['status'] ?? 'pending';
+    final status = appointment['status'] ?? 'scheduled';
     Color statusColor;
     String statusText;
     IconData statusIcon;
@@ -335,7 +321,7 @@ class _AppointmentCard extends StatelessWidget {
               ),
 
               // Botões de ação (se necessário)
-              if (status == 'pending') ...[
+              if (status == 'scheduled') ...[
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -370,6 +356,17 @@ class _AppointmentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  DateTime _appointmentDateTime(Map<String, dynamic> appointment) {
+    final legacyDateTime = appointment['date_time']?.toString();
+    if (legacyDateTime != null && legacyDateTime.isNotEmpty) {
+      return DateTime.tryParse(legacyDateTime)?.toLocal() ?? DateTime.now();
+    }
+
+    final date = appointment['appointment_date']?.toString() ?? '';
+    final time = appointment['appointment_time']?.toString() ?? '00:00:00';
+    return DateTime.tryParse('${date}T$time') ?? DateTime.now();
   }
 
   void _showCancelDialog(BuildContext context, String appointmentId) {

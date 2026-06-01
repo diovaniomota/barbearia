@@ -13,9 +13,9 @@ void main() async {
 
   try {
     await SupabaseConfig.initialize(
-      url: 'https://frigugklxvoawbmvbaft.supabase.co',
+      url: 'https://uebvtbgvsyzbyzdilren.supabase.co',
       anonKey:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyaWd1Z2tseHZvYXdibXZiYWZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTc5MjIsImV4cCI6MjA3MTIzMzkyMn0.1mfabQhzGDK18Lba3QaIDuymppjhcJUl2nipwfzV_nU',
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlYnZ0Ymd2c3l6Ynl6ZGlscmVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzM4MTMsImV4cCI6MjA5NTc0OTgxM30.KilnvJtRntdp3LO_mrTKBxpVcaEgOoJSPNEjBGXsrC4',
     );
 
     // Se já existir sessão, garante a linha do usuário na tabela `users`

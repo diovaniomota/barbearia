@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:barbearia/services/auth_service.dart';
-import 'package:barbearia/screens/main_navigation.dart';
 import 'package:barbearia/screens/admin/admin_navigation.dart';
-import 'package:barbearia/screens/register_screen.dart';
 import 'package:barbearia/utils/user_bootstrap.dart'; // <- ensureUserRow()
 
 class LoginScreen extends StatefulWidget {
@@ -37,10 +35,14 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Se já existe sessão, garante a linha em `users` e pula a tela de login
   Future<void> _redirectIfLogged() async {
     final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      await ensureUserRow();
-      await _navigateAfterLogin();
+    if (session == null) return;
+
+    if (session.user.isAnonymous) {
+      await Supabase.instance.client.auth.signOut();
+      return;
     }
+
+    await _navigateAfterLogin();
   }
 
   Future<void> _signIn() async {
@@ -83,24 +85,33 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _navigateAfterLogin() async {
     try {
-      final profile = await AuthService.getUserProfile();
       final user = Supabase.instance.client.auth.currentUser;
-      final metaIsAdmin =
-          (((user?.userMetadata) ?? const {})['is_admin'] == true) ||
-          (((user?.appMetadata) ?? const {})['is_admin'] == true);
-      final tableIsAdmin = (profile?['is_admin'] == true);
-      final isAdmin = metaIsAdmin || tableIsAdmin;
+      final isAdmin = user != null && !user.isAnonymous;
       if (!mounted) return;
+      if (!isAdmin) {
+        await Supabase.instance.client.auth.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Acesso permitido apenas para admin.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              isAdmin ? const AdminNavigation() : const MainNavigation(),
-        ),
+        MaterialPageRoute(builder: (_) => const AdminNavigation()),
       );
     } catch (_) {
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
+      await Supabase.instance.client.auth.signOut();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Não foi possível validar o acesso admin.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
   }
@@ -165,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Faça login para agendar seu corte',
+                    'Acesso administrativo',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
@@ -318,60 +329,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Divider(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'ou',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Divider(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              OutlinedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const RegisterScreen(),
-                          ),
-                        );
-                      },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.primary,
-                  side: BorderSide(color: theme.colorScheme.primary),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Criar nova conta',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
 

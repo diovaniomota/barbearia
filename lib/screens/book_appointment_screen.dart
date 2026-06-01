@@ -39,6 +39,7 @@ class BarberLite {
       rating: doubleRating,
     );
   }
+}
 
 class BookAppointmentScreen extends StatefulWidget {
   const BookAppointmentScreen({super.key, this.service});
@@ -190,30 +191,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           cur = cur.add(const Duration(minutes: 30));
         }
       }
-      final startOfDay = DateTime(
-        selDate.year,
-        selDate.month,
-        selDate.day,
-      ).toUtc();
-      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final appointmentDate = _dateOnlyForDb(selDate);
       dynamic takenRows;
       try {
         takenRows = await Supabase.instance.client
             .from('appointments')
-            .select('scheduled_at,status')
+            .select('appointment_time,status')
             .eq('barber_id', barberId)
-            .gte('scheduled_at', startOfDay.toIso8601String())
-            .lt('scheduled_at', endOfDay.toIso8601String())
+            .eq('appointment_date', appointmentDate)
             .or(
               'status.eq.scheduled,status.eq.confirmed,status.eq.in_progress',
             );
       } catch (_) {
         takenRows = await Supabase.instance.client
             .from('appointments')
-            .select('scheduled_at')
+            .select('appointment_time')
             .eq('barber_id', barberId)
-            .gte('scheduled_at', startOfDay.toIso8601String())
-            .lt('scheduled_at', endOfDay.toIso8601String());
+            .eq('appointment_date', appointmentDate);
       }
       final taken = <String>{};
       if (takenRows is List) {
@@ -223,14 +217,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           if (st.isNotEmpty && (st == 'cancelled' || st == 'no_show')) {
             continue;
           }
-          final ts = map['scheduled_at']?.toString() ?? '';
-          if (ts.isEmpty) continue;
-          final dt = DateTime.tryParse(ts);
-          if (dt == null) continue;
-          final local = dt.toLocal();
-          final key =
-              '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-          taken.add(key);
+          final time = _timeForDb(map['appointment_time']);
+          if (time != null) taken.add(time);
         }
       }
       setState(() {
@@ -272,12 +260,15 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     try {
       dynamic conflict;
+      final appointmentDate = _dateOnlyForDb(dt);
+      final appointmentTime = _timeOnlyForDb(dt);
       try {
         conflict = await Supabase.instance.client
             .from('appointments')
             .select('id,status')
             .eq('barber_id', barberId)
-            .eq('scheduled_at', dt.toUtc().toIso8601String())
+            .eq('appointment_date', appointmentDate)
+            .eq('appointment_time', appointmentTime)
             .or('status.eq.scheduled,status.eq.confirmed,status.eq.in_progress')
             .limit(1);
       } catch (_) {
@@ -285,7 +276,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             .from('appointments')
             .select('id')
             .eq('barber_id', barberId)
-            .eq('scheduled_at', dt.toUtc().toIso8601String())
+            .eq('appointment_date', appointmentDate)
+            .eq('appointment_time', appointmentTime)
             .limit(1);
       }
       if (conflict is List && conflict.isNotEmpty) {
@@ -318,15 +310,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         );
         return;
       }
-      final userId = Supabase.instance.client.auth.currentUser?.id;
       final payload = _selectedServices.map((s) {
         return {
           'service_id': s.id,
           'barber_id': barberId,
-          'scheduled_at': dt.toUtc().toIso8601String(),
+          'appointment_date': appointmentDate,
+          'appointment_time': appointmentTime,
+          'status': 'scheduled',
           'customer_name': _nameController.text.trim(),
           'customer_phone': _phoneController.text.trim(),
-          if (userId != null) 'customer_id': userId,
+          'notes':
+              'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
+          'total_price': s.price,
         };
       }).toList();
 
@@ -334,12 +329,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           .from('appointments')
           .insert(payload);
       dynamic response;
-      if (userId != null) {
-        response = await insertQuery.select();
-      } else {
-        await insertQuery;
-        response = payload;
-      }
+      response = await insertQuery.select();
       await showDialog(
         context: context,
         builder: (ctx) {
@@ -393,77 +383,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
       Navigator.pop(context, response);
     } on PostgrestException catch (e) {
-      final isRls = e.message.toLowerCase().contains('row-level security');
-      if (isRls) {
-        try {
-          final rpc = await Supabase.instance.client.rpc(
-            'create_appointments_bulk',
-            params: {
-              'payload': _selectedServices.map((s) {
-                return {
-                  'service_id': s.id,
-                  'barber_id': barberId,
-                  'scheduled_at': dt.toUtc().toIso8601String(),
-                  'customer_name': _nameController.text.trim(),
-                  'customer_phone': _phoneController.text.trim(),
-                };
-              }).toList(),
-            },
-          );
-          await showDialog(
-            context: context,
-            builder: (ctx) {
-              final theme = Theme.of(ctx);
-              final barber = _barbers.firstWhere(
-                (b) => b.id == _selectedBarberId,
-                orElse: () => BarberLite(
-                  id: '',
-                  name: 'Sem barbeiro',
-                  avatarUrl: '',
-                  rating: 0.0,
-                ),
-              );
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                title: Row(
-                  children: [
-                    Icon(Icons.check_circle, color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    const Expanded(child: Text('Agendamento confirmado')),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Barbeiro: ${barber.name}'),
-                    const SizedBox(height: 6),
-                    Text('Data/Hora: ${_formatDateTime(_selectedDateTime!)}'),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _selectedServices
-                          .map((s) => Chip(label: Text(s.name)))
-                          .toList(),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('OK'),
-                  ),
-                ],
-              );
-            },
-          );
-          Navigator.pop(context, rpc);
-          return;
-        } catch (_) {}
-      }
       await showDialog(
         context: context,
         builder: (ctx) {
@@ -479,7 +398,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 const Text('Falha ao agendar'),
               ],
             ),
-            content: Text('Erro: ${e.message}'),
+            content: Text('Erro: ${_bookingErrorMessage(e)}'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -528,8 +447,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_selectedService != null)
-                Text('Serviço: ${_selectedService!.name}'),
+              if (_selectedServices.isNotEmpty)
+                Text(
+                  'Serviços: ${_selectedServices.map((s) => s.name).join(', ')}',
+                ),
               if (_selectedDateTime != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -540,14 +461,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     'Barbeiro: ${_barbers.firstWhere(
-                          (b) => b.id == _selectedBarberId,
-                          orElse: () => BarberLite(
-                            id: _selectedBarberId!,
-                            name: 'Selecionado',
-                            avatarUrl: '',
-                            rating: 0,
-                          ),
-                        ).name}',
+                      (b) => b.id == _selectedBarberId,
+                      orElse: () => BarberLite(id: _selectedBarberId!, name: 'Selecionado', avatarUrl: '', rating: 0),
+                    ).name}',
                   ),
                 ),
             ],
@@ -561,6 +477,36 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         );
       },
     );
+  }
+
+  String _dateOnlyForDb(DateTime value) {
+    return DateFormat('yyyy-MM-dd').format(value);
+  }
+
+  String _timeOnlyForDb(DateTime value) {
+    return '${value.hour.toString().padLeft(2, '0')}:'
+        '${value.minute.toString().padLeft(2, '0')}:00';
+  }
+
+  String? _timeForDb(dynamic value) {
+    final raw = value?.toString() ?? '';
+    if (raw.isEmpty) return null;
+    final parts = raw.split(':');
+    if (parts.length < 2) return null;
+    return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+  }
+
+  String _bookingErrorMessage(PostgrestException e) {
+    if (e.code == '42703' ||
+        e.message.contains('customer_name') ||
+        e.message.contains('customer_phone') ||
+        e.message.contains('user_id')) {
+      return 'O banco ainda não está preparado para agendamento público. Execute lib/supabase/public_booking_migration.sql no SQL Editor do Supabase.';
+    }
+    if (e.message.toLowerCase().contains('row-level security')) {
+      return 'A policy de agendamento público ainda não foi aplicada no Supabase.';
+    }
+    return e.message;
   }
 
   @override

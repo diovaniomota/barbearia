@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:barbearia/screens/login_screen.dart';
 import 'package:barbearia/screens/main_navigation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RoleChoiceScreen extends StatelessWidget {
   const RoleChoiceScreen({super.key});
@@ -28,7 +29,9 @@ class RoleChoiceScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 56,
                   child: FilledButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      await Supabase.instance.client.auth.signOut();
+                      if (!context.mounted) return;
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (_) => const MainNavigation(

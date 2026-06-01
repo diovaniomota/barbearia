@@ -190,7 +190,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             barberName = first['name']?.toString() ?? '';
           }
         }
-        final scheduledAt = (a['scheduled_at'] ?? a['created_at'] ?? '')
+        final scheduledAt = (a['date_time'] ?? a['created_at'] ?? '')
             .toString();
         final servicesSet = <String>{};
         final servicesItems = <Map<String, dynamic>>[];
@@ -220,7 +220,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             'customer_id': (a['customer_id']?.toString() ?? ''),
             'barber_name': barberName,
             'barber_id': barberId,
-            'scheduled_at': scheduledAt,
+            'date_time': scheduledAt,
             'created_at': a['created_at']?.toString() ?? '',
             'status': (a['status']?.toString() ?? '').toLowerCase(),
             'attended_at': a['attended_at']?.toString() ?? '',
@@ -292,7 +292,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
           'customer_id': g['customer_id'] ?? '',
           'barber_name': g['barber_name'],
           'barber_id': g['barber_id'],
-          'scheduled_at': g['scheduled_at'],
+          'date_time': g['date_time'],
           'created_at': g['created_at'],
           'status': g['status'] ?? '',
           'attended_at': g['attended_at'] ?? '',
@@ -308,7 +308,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
         final bid = (g['barber_id']?.toString() ?? '');
         final barberOk =
             _barberId == null || _barberId!.isEmpty || bid == _barberId;
-        final raw = (g['scheduled_at']?.toString() ?? '').trim();
+        final raw = (g['date_time']?.toString() ?? '').trim();
         final createdRaw = (g['created_at']?.toString() ?? '').trim();
         final dt = DateTime.tryParse(raw) ?? DateTime.tryParse(createdRaw);
         if (dt == null) return barberOk;
@@ -342,7 +342,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
           .from('appointments')
           .update(data)
           .eq('barber_id', barberId)
-          .eq('scheduled_at', scheduledAt);
+          .eq('date_time', scheduledAt);
       final cid = (customerId ?? '').trim();
       if (cid.isNotEmpty) {
         query = query.eq('customer_id', cid);
@@ -394,7 +394,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                   .from('appointments')
                   .update(retry)
                   .eq('barber_id', barberId)
-                  .eq('scheduled_at', scheduledAt);
+                  .eq('date_time', scheduledAt);
               final cid2 = (customerId ?? '').trim();
               if (cid2.isNotEmpty) {
                 q2 = q2.eq('customer_id', cid2);
@@ -436,7 +436,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     .from('appointments')
                     .update(fix)
                     .eq('barber_id', barberId)
-                    .eq('scheduled_at', scheduledAt);
+                    .eq('date_time', scheduledAt);
                 final cid3 = (customerId ?? '').trim();
                 if (cid3.isNotEmpty) {
                   q3 = q3.eq('customer_id', cid3);
@@ -979,7 +979,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     final servicesList = servicesListDynamic is List
                         ? servicesListDynamic.map((e) => e.toString()).toList()
                         : <String>[];
-                    final scheduledRaw = (a['scheduled_at']?.toString() ?? '')
+                    final scheduledRaw = (a['date_time']?.toString() ?? '')
                         .trim();
                     final scheduledDt = DateTime.tryParse(scheduledRaw);
                     final scheduledLabel = scheduledDt == null
