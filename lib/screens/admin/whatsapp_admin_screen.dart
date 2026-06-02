@@ -327,9 +327,13 @@ class _StatusCard extends StatelessWidget {
       color = Colors.red;
       label = 'Servidor offline';
       icon  = Icons.cloud_off_rounded;
+    } else if (s.wrongKey) {
+      color = Colors.red;
+      label = 'API Key inválida — verifique a chave';
+      icon  = Icons.key_off_outlined;
     } else if (!s.connected) {
       color = Colors.orange;
-      label = 'Aguardando QR code';
+      label = 'Online — escaneie o QR code';
       icon  = Icons.qr_code_rounded;
     } else {
       color = Colors.green;

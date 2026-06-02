@@ -192,7 +192,15 @@ class WhatsappService {
         Uri.parse('${config.normalizedUrl}/status'),
         headers: {'x-api-key': config.apiKey},
       ).timeout(const Duration(seconds: 6));
-      if (res.statusCode != 200) return ServerStatus(online: false, connected: false);
+
+      // Servidor respondeu — está online
+      if (res.statusCode == 401) {
+        return ServerStatus(online: true, connected: false, wrongKey: true);
+      }
+      if (res.statusCode != 200) {
+        return ServerStatus(online: true, connected: false);
+      }
+
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return ServerStatus(
         online: true,
@@ -201,6 +209,7 @@ class WhatsappService {
         hasQR: data['hasQR'] == true,
       );
     } catch (_) {
+      // Servidor não respondeu
       return ServerStatus(online: false, connected: false);
     }
   }
@@ -229,11 +238,13 @@ class ServerStatus {
   final bool connected;
   final String? phone;
   final bool hasQR;
+  final bool wrongKey;
 
   ServerStatus({
     required this.online,
     required this.connected,
     this.phone,
     this.hasQR = false,
+    this.wrongKey = false,
   });
 }
