@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:barbearia/models/service.dart';
 import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:flutter/material.dart';
@@ -71,12 +69,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 430),
             child: DecoratedBox(
               decoration: const BoxDecoration(color: _HomePalette.background),
               child: RefreshIndicator(
                 color: _HomePalette.gold,
-                backgroundColor: _HomePalette.background,
+                backgroundColor: _HomePalette.panel,
                 onRefresh: _refresh,
                 child: FutureBuilder<List<Service>>(
                   future: _servicesFuture,
@@ -88,14 +86,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     return CustomScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
-                        const SliverToBoxAdapter(child: _HeroHeader()),
+                        SliverToBoxAdapter(
+                          child: _CatalogHeader(serviceCount: services.length),
+                        ),
                         if (isLoading)
                           const SliverPadding(
-                            padding: EdgeInsets.fromLTRB(8, 10, 8, 92),
+                            padding: EdgeInsets.fromLTRB(14, 8, 14, 96),
                             sliver: SliverList(
                               delegate: SliverChildListDelegate.fixed([
-                                _ServiceSkeleton(),
-                                SizedBox(height: 12),
                                 _ServiceSkeleton(),
                                 SizedBox(height: 12),
                                 _ServiceSkeleton(),
@@ -109,8 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             hasScrollBody: false,
                             child: _EmptyState(
                               icon: Icons.wifi_off_rounded,
-                              title: 'Nao foi possivel carregar os servicos',
-                              subtitle: 'Puxe para baixo e tente novamente.',
+                              title: 'Servicos indisponiveis',
+                              subtitle: 'Puxe para baixo para tentar de novo.',
                             ),
                           )
                         else if (services.isEmpty)
@@ -119,12 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: _EmptyState(
                               icon: Icons.content_cut_rounded,
                               title: 'Nenhum servico cadastrado',
-                              subtitle: 'Os servicos vao aparecer aqui.',
+                              subtitle: 'Os atendimentos vao aparecer aqui.',
                             ),
                           )
                         else
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(8, 10, 8, 92),
+                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 96),
                             sliver: SliverList.separated(
                               itemCount: services.length,
                               separatorBuilder: (_, _) =>
@@ -151,117 +149,137 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _HeroHeader extends StatelessWidget {
-  const _HeroHeader();
+class _CatalogHeader extends StatelessWidget {
+  const _CatalogHeader({required this.serviceCount});
+
+  final int serviceCount;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 250,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0E1026),
-              _HomePalette.background,
-              _HomePalette.background,
-            ],
-            stops: [0.0, 0.34, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: const [
-            Positioned(left: 14, top: 14, child: _BrandWordmark()),
-            Center(child: _SealLogo()),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BrandWordmark extends StatelessWidget {
-  const _BrandWordmark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      'AGENDA SERVICO',
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: _HomePalette.mint,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-  }
-}
-
-class _SealLogo extends StatelessWidget {
-  const _SealLogo();
-
-  @override
-  Widget build(BuildContext context) {
-    final textStyle = Theme.of(context).textTheme.displaySmall?.copyWith(
-      color: _HomePalette.gold,
-      fontWeight: FontWeight.w900,
-    );
-
-    return SizedBox(
-      width: 132,
-      height: 132,
-      child: CustomPaint(
-        painter: _SealPainter(),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text('T', style: textStyle),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.face_retouching_natural_rounded,
-                color: _HomePalette.gold,
-                size: 36,
+              const _LogoMark(),
+              const SizedBox(width: 10),
+              Text(
+                'Agenda Servico',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: _HomePalette.mint,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Atualizar',
+                onPressed: () {},
+                icon: const Icon(Icons.tune_rounded, color: _HomePalette.gold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Escolha seu atendimento',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: _HomePalette.text,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Selecione um servico para iniciar o agendamento.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: _HomePalette.muted),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _HeaderChip(
+                icon: Icons.content_cut_rounded,
+                label: '$serviceCount servicos',
               ),
               const SizedBox(width: 8),
-              Text('D', style: textStyle),
+              const _HeaderChip(
+                icon: Icons.schedule_rounded,
+                label: 'Horario online',
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Catalogo',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: _HomePalette.gold,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoMark extends StatelessWidget {
+  const _LogoMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _HomePalette.gold,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.spa_rounded, color: _HomePalette.background),
+      ),
+    );
+  }
+}
+
+class _HeaderChip extends StatelessWidget {
+  const _HeaderChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _HomePalette.panel,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _HomePalette.stroke),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          child: Row(
+            children: [
+              Icon(icon, color: _HomePalette.gold, size: 17),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: _HomePalette.text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _SealPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..color = _HomePalette.gold;
-
-    for (var i = 0; i < 40; i++) {
-      final angle = i * 0.157;
-      final start = Offset(
-        center.dx + 58 * math.cos(angle),
-        center.dy + 58 * math.sin(angle),
-      );
-      final end = Offset(
-        center.dx + 63 * math.cos(angle + 0.07),
-        center.dy + 63 * math.sin(angle + 0.07),
-      );
-      canvas.drawLine(start, end, paint);
-    }
-
-    canvas
-      ..drawCircle(center, 56, paint)
-      ..drawCircle(center, 43, paint..strokeWidth = 1.2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ServiceTile extends StatelessWidget {
@@ -276,84 +294,65 @@ class _ServiceTile extends StatelessWidget {
     final showDescription =
         description.isNotEmpty && !description.toLowerCase().contains('sem');
 
-    return SizedBox(
-      height: showDescription ? 102 : 92,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _HomePalette.background,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: _HomePalette.gold, width: 1.4),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _ServiceImage(imageUrl: service.imageUrl),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x99000000),
-                          Color(0x55000000),
-                          Color(0xD9000000),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _HomePalette.card,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _HomePalette.stroke),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                _ServiceImage(imageUrl: service.imageUrl),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        service.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: _HomePalette.text,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      if (showDescription) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: _HomePalette.muted),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _MetaPill(label: service.formattedPrice),
+                          const SizedBox(width: 7),
+                          _MetaPill(label: service.duration),
                         ],
                       ),
-                    ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          service.name.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: _HomePalette.gold,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          '${service.formattedPrice} - ${service.duration}',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: _HomePalette.gold,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        if (showDescription) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            description.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: _HomePalette.gold,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: _HomePalette.gold,
+                  size: 16,
+                ),
+              ],
             ),
           ),
         ),
@@ -370,14 +369,53 @@ class _ServiceImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl.trim();
-    if (url.isEmpty) return const ColoredBox(color: _HomePalette.background);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 82,
+        height: 82,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(color: _HomePalette.panel),
+          child: url.isEmpty
+              ? const Icon(Icons.content_cut_rounded, color: _HomePalette.gold)
+              : Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) {
+                    return const Icon(
+                      Icons.content_cut_rounded,
+                      color: _HomePalette.gold,
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+}
 
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) {
-        return const ColoredBox(color: _HomePalette.background);
-      },
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _HomePalette.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: _HomePalette.gold,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -387,13 +425,12 @@ class _ServiceSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 92,
+    return const SizedBox(
+      height: 104,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _HomePalette.surface,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: _HomePalette.gold, width: 1.2),
+          color: _HomePalette.card,
+          borderRadius: BorderRadius.all(Radius.circular(8)),
         ),
       ),
     );
@@ -425,7 +462,7 @@ class _EmptyState extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _HomePalette.gold,
+                color: _HomePalette.text,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -446,9 +483,12 @@ class _EmptyState extends StatelessWidget {
 
 class _HomePalette {
   static const Color frame = Color(0xFF223C3C);
-  static const Color background = Color(0xFF0D0B0B);
-  static const Color surface = Color(0xFF171111);
-  static const Color gold = Color(0xFFFFD400);
-  static const Color mint = Color(0xFF00C7A0);
-  static const Color muted = Color(0xFFC8B1A1);
+  static const Color background = Color(0xFF0F0C0B);
+  static const Color panel = Color(0xFF1C1714);
+  static const Color card = Color(0xFF181110);
+  static const Color stroke = Color(0xFF37241F);
+  static const Color gold = Color(0xFFF6C84F);
+  static const Color mint = Color(0xFF20D8B2);
+  static const Color text = Color(0xFFFFF6EA);
+  static const Color muted = Color(0xFFB9A394);
 }

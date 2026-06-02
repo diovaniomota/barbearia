@@ -43,8 +43,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     );
 
     if (!mounted || result == null) return;
-    final digits = _digits(result);
-    if (digits.length < 10) {
+    if (_digits(result).length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Informe um telefone valido.')),
       );
@@ -64,6 +63,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     try {
       final rows = <Map<String, dynamic>>[];
       final seen = <String>{};
+
       for (final candidate in _phoneCandidates(phone)) {
         final response = await Supabase.instance.client
             .from('appointments')
@@ -90,9 +90,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
         for (final item in response as List) {
           final map = Map<String, dynamic>.from(item as Map);
           final id = map['id']?.toString() ?? '';
-          if (id.isNotEmpty && seen.add(id)) {
-            rows.add(map);
-          }
+          if (id.isNotEmpty && seen.add(id)) rows.add(map);
         }
       }
 
@@ -180,12 +178,12 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 430),
             child: DecoratedBox(
               decoration: const BoxDecoration(color: _HistoryPalette.bg),
               child: RefreshIndicator(
                 color: _HistoryPalette.gold,
-                backgroundColor: _HistoryPalette.bg,
+                backgroundColor: _HistoryPalette.panel,
                 onRefresh: _refresh,
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -194,8 +192,10 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                       child: _HistoryHeader(
                         customerName:
                             customerName == null || customerName.isEmpty
-                            ? _phone
+                            ? null
                             : customerName,
+                        phone: _phone,
+                        count: _appointments.length,
                         onChangePhone: _showPhoneDialog,
                       ),
                     ),
@@ -213,10 +213,10 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                         hasScrollBody: false,
                         child: _EmptyHistory(
                           icon: Icons.phone_iphone_rounded,
-                          title: 'Informe seu telefone',
+                          title: 'Consulte pelo telefone',
                           subtitle:
-                              'Digite o celular usado no agendamento para ver o historico.',
-                          actionLabel: 'Buscar historico',
+                              'Use o celular informado no agendamento para carregar os horarios.',
+                          actionLabel: 'Informar telefone',
                           onAction: _showPhoneDialog,
                         ),
                       )
@@ -238,14 +238,14 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                           icon: Icons.event_busy_rounded,
                           title: 'Nenhum agendamento encontrado',
                           subtitle:
-                              'Confira o telefone informado e tente novamente.',
+                              'Confira o telefone informado ou consulte outro numero.',
                           actionLabel: 'Trocar telefone',
                           onAction: _showPhoneDialog,
                         ),
                       )
                     else
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 96),
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 96),
                         sliver: SliverList.builder(
                           itemCount: _appointments.length,
                           itemBuilder: (context, index) {
@@ -253,27 +253,31 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                             final previous = index == 0
                                 ? null
                                 : _appointments[index - 1];
-                            final showMonth =
+                            final showDay =
                                 previous == null ||
-                                _monthLabel(previous) !=
-                                    _monthLabel(appointment);
+                                _dayKey(previous) != _dayKey(appointment);
                             final expanded = _expandedIndex == index;
 
-                            return _TimelineAppointmentCard(
-                              appointment: appointment,
-                              showMonth: showMonth,
-                              monthLabel: _monthLabel(appointment),
-                              dateLabel: _shortDateLabel(appointment),
-                              expanded: expanded,
-                              onTap: () {
-                                setState(() {
-                                  _expandedIndex = expanded ? null : index;
-                                });
-                              },
-                              onCancel: () =>
-                                  _updateStatus(appointment, 'cancelled'),
-                              onConfirm: () =>
-                                  _updateStatus(appointment, 'confirmed'),
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (showDay)
+                                  _DaySeparator(label: _dayLabel(appointment)),
+                                _AppointmentCard(
+                                  appointment: appointment,
+                                  expanded: expanded,
+                                  onTap: () {
+                                    setState(() {
+                                      _expandedIndex = expanded ? null : index;
+                                    });
+                                  },
+                                  onCancel: () =>
+                                      _updateStatus(appointment, 'cancelled'),
+                                  onConfirm: () =>
+                                      _updateStatus(appointment, 'confirmed'),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                             );
                           },
                         ),
@@ -319,85 +323,135 @@ class _PhoneLookupDialogState extends State<_PhoneLookupDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _HistoryPalette.bg,
+          color: _HistoryPalette.panel,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _HistoryPalette.gold, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
+          border: Border.all(color: _HistoryPalette.stroke),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          padding: const EdgeInsets.all(18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  const _DialogIcon(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Buscar historico',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: _HistoryPalette.text,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Text(
-                'Insira seu numero de telefone:',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: _HistoryPalette.gold,
-                  fontWeight: FontWeight.w900,
+                'Celular usado no agendamento',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: _HistoryPalette.muted,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               TextField(
                 controller: _controller,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [widget.formatter],
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: _HistoryPalette.gold),
+                style: const TextStyle(color: _HistoryPalette.text),
                 cursorColor: _HistoryPalette.gold,
                 decoration: InputDecoration(
-                  hintText: '(DDD)00000-0000',
-                  hintStyle: TextStyle(
-                    color: _HistoryPalette.gold.withValues(alpha: 0.45),
-                  ),
+                  hintText: '(00) 00000-0000',
                   errorText: _error,
-                  errorStyle: const TextStyle(color: _HistoryPalette.danger),
-                  isDense: true,
+                  prefixIcon: const Icon(
+                    Icons.phone_rounded,
+                    color: _HistoryPalette.gold,
+                  ),
+                  filled: true,
+                  fillColor: _HistoryPalette.bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _HistoryPalette.stroke),
+                  ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(7),
-                    borderSide: const BorderSide(color: _HistoryPalette.gold),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _HistoryPalette.stroke),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(7),
-                    borderSide: const BorderSide(
-                      color: _HistoryPalette.gold,
-                      width: 1.5,
-                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: _HistoryPalette.gold),
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
-              OutlinedButton(
-                onPressed: () {
-                  final phone = _controller.text.trim();
-                  if (_digits(phone).length < 10) {
-                    setState(() {
-                      _error = 'Telefone incompleto';
-                    });
-                    return;
-                  }
-                  Navigator.of(context).pop(phone);
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _HistoryPalette.gold,
-                  side: const BorderSide(color: _HistoryPalette.gold),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _HistoryPalette.muted,
+                        side: const BorderSide(color: _HistoryPalette.stroke),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Agora nao'),
+                    ),
                   ),
-                ),
-                child: const Text('Confirmar'),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        final phone = _controller.text.trim();
+                        if (_digits(phone).length < 10) {
+                          setState(() => _error = 'Telefone incompleto');
+                          return;
+                        }
+                        Navigator.of(context).pop(phone);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _HistoryPalette.gold,
+                        foregroundColor: _HistoryPalette.bg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Consultar'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogIcon extends StatelessWidget {
+  const _DialogIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _HistoryPalette.gold.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(
+          Icons.manage_search_rounded,
+          color: _HistoryPalette.gold,
         ),
       ),
     );
@@ -407,25 +461,29 @@ class _PhoneLookupDialogState extends State<_PhoneLookupDialog> {
 class _HistoryHeader extends StatelessWidget {
   const _HistoryHeader({
     required this.customerName,
+    required this.phone,
+    required this.count,
     required this.onChangePhone,
   });
 
   final String? customerName;
+  final String? phone;
+  final int count;
   final VoidCallback onChangePhone;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 16, 10, 0),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Text(
-                'AGENDA SERVICO',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: _HistoryPalette.mint,
+                'Historico',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: _HistoryPalette.text,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -434,126 +492,100 @@ class _HistoryHeader extends StatelessWidget {
                 tooltip: 'Trocar telefone',
                 onPressed: onChangePhone,
                 icon: const Icon(
-                  Icons.logout_rounded,
-                  color: _HistoryPalette.mint,
+                  Icons.phone_forwarded_rounded,
+                  color: _HistoryPalette.gold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 22),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: const [
-              _SmallSealLogo(),
-              Spacer(),
-              Icon(Icons.map_rounded, color: _HistoryPalette.gold, size: 34),
-              SizedBox(width: 28),
-              Icon(
-                Icons.photo_camera_outlined,
-                color: _HistoryPalette.gold,
-                size: 32,
-              ),
-              SizedBox(width: 18),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            customerName == null
+                ? 'Consulte os horarios pelo celular do cliente.'
+                : 'Agendamentos de $customerName',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: _HistoryPalette.muted),
           ),
-          const SizedBox(height: 30),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(
-              'Historico de Agendamentos',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _HistoryPalette.gold,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          if (customerName != null && customerName!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                customerName!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: _HistoryPalette.gold),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          const Divider(color: _HistoryPalette.gold, height: 1),
           const SizedBox(height: 18),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: _HistoryPalette.panel,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _HistoryPalette.stroke),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.fact_check_outlined,
+                    color: _HistoryPalette.gold,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          phone ?? 'Telefone nao informado',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: _HistoryPalette.text,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$count agendamento${count == 1 ? '' : 's'} encontrado${count == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: _HistoryPalette.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onChangePhone,
+                    style: TextButton.styleFrom(
+                      foregroundColor: _HistoryPalette.gold,
+                    ),
+                    child: const Text('Alterar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SmallSealLogo extends StatelessWidget {
-  const _SmallSealLogo();
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 118,
-      height: 118,
-      child: CustomPaint(
-        painter: _SmallSealPainter(),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'T',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: _HistoryPalette.gold,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(
-                Icons.face_retouching_natural_rounded,
-                color: _HistoryPalette.gold,
-                size: 32,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'D',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: _HistoryPalette.gold,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 2),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: _HistoryPalette.gold,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
   }
 }
 
-class _SmallSealPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = _HistoryPalette.gold;
-    canvas
-      ..drawCircle(center, 52, paint)
-      ..drawCircle(center, 39, paint..strokeWidth = 1.2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _TimelineAppointmentCard extends StatelessWidget {
-  const _TimelineAppointmentCard({
+class _AppointmentCard extends StatelessWidget {
+  const _AppointmentCard({
     required this.appointment,
-    required this.showMonth,
-    required this.monthLabel,
-    required this.dateLabel,
     required this.expanded,
     required this.onTap,
     required this.onCancel,
@@ -561,9 +593,6 @@ class _TimelineAppointmentCard extends StatelessWidget {
   });
 
   final Map<String, dynamic> appointment;
-  final bool showMonth;
-  final String monthLabel;
-  final String dateLabel;
   final bool expanded;
   final VoidCallback onTap;
   final VoidCallback onCancel;
@@ -572,6 +601,7 @@ class _TimelineAppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = _statusInfo(appointment['status']?.toString());
+    final dateTime = _appointmentDateTime(appointment);
     final canConfirm = status.raw == 'scheduled' || status.raw == 'pending';
     final canCancel =
         status.raw != 'cancelled' &&
@@ -580,201 +610,138 @@ class _TimelineAppointmentCard extends StatelessWidget {
         status.raw != 'attended' &&
         status.raw != 'no_show';
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 28,
-          child: Column(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _HistoryPalette.card,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _HistoryPalette.stroke),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (showMonth) ...[
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: const BoxDecoration(
-                    color: _HistoryPalette.gold,
-                    shape: BoxShape.circle,
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: status.color,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(8),
                   ),
                 ),
-              ] else
-                const SizedBox(height: 12),
-              Container(
-                width: 1,
-                height: expanded ? 170 : 118,
-                color: _HistoryPalette.gold,
+                child: const SizedBox(width: 5),
               ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showMonth)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    monthLabel,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: _HistoryPalette.gold,
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 8),
-                child: Text(
-                  dateLabel,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _HistoryPalette.gold,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              _AppointmentPanel(
-                appointment: appointment,
-                expanded: expanded,
-                status: status,
-                canCancel: canCancel,
-                canConfirm: canConfirm,
-                onTap: onTap,
-                onCancel: onCancel,
-                onConfirm: onConfirm,
-              ),
-              const SizedBox(height: 14),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AppointmentPanel extends StatelessWidget {
-  const _AppointmentPanel({
-    required this.appointment,
-    required this.expanded,
-    required this.status,
-    required this.canCancel,
-    required this.canConfirm,
-    required this.onTap,
-    required this.onCancel,
-    required this.onConfirm,
-  });
-
-  final Map<String, dynamic> appointment;
-  final bool expanded;
-  final _StatusInfo status;
-  final bool canCancel;
-  final bool canConfirm;
-  final VoidCallback onTap;
-  final VoidCallback onCancel;
-  final VoidCallback onConfirm;
-
-  @override
-  Widget build(BuildContext context) {
-    final serviceName = _serviceName(appointment);
-    final barberName = _barberName(appointment);
-    final dateTime = _appointmentDateTime(appointment);
-    final value = _priceLabel(appointment);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(9),
-      onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _HistoryPalette.card,
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: _HistoryPalette.gold, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: _HistoryPalette.mint.withValues(alpha: 0.65),
-              blurRadius: 9,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (expanded) ...[
-                Text(
-                  '#Agendamento ${status.label}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _HistoryPalette.gold,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-              _InfoLine(icon: Icons.info_rounded, text: serviceName),
-              _InfoLine(
-                icon: Icons.calendar_month_rounded,
-                text: DateFormat(
-                  "EEEE dd/MM 'as' HH:mm",
-                  'pt_BR',
-                ).format(dateTime),
-              ),
-              _InfoLine(
-                icon: Icons.person_rounded,
-                text: 'Profissional $barberName',
-              ),
-              _InfoLine(icon: Icons.attach_money_rounded, text: value),
-              if (expanded) ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    _StepBadge(
-                      icon: Icons.history_rounded,
-                      label: 'Agendamento\nCadastrado',
-                      active: true,
-                    ),
-                    const SizedBox(width: 12),
-                    _StepBadge(
-                      icon: Icons.check_rounded,
-                      label: status.raw == 'confirmed'
-                          ? 'Agendamento\nConfirmado'
-                          : 'Confirmar\nAgendamento',
-                      active: status.raw == 'confirmed',
-                    ),
-                  ],
-                ),
-                if (canCancel || canConfirm) ...[
-                  const SizedBox(height: 14),
-                  Row(
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (canCancel)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: onCancel,
-                            icon: const Icon(Icons.cancel_outlined, size: 16),
-                            label: const Text('Cancelar'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _HistoryPalette.danger,
-                              side: const BorderSide(
-                                color: _HistoryPalette.danger,
-                              ),
-                            ),
+                      Row(
+                        children: [
+                          _StatusPill(status: status),
+                          const Spacer(),
+                          Text(
+                            DateFormat('HH:mm', 'pt_BR').format(dateTime),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: _HistoryPalette.gold,
+                                  fontWeight: FontWeight.w900,
+                                ),
                           ),
-                        ),
-                      if (canCancel && canConfirm) const SizedBox(width: 10),
-                      if (canConfirm)
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: onConfirm,
-                            icon: const Icon(Icons.check, size: 16),
-                            label: const Text('Confirmar'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _HistoryPalette.success,
-                              foregroundColor: Colors.white,
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _serviceName(appointment),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: _HistoryPalette.text,
+                              fontWeight: FontWeight.w900,
                             ),
-                          ),
+                      ),
+                      const SizedBox(height: 7),
+                      _DetailLine(
+                        icon: Icons.person_rounded,
+                        text: _barberName(appointment),
+                      ),
+                      _DetailLine(
+                        icon: Icons.attach_money_rounded,
+                        text: _priceLabel(appointment),
+                      ),
+                      if (expanded) ...[
+                        const Divider(
+                          color: _HistoryPalette.stroke,
+                          height: 22,
                         ),
+                        _DetailLine(
+                          icon: Icons.calendar_month_rounded,
+                          text: DateFormat(
+                            "EEEE, dd/MM/yyyy 'as' HH:mm",
+                            'pt_BR',
+                          ).format(dateTime),
+                        ),
+                        _DetailLine(
+                          icon: Icons.receipt_long_rounded,
+                          text:
+                              'Codigo ${appointment['id']?.toString().substring(0, 8) ?? '-'}',
+                        ),
+                        if (canCancel || canConfirm) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              if (canCancel)
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: onCancel,
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text('Cancelar'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: _HistoryPalette.danger,
+                                      side: const BorderSide(
+                                        color: _HistoryPalette.danger,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (canCancel && canConfirm)
+                                const SizedBox(width: 10),
+                              if (canConfirm)
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: onConfirm,
+                                    icon: const Icon(
+                                      Icons.check_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text('Confirmar'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: _HistoryPalette.success,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ],
                   ),
-                ],
-              ],
+                ),
+              ),
             ],
           ),
         ),
@@ -783,8 +750,40 @@ class _AppointmentPanel extends StatelessWidget {
   }
 }
 
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.icon, required this.text});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
+
+  final _StatusInfo status;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: status.color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          children: [
+            Icon(status.icon, color: status.color, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              status.label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: status.color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -792,78 +791,24 @@ class _InfoLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
           Icon(icon, color: _HistoryPalette.gold, size: 16),
-          const SizedBox(width: 6),
+          const SizedBox(width: 7),
           Expanded(
             child: Text(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: _HistoryPalette.gold,
+                color: _HistoryPalette.muted,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _StepBadge extends StatelessWidget {
-  const _StepBadge({
-    required this.icon,
-    required this.label,
-    required this.active,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _HistoryPalette.bg,
-            border: Border.all(
-              color: active ? _HistoryPalette.gold : _HistoryPalette.muted,
-            ),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: _HistoryPalette.gold.withValues(alpha: 0.5),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(
-              icon,
-              size: 18,
-              color: active ? _HistoryPalette.gold : _HistoryPalette.muted,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: active ? _HistoryPalette.gold : _HistoryPalette.muted,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -897,7 +842,7 @@ class _EmptyHistory extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _HistoryPalette.gold,
+                color: _HistoryPalette.text,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -910,11 +855,14 @@ class _EmptyHistory extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(color: _HistoryPalette.muted),
             ),
             const SizedBox(height: 16),
-            OutlinedButton(
+            FilledButton(
               onPressed: onAction,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _HistoryPalette.gold,
-                side: const BorderSide(color: _HistoryPalette.gold),
+              style: FilledButton.styleFrom(
+                backgroundColor: _HistoryPalette.gold,
+                foregroundColor: _HistoryPalette.bg,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: Text(actionLabel),
             ),
@@ -955,32 +903,34 @@ DateTime _appointmentDateTime(Map<String, dynamic> appointment) {
       DateTime.now();
 }
 
-String _monthLabel(Map<String, dynamic> appointment) {
-  final text = DateFormat(
-    'MMMM',
+String _dayKey(Map<String, dynamic> appointment) {
+  return DateFormat(
+    'yyyy-MM-dd',
     'pt_BR',
   ).format(_appointmentDateTime(appointment));
-  return text.isEmpty ? text : '${text[0].toUpperCase()}${text.substring(1)}';
 }
 
-String _shortDateLabel(Map<String, dynamic> appointment) {
-  return DateFormat('dd/MM', 'pt_BR').format(_appointmentDateTime(appointment));
+String _dayLabel(Map<String, dynamic> appointment) {
+  return DateFormat(
+    'EEEE, dd/MM',
+    'pt_BR',
+  ).format(_appointmentDateTime(appointment));
 }
 
 String _serviceName(Map<String, dynamic> appointment) {
   final service = appointment['services'];
   if (service is Map && service['name'] != null) {
-    return service['name'].toString().toUpperCase();
+    return service['name'].toString();
   }
-  return 'SERVICO';
+  return 'Servico';
 }
 
 String _barberName(Map<String, dynamic> appointment) {
   final barber = appointment['barbers'];
   if (barber is Map && barber['name'] != null) {
-    return barber['name'].toString();
+    return 'Profissional ${barber['name']}';
   }
-  return 'Barbeiro';
+  return 'Profissional nao informado';
 }
 
 String _priceLabel(Map<String, dynamic> appointment) {
@@ -990,43 +940,78 @@ String _priceLabel(Map<String, dynamic> appointment) {
           ? (appointment['services'] as Map)['price']
           : null);
   final value = raw is num ? raw.toDouble() : double.tryParse('$raw') ?? 0;
-  return 'Valor ${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(value)}';
+  return NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(value);
 }
 
 _StatusInfo _statusInfo(String? rawStatus) {
   final raw = (rawStatus ?? 'scheduled').trim().toLowerCase();
   switch (raw) {
     case 'confirmed':
-      return const _StatusInfo('confirmed', 'Confirmado');
+      return const _StatusInfo(
+        'confirmed',
+        'Confirmado',
+        Icons.check_circle_rounded,
+        _HistoryPalette.success,
+      );
     case 'cancelled':
     case 'canceled':
-      return const _StatusInfo('cancelled', 'Cancelado');
+      return const _StatusInfo(
+        'cancelled',
+        'Cancelado',
+        Icons.cancel_rounded,
+        _HistoryPalette.danger,
+      );
     case 'completed':
     case 'attended':
-      return const _StatusInfo('completed', 'Concluido');
+      return const _StatusInfo(
+        'completed',
+        'Concluido',
+        Icons.task_alt_rounded,
+        _HistoryPalette.mint,
+      );
     case 'no_show':
-      return const _StatusInfo('no_show', 'Nao compareceu');
+      return const _StatusInfo(
+        'no_show',
+        'Ausente',
+        Icons.person_off_rounded,
+        _HistoryPalette.muted,
+      );
     case 'pending':
-      return const _StatusInfo('pending', 'Pendente');
+      return const _StatusInfo(
+        'pending',
+        'Pendente',
+        Icons.schedule_rounded,
+        _HistoryPalette.gold,
+      );
     default:
-      return const _StatusInfo('scheduled', 'Cadastrado');
+      return const _StatusInfo(
+        'scheduled',
+        'Agendado',
+        Icons.event_available_rounded,
+        _HistoryPalette.gold,
+      );
   }
 }
 
 class _StatusInfo {
-  const _StatusInfo(this.raw, this.label);
+  const _StatusInfo(this.raw, this.label, this.icon, this.color);
 
   final String raw;
   final String label;
+  final IconData icon;
+  final Color color;
 }
 
 class _HistoryPalette {
   static const Color frame = Color(0xFF223C3C);
-  static const Color bg = Color(0xFF0D0B0B);
-  static const Color card = Color(0xFF111010);
-  static const Color gold = Color(0xFFFFD400);
-  static const Color mint = Color(0xFF00D8A8);
-  static const Color muted = Color(0xFF8E7B3D);
-  static const Color danger = Color(0xFFFF4B3E);
+  static const Color bg = Color(0xFF0F0C0B);
+  static const Color panel = Color(0xFF1C1714);
+  static const Color card = Color(0xFF181110);
+  static const Color stroke = Color(0xFF37241F);
+  static const Color text = Color(0xFFFFF6EA);
+  static const Color muted = Color(0xFFB9A394);
+  static const Color gold = Color(0xFFF6C84F);
+  static const Color mint = Color(0xFF20D8B2);
+  static const Color danger = Color(0xFFE85B4D);
   static const Color success = Color(0xFF4CAF50);
 }
