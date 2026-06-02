@@ -508,210 +508,304 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     return e.message;
   }
 
+  InputDecoration _inputDeco(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: _BP.muted),
+      prefixIcon: Icon(icon, color: _BP.muted, size: 20),
+      filled: true,
+      fillColor: _BP.card,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: _BP.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: _BP.gold, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Agendar Horário')),
-      body: Stepper(
-        currentStep: _currentStep,
-        onStepCancel: () {
-          if (_currentStep > 0) {
-            setState(() => _currentStep--);
-          } else {
-            Navigator.pop(context);
-          }
-        },
-        onStepContinue: () {
-          if (_currentStep == 0) {
-            if (_selectedServices.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Selecione ao menos um serviço.')),
-              );
+      backgroundColor: _BP.bg,
+      appBar: AppBar(
+        backgroundColor: _BP.card,
+        foregroundColor: _BP.text,
+        elevation: 0,
+        title: const Text(
+          'Agendar Horário',
+          style: TextStyle(color: _BP.text, fontWeight: FontWeight.w700),
+        ),
+        iconTheme: const IconThemeData(color: _BP.gold),
+      ),
+      body: Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: _BP.gold,
+            onPrimary: _BP.bg,
+            surface: _BP.card,
+            onSurface: _BP.text,
+            outline: _BP.border,
+          ),
+          checkboxTheme: CheckboxThemeData(
+            fillColor: WidgetStateProperty.resolveWith((s) =>
+                s.contains(WidgetState.selected) ? _BP.gold : Colors.transparent),
+            checkColor: WidgetStateProperty.all(_BP.bg),
+            side: const BorderSide(color: _BP.border, width: 1.5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          ),
+        ),
+        child: Stepper(
+          currentStep: _currentStep,
+          onStepCancel: () {
+            if (_currentStep > 0) {
+              setState(() => _currentStep--);
+            } else {
+              Navigator.pop(context);
+            }
+          },
+          onStepContinue: () {
+            if (_currentStep == 0) {
+              if (_selectedServices.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Selecione ao menos um serviço.'),
+                  ),
+                );
+                return;
+              }
+              setState(() => _currentStep = 1);
               return;
             }
-            setState(() => _currentStep = 1);
-            return;
-          }
-          if (_currentStep < 3) {
-            setState(() => _currentStep++);
-          } else {
-            _saveAppointment();
-          }
-        },
-        steps: [
-          Step(
-            isActive: _currentStep >= 0,
-            title: const Text('Escolha o Serviço'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_selectedServices.isNotEmpty)
-                  _SelectedServicesHeader(services: _selectedServices),
-                _MultiSelectServicesFromSupabase(
-                  initialSelectedIds: _selectedServices
-                      .map((s) => s.id)
-                      .toSet(),
-                  onChange: (list) {
-                    setState(() {
-                      _selectedServices = list;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-          Step(
-            isActive: _currentStep >= 1,
-            title: const Text('Escolha o Barbeiro'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_loadingBarbers)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_barbersError != null)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_barbersError!, style: theme.textTheme.bodyMedium),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: _loadBarbers,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Tentar novamente'),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_barbers.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text('Nenhum barbeiro encontrado.'),
-                  )
-                else
-                  ..._barbers.map(
-                    (b) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _barberTile(
-                        id: b.id,
-                        name: b.name,
-                        avatarUrl: b.avatarUrl,
-                        rating: b.rating,
+            if (_currentStep < 3) {
+              setState(() => _currentStep++);
+            } else {
+              _saveAppointment();
+            }
+          },
+          controlsBuilder: (context, details) {
+            final isLast = _currentStep == 3;
+            return Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                children: [
+                  FilledButton(
+                    onPressed: details.onStepContinue,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _BP.gold,
+                      foregroundColor: _BP.bg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          Step(
-            isActive: _currentStep >= 2,
-            title: const Text('Data e Horário'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    final now = DateTime.now();
-                    final date = await showDatePicker(
-                      context: context,
-                      locale: const Locale('pt', 'BR'),
-                      firstDate: now,
-                      lastDate: now.add(const Duration(days: 60)),
-                      initialDate: now,
-                    );
-                    if (date == null) return;
-                    if (!mounted) return;
-                    setState(() {
-                      _selectedDate = DateTime(date.year, date.month, date.day);
-                    });
-                    await _refreshSlots();
-                  },
-                  child: Text(
-                    _selectedDate == null
-                        ? 'Selecionar data'
-                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_selectedBarberId == null)
-                  const Text('Selecione um barbeiro no passo anterior.')
-                else if (_selectedDate == null)
-                  const Text('Selecione uma data para ver os horários.')
-                else if (_availableSlots.isEmpty)
-                  const Text('Sem horários disponíveis para este dia.')
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _availableSlots.map((t) {
-                      final label =
-                          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-                      final taken = _takenSlots.contains(label);
-                      final selected = _selectedTime == t;
-                      return ChoiceChip(
-                        label: Text(label),
-                        selected: selected,
-                        onSelected: taken
-                            ? null
-                            : (v) {
-                                if (!v) return;
-                                setState(() {
-                                  _selectedTime = t;
-                                  _selectedDateTime = DateTime(
-                                    _selectedDate!.year,
-                                    _selectedDate!.month,
-                                    _selectedDate!.day,
-                                    t.hour,
-                                    t.minute,
-                                  );
-                                });
-                              },
-                        disabledColor: Theme.of(
-                          context,
-                        ).colorScheme.surfaceVariant,
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
-          ),
-          Step(
-            isActive: _currentStep >= 3,
-            title: const Text('Dados Pessoais'),
-            content: Column(
-              children: [
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nome completo',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                ),
-                TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    MaskTextInputFormatter(
-                      mask: '(##) #####-####',
-                      filter: {'#': RegExp(r'[0-9]')},
+                    child: Text(
+                      isLast ? 'Confirmar' : 'Continuar',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Telefone',
-                    hintText: '(00) 00000-0000',
-                    prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: details.onStepCancel,
+                    style: TextButton.styleFrom(foregroundColor: _BP.muted),
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            );
+          },
+          steps: [
+            Step(
+              isActive: _currentStep >= 0,
+              title: const Text('Escolha o Serviço'),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_selectedServices.isNotEmpty)
+                    _SelectedServicesHeader(services: _selectedServices),
+                  _MultiSelectServicesFromSupabase(
+                    initialSelectedIds:
+                        _selectedServices.map((s) => s.id).toSet(),
+                    onChange: (list) => setState(() => _selectedServices = list),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Step(
+              isActive: _currentStep >= 1,
+              title: const Text('Escolha o Barbeiro'),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_loadingBarbers)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_barbersError != null)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_barbersError!,
+                              style:
+                                  const TextStyle(color: _BP.muted)),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _loadBarbers,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Tentar novamente'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_barbers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('Nenhum barbeiro encontrado.',
+                          style: TextStyle(color: _BP.muted)),
+                    )
+                  else
+                    ..._barbers.map(
+                      (b) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _barberTile(
+                          id: b.id,
+                          name: b.name,
+                          avatarUrl: b.avatarUrl,
+                          rating: b.rating,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Step(
+              isActive: _currentStep >= 2,
+              title: const Text('Data e Horário'),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.calendar_today_outlined,
+                        size: 16, color: _BP.gold),
+                    label: Text(
+                      _selectedDate == null
+                          ? 'Selecionar data'
+                          : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+                      style: const TextStyle(color: _BP.gold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: _BP.gold),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final now = DateTime.now();
+                      final date = await showDatePicker(
+                        context: context,
+                        locale: const Locale('pt', 'BR'),
+                        firstDate: now,
+                        lastDate: now.add(const Duration(days: 60)),
+                        initialDate: now,
+                      );
+                      if (date == null || !mounted) return;
+                      setState(() => _selectedDate =
+                          DateTime(date.year, date.month, date.day));
+                      await _refreshSlots();
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  if (_selectedBarberId == null)
+                    const Text('Selecione um barbeiro no passo anterior.',
+                        style: TextStyle(color: _BP.muted))
+                  else if (_selectedDate == null)
+                    const Text('Selecione uma data para ver os horários.',
+                        style: TextStyle(color: _BP.muted))
+                  else if (_availableSlots.isEmpty)
+                    const Text('Sem horários disponíveis para este dia.',
+                        style: TextStyle(color: _BP.muted))
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _availableSlots.map((t) {
+                        final label =
+                            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+                        final taken = _takenSlots.contains(label);
+                        final selected = _selectedTime == t;
+                        return ChoiceChip(
+                          label: Text(label),
+                          selected: selected,
+                          selectedColor: _BP.gold,
+                          backgroundColor: _BP.card,
+                          disabledColor: _BP.card.withValues(alpha: 0.4),
+                          side: BorderSide(
+                            color: selected ? _BP.gold : _BP.border,
+                          ),
+                          labelStyle: TextStyle(
+                            color: selected
+                                ? _BP.bg
+                                : taken
+                                    ? _BP.muted
+                                    : _BP.text,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                          ),
+                          onSelected: taken
+                              ? null
+                              : (v) {
+                                  if (!v) return;
+                                  setState(() {
+                                    _selectedTime = t;
+                                    _selectedDateTime = DateTime(
+                                      _selectedDate!.year,
+                                      _selectedDate!.month,
+                                      _selectedDate!.day,
+                                      t.hour,
+                                      t.minute,
+                                    );
+                                  });
+                                },
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+            Step(
+              isActive: _currentStep >= 3,
+              title: const Text('Dados Pessoais'),
+              content: Column(
+                children: [
+                  TextField(
+                    controller: _nameController,
+                    style: const TextStyle(color: _BP.text),
+                    decoration: _inputDeco('Nome completo', Icons.person_outline),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: _BP.text),
+                    inputFormatters: [
+                      MaskTextInputFormatter(
+                        mask: '(##) #####-####',
+                        filter: {'#': RegExp(r'[0-9]')},
+                      ),
+                    ],
+                    decoration: _inputDeco('Telefone', Icons.phone_outlined)
+                        .copyWith(hintText: '(00) 00000-0000'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -722,10 +816,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     required String avatarUrl,
     required double rating,
   }) {
-    final theme = Theme.of(context);
     final selected = _selectedBarberId == id;
 
     return InkWell(
+      borderRadius: BorderRadius.circular(12),
       onTap: () async {
         setState(() => _selectedBarberId = id);
         await _refreshSlots();
@@ -734,39 +828,38 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected
-              ? theme.colorScheme.primaryContainer.withAlpha(64)
-              : theme.colorScheme.surface,
+              ? _BP.gold.withValues(alpha: 0.08)
+              : _BP.card,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outline.withAlpha(51),
+            color: selected ? _BP.gold : _BP.border,
+            width: selected ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: theme.colorScheme.primary,
-              foregroundImage: (avatarUrl.isNotEmpty)
+              backgroundColor: _BP.border,
+              foregroundImage: avatarUrl.isNotEmpty
                   ? NetworkImage(avatarUrl)
                   : null,
-              child: (avatarUrl.isEmpty)
-                  ? Icon(Icons.person, color: theme.colorScheme.onPrimary)
+              child: avatarUrl.isEmpty
+                  ? const Icon(Icons.person, color: _BP.muted)
                   : null,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                ],
+              child: Text(
+                name,
+                style: const TextStyle(
+                  color: _BP.text,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle, color: theme.colorScheme.primary),
+              const Icon(Icons.check_circle_rounded, color: _BP.gold, size: 20),
           ],
         ),
       ),
@@ -814,29 +907,54 @@ class _SelectedServicesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: _BP.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outline.withAlpha(51)),
+        border: Border.all(color: _BP.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Icon(Icons.content_cut, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              Text('Serviços selecionados', style: theme.textTheme.titleMedium),
+              Icon(Icons.content_cut_rounded, color: _BP.gold, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Serviços selecionados',
+                style: TextStyle(
+                  color: _BP.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
-            runSpacing: 8,
-            children: services.map((s) => Chip(label: Text(s.name))).toList(),
+            runSpacing: 6,
+            children: services
+                .map((s) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _BP.gold.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: _BP.gold.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        s.name,
+                        style: const TextStyle(
+                          color: _BP.gold,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ))
+                .toList(),
           ),
         ],
       ),
@@ -909,45 +1027,84 @@ class _MultiSelectServicesFromSupabaseState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Selecione um ou mais serviços:'),
-            const SizedBox(height: 8),
+            const Text(
+              'Selecione um ou mais serviços:',
+              style: TextStyle(color: _BP.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
             ...services.map((s) {
               final checked = _selectedIds.contains(s.id);
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: checked,
-                      onChanged: (v) {
-                        setState(() {
-                          if (v == true) {
-                            _selectedIds.add(s.id);
-                          } else {
-                            _selectedIds.remove(s.id);
-                          }
-                        });
-                        final selected = services
-                            .where((it) => _selectedIds.contains(it.id))
-                            .toList();
-                        widget.onChange(selected);
-                      },
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (checked) {
+                      _selectedIds.remove(s.id);
+                    } else {
+                      _selectedIds.add(s.id);
+                    }
+                  });
+                  final selected = services
+                      .where((it) => _selectedIds.contains(it.id))
+                      .toList();
+                  widget.onChange(selected);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: checked
+                        ? _BP.gold.withValues(alpha: 0.08)
+                        : _BP.card,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: checked ? _BP.gold : _BP.border,
+                      width: checked ? 1.5 : 1,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(s.name),
-                          const SizedBox(height: 2),
-                          Text(
-                            s.formattedPrice,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                  ),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: checked,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v == true) {
+                              _selectedIds.add(s.id);
+                            } else {
+                              _selectedIds.remove(s.id);
+                            }
+                          });
+                          final selected = services
+                              .where((it) => _selectedIds.contains(it.id))
+                              .toList();
+                          widget.onChange(selected);
+                        },
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s.name,
+                              style: TextStyle(
+                                color: checked ? _BP.gold : _BP.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              s.formattedPrice,
+                              style: const TextStyle(
+                                color: _BP.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }).toList(),
@@ -1012,6 +1169,17 @@ class __SelectServiceFromSupabaseState
       },
     );
   }
+}
+
+// ── Paleta dark (igual ao home) ───────────────────────────────────────────────
+
+class _BP {
+  static const Color bg     = Color(0xFF0C0D10);
+  static const Color card   = Color(0xFF14161A);
+  static const Color border = Color(0xFF252830);
+  static const Color gold   = Color(0xFFF5C440);
+  static const Color text   = Color(0xFFF0EDE8);
+  static const Color muted  = Color(0xFF6B7280);
 }
 
 String _formatDateTime(DateTime dt) {

@@ -621,7 +621,8 @@ class _AppointmentCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
-          child: Row(
+          child: IntrinsicHeight(
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               DecoratedBox(
@@ -743,6 +744,7 @@ class _AppointmentCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

@@ -37,9 +37,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
+      extendBody: true,
+      backgroundColor: const Color(0xFF0C0D10),
       body: IndexedStack(
         index: _currentIndex,
         children: List.generate(_items.length, (index) {
@@ -47,64 +47,15 @@ class _MainNavigationState extends State<MainNavigation> {
           return _items[index].screen;
         }),
       ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _NavPalette.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(
-            top: BorderSide(
-              color: _NavPalette.gold.withValues(alpha: 0.75),
-              width: 1,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.shadow.withValues(alpha: 0.28),
-              blurRadius: 16,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: NavigationBarTheme(
-            data: NavigationBarThemeData(
-              indicatorColor: _NavPalette.gold.withValues(alpha: 0.14),
-              labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                final selected = states.contains(WidgetState.selected);
-                return theme.textTheme.labelSmall?.copyWith(
-                  color: selected ? _NavPalette.gold : _NavPalette.muted,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                );
-              }),
-            ),
-            child: NavigationBar(
-              height: 72,
-              selectedIndex: _currentIndex,
-              onDestinationSelected: (index) {
-                setState(() {
-                  _builtTabs[index] = true;
-                  _currentIndex = index;
-                });
-              },
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-              destinations: _items
-                  .map(
-                    (item) => NavigationDestination(
-                      icon: Icon(item.icon, color: _NavPalette.muted),
-                      selectedIcon: Icon(
-                        item.selectedIcon,
-                        color: _NavPalette.gold,
-                      ),
-                      label: item.label,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        ),
+      bottomNavigationBar: _FloatingNavBar(
+        currentIndex: _currentIndex,
+        items: _items,
+        onTap: (index) {
+          setState(() {
+            _builtTabs[index] = true;
+            _currentIndex = index;
+          });
+        },
       ),
     );
   }
@@ -124,10 +75,93 @@ class _NavItem {
   final Widget screen;
 }
 
-class _NavPalette {
-  static const Color background = Color(0xFF0D0909);
-  static const Color gold = Color(0xFFFFD400);
-  static const Color muted = Color(0xFF8F7B53);
+// ── Floating pill navbar ──────────────────────────────────────────────────────
+
+class _FloatingNavBar extends StatelessWidget {
+  const _FloatingNavBar({
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+  });
+
+  final int currentIndex;
+  final List<_NavItem> items;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 8, 28, 14),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161A),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFF252830)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x70000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            child: Row(
+              children: List.generate(items.length, (i) {
+                final selected = i == currentIndex;
+                final item = items[i];
+                return Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onTap(i),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? const Color(0xFFF5C440).withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            selected ? item.selectedIcon : item.icon,
+                            color: selected
+                                ? const Color(0xFFF5C440)
+                                : const Color(0xFF6B7280),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            color: selected
+                                ? const Color(0xFFF5C440)
+                                : const Color(0xFF6B7280),
+                            fontWeight: selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            fontSize: 11,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 List<_NavItem> _baseItems() => const [

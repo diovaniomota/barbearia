@@ -1,7 +1,7 @@
-import 'package:barbearia/models/service.dart';
-import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:barbearia/models/service.dart';
+import 'package:barbearia/screens/book_appointment_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,10 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .from('services')
           .select()
           .order('name');
-
-      return (response as List)
-          .map((serviceData) => Service.fromMap(serviceData))
-          .toList();
+      return (response as List).map((e) => Service.fromMap(e)).toList();
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('oauth_client_id')) {
@@ -37,10 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
             .from('services')
             .select()
             .order('name');
-
-        return (response as List)
-            .map((serviceData) => Service.fromMap(serviceData))
-            .toList();
+        return (response as List).map((e) => Service.fromMap(e)).toList();
       }
       rethrow;
     }
@@ -56,92 +50,78 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openBooking(Service service) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => BookAppointmentScreen(service: service),
-      ),
+      MaterialPageRoute(builder: (_) => BookAppointmentScreen(service: service)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _HomePalette.frame,
+      backgroundColor: _P.bg,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: DecoratedBox(
-              decoration: const BoxDecoration(color: _HomePalette.background),
-              child: RefreshIndicator(
-                color: _HomePalette.gold,
-                backgroundColor: _HomePalette.panel,
-                onRefresh: _refresh,
-                child: FutureBuilder<List<Service>>(
-                  future: _servicesFuture,
-                  builder: (context, snapshot) {
-                    final isLoading =
-                        snapshot.connectionState == ConnectionState.waiting;
-                    final services = snapshot.data ?? const <Service>[];
+        child: RefreshIndicator(
+          color: _P.gold,
+          backgroundColor: _P.card,
+          onRefresh: _refresh,
+          child: FutureBuilder<List<Service>>(
+            future: _servicesFuture,
+            builder: (context, snapshot) {
+              final loading =
+                  snapshot.connectionState == ConnectionState.waiting;
+              final services = snapshot.data ?? const <Service>[];
 
-                    return CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: _CatalogHeader(serviceCount: services.length),
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _PageHeader(count: services.length),
+                  ),
+                  if (loading)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate.fixed(const [
+                          _Skeleton(),
+                          SizedBox(height: 12),
+                          _Skeleton(),
+                          SizedBox(height: 12),
+                          _Skeleton(),
+                        ]),
+                      ),
+                    )
+                  else if (snapshot.hasError)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _EmptyState(
+                        icon: Icons.wifi_off_rounded,
+                        title: 'Sem conexão',
+                        subtitle: 'Puxe para baixo e tente novamente.',
+                      ),
+                    )
+                  else if (services.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _EmptyState(
+                        icon: Icons.content_cut_rounded,
+                        title: 'Nenhum serviço',
+                        subtitle: 'Os serviços vão aparecer aqui.',
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
+                      sliver: SliverList.separated(
+                        itemCount: services.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (_, i) => _ServicePhotoCard(
+                          service: services[i],
+                          onTap: () => _openBooking(services[i]),
                         ),
-                        if (isLoading)
-                          const SliverPadding(
-                            padding: EdgeInsets.fromLTRB(14, 8, 14, 96),
-                            sliver: SliverList(
-                              delegate: SliverChildListDelegate.fixed([
-                                _ServiceSkeleton(),
-                                SizedBox(height: 12),
-                                _ServiceSkeleton(),
-                                SizedBox(height: 12),
-                                _ServiceSkeleton(),
-                              ]),
-                            ),
-                          )
-                        else if (snapshot.hasError)
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _EmptyState(
-                              icon: Icons.wifi_off_rounded,
-                              title: 'Servicos indisponiveis',
-                              subtitle: 'Puxe para baixo para tentar de novo.',
-                            ),
-                          )
-                        else if (services.isEmpty)
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _EmptyState(
-                              icon: Icons.content_cut_rounded,
-                              title: 'Nenhum servico cadastrado',
-                              subtitle: 'Os atendimentos vao aparecer aqui.',
-                            ),
-                          )
-                        else
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 96),
-                            sliver: SliverList.separated(
-                              itemCount: services.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final service = services[index];
-                                return _ServiceTile(
-                                  service: service,
-                                  onTap: () => _openBooking(service),
-                                );
-                              },
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -149,72 +129,182 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _CatalogHeader extends StatelessWidget {
-  const _CatalogHeader({required this.serviceCount});
+// ── Header ────────────────────────────────────────────────────────────────────
 
-  final int serviceCount;
+class _PageHeader extends StatelessWidget {
+  const _PageHeader({required this.count});
+
+  final int count;
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Card de boas-vindas ──────────────────────────
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          decoration: BoxDecoration(
+            color: _P.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _P.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _LogoMark(),
-              const SizedBox(width: 10),
-              Text(
-                'Agenda Servico',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _HomePalette.mint,
+              // Brand + contador
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: _P.gold, width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.content_cut_rounded,
+                      color: _P.gold,
+                      size: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'BARBEARIA',
+                    style: tt.labelSmall?.copyWith(
+                      color: _P.text,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+                  const Spacer(),
+                  _CountBadge(count: count),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Saudação + heading na mesma linha visual
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    margin: const EdgeInsets.only(right: 6, bottom: 1),
+                    decoration: const BoxDecoration(
+                      color: _P.gold,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Text(
+                    '$_greeting!  ',
+                    style: tt.labelMedium?.copyWith(
+                      color: _P.gold,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'O que vai ser hoje?',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.titleMedium?.copyWith(
+                        color: _P.text,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Divisor centrado
+              Row(
+                children: [
+                  const Expanded(
+                    child: Divider(color: _P.border, thickness: 1),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      'SERVIÇOS',
+                      style: tt.labelSmall?.copyWith(
+                        color: _P.muted,
+                        letterSpacing: 2.2,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  const Expanded(
+                    child: Divider(color: _P.border, thickness: 1),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+// ── Count badge ───────────────────────────────────────────────────────────────
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _P.gold.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 17,
+            height: 17,
+            decoration: const BoxDecoration(
+              color: _P.gold,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  color: Color(0xFF0C0D10),
                   fontWeight: FontWeight.w900,
+                  fontSize: 10,
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Atualizar',
-                onPressed: () {},
-                icon: const Icon(Icons.tune_rounded, color: _HomePalette.gold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Escolha seu atendimento',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: _HomePalette.text,
-              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 6),
           Text(
-            'Selecione um servico para iniciar o agendamento.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _HomePalette.muted),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              _HeaderChip(
-                icon: Icons.content_cut_rounded,
-                label: '$serviceCount servicos',
-              ),
-              const SizedBox(width: 8),
-              const _HeaderChip(
-                icon: Icons.schedule_rounded,
-                label: 'Horario online',
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Catalogo',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: _HomePalette.gold,
-              fontWeight: FontWeight.w800,
+            count == 1 ? 'serviço' : 'serviços',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: _P.muted,
             ),
           ),
         ],
@@ -223,219 +313,206 @@ class _CatalogHeader extends StatelessWidget {
   }
 }
 
-class _LogoMark extends StatelessWidget {
-  const _LogoMark();
+// ── Photo card ────────────────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _HomePalette.gold,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.spa_rounded, color: _HomePalette.background),
-      ),
-    );
-  }
-}
-
-class _HeaderChip extends StatelessWidget {
-  const _HeaderChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _HomePalette.panel,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _HomePalette.stroke),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          child: Row(
-            children: [
-              Icon(icon, color: _HomePalette.gold, size: 17),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: _HomePalette.text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ServiceTile extends StatelessWidget {
-  const _ServiceTile({required this.service, required this.onTap});
+class _ServicePhotoCard extends StatelessWidget {
+  const _ServicePhotoCard({required this.service, required this.onTap});
 
   final Service service;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final description = service.description.trim();
-    final showDescription =
-        description.isNotEmpty && !description.toLowerCase().contains('sem');
+    final url = service.imageUrl.trim();
+    final desc = service.description.trim();
+    final hasDesc = desc.isNotEmpty && !desc.toLowerCase().contains('sem');
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _HomePalette.card,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _HomePalette.stroke),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                _ServiceImage(imageUrl: service.imageUrl),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        service.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: _HomePalette.text,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                      if (showDescription) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: _HomePalette.muted),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _MetaPill(label: service.formattedPrice),
-                          const SizedBox(width: 7),
-                          _MetaPill(label: service.duration),
+    return SizedBox(
+      height: 150,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: _P.card,
+                border: Border.all(color: _P.gold, width: 1.5),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Background image or placeholder
+                  url.isNotEmpty
+                      ? Image.network(
+                          url,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const _Placeholder(),
+                        )
+                      : const _Placeholder(),
+
+                  // Gradient overlay — strong at bottom for readability
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.10),
+                          Colors.black.withValues(alpha: 0.88),
                         ],
+                        stops: const [0.0, 1.0],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: _HomePalette.gold,
-                  size: 16,
-                ),
-              ],
+
+                  // Text content pinned to bottom-left
+                  Positioned(
+                    left: 16,
+                    right: 56,
+                    bottom: 14,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          service.name.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            shadows: const [
+                              Shadow(color: Colors.black54, blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            Text(
+                              service.formattedPrice,
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: _P.gold,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              '  ·  ',
+                              style: TextStyle(color: _P.muted, fontSize: 12),
+                            ),
+                            Text(
+                              service.duration,
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: _P.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (hasDesc) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            desc,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // Arrow icon pinned to bottom-right
+                  Positioned(
+                    right: 14,
+                    bottom: 14,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _P.gold.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _P.gold.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: _P.gold,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
 
-class _ServiceImage extends StatelessWidget {
-  const _ServiceImage({required this.imageUrl});
-
-  final String imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = imageUrl.trim();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 82,
-        height: 82,
-        child: DecoratedBox(
-          decoration: const BoxDecoration(color: _HomePalette.panel),
-          child: url.isEmpty
-              ? const Icon(Icons.content_cut_rounded, color: _HomePalette.gold)
-              : Image.network(
-                  url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) {
-                    return const Icon(
-                      Icons.content_cut_rounded,
-                      color: _HomePalette.gold,
-                    );
-                  },
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _HomePalette.gold.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: _HomePalette.gold,
-            fontWeight: FontWeight.w800,
+          // Tap overlay
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onTap,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _ServiceSkeleton extends StatelessWidget {
-  const _ServiceSkeleton();
+// ── Placeholder (no image) ────────────────────────────────────────────────────
+
+class _Placeholder extends StatelessWidget {
+  const _Placeholder();
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 104,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _HomePalette.card,
-          borderRadius: BorderRadius.all(Radius.circular(8)),
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1A1C22), Color(0xFF0E1014)],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.content_cut_rounded,
+          color: Color(0xFF2A2E3A),
+          size: 52,
         ),
       ),
     );
   }
 }
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+class _Skeleton extends StatelessWidget {
+  const _Skeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        color: _P.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _P.border),
+      ),
+    );
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
@@ -452,17 +529,25 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: _HomePalette.gold, size: 36),
-            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _P.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _P.border),
+              ),
+              child: Icon(icon, color: _P.gold, size: 32),
+            ),
+            const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _HomePalette.text,
+                color: _P.text,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -470,9 +555,8 @@ class _EmptyState extends StatelessWidget {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: _HomePalette.muted),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: _P.muted),
             ),
           ],
         ),
@@ -481,14 +565,13 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _HomePalette {
-  static const Color frame = Color(0xFF223C3C);
-  static const Color background = Color(0xFF0F0C0B);
-  static const Color panel = Color(0xFF1C1714);
-  static const Color card = Color(0xFF181110);
-  static const Color stroke = Color(0xFF37241F);
-  static const Color gold = Color(0xFFF6C84F);
-  static const Color mint = Color(0xFF20D8B2);
-  static const Color text = Color(0xFFFFF6EA);
-  static const Color muted = Color(0xFFB9A394);
+// ── Palette ───────────────────────────────────────────────────────────────────
+
+class _P {
+  static const Color bg     = Color(0xFF0C0D10);
+  static const Color card   = Color(0xFF14161A);
+  static const Color border = Color(0xFF252830);
+  static const Color gold   = Color(0xFFF5C440);
+  static const Color text   = Color(0xFFF0EDE8);
+  static const Color muted  = Color(0xFF6B7280);
 }
