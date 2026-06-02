@@ -146,8 +146,30 @@ class WhatsappService {
       ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) return const WhatsappResult(ok: true);
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return WhatsappResult(ok: false, error: body['error']?.toString());
+
+      // Tenta decodificar JSON; se falhar, usa mensagem genérica com código HTTP
+      try {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final msg = body['error']?.toString() ?? 'Erro ${res.statusCode}';
+        return WhatsappResult(ok: false, error: msg);
+      } catch (_) {
+        if (res.statusCode == 503) {
+          return const WhatsappResult(
+            ok: false,
+            error: 'WhatsApp desconectado — escaneie o QR code primeiro.',
+          );
+        }
+        if (res.statusCode == 401) {
+          return const WhatsappResult(
+            ok: false,
+            error: 'API Key inválida. Verifique a chave nas configurações.',
+          );
+        }
+        return WhatsappResult(
+          ok: false,
+          error: 'Servidor retornou erro ${res.statusCode}.',
+        );
+      }
     } catch (e) {
       return WhatsappResult(ok: false, error: e.toString());
     }
