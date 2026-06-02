@@ -4,6 +4,7 @@ import 'package:barbearia/screens/admin/services_admin_screen.dart';
 import 'package:barbearia/screens/admin/barbers_admin_screen.dart';
 import 'package:barbearia/screens/admin/appointments_admin_screen.dart';
 import 'package:barbearia/screens/admin/financial_admin_screen.dart';
+import 'package:barbearia/screens/admin/whatsapp_admin_screen.dart';
 
 class AdminNavigation extends StatefulWidget {
   const AdminNavigation({super.key});
@@ -21,6 +22,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
     BarbersAdminScreen(),
     AppointmentsAdminScreen(),
     FinancialAdminScreen(),
+    WhatsappAdminScreen(),
   ];
 
   @override
@@ -103,6 +105,17 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 color: theme.colorScheme.onPrimaryContainer,
               ),
               label: 'Caixa',
+            ),
+            NavigationDestination(
+              icon: Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: theme.colorScheme.onSurface,
+              ),
+              selectedIcon: Icon(
+                Icons.chat_bubble_rounded,
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+              label: 'WhatsApp',
             ),
           ],
         ),

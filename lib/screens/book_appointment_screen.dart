@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
+import 'package:barbearia/services/whatsapp_service.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -380,7 +381,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         },
       );
 
-      Navigator.pop(context, response);
+      // Enviar confirmação via WhatsApp (sem bloquear o fluxo)
+      _sendWhatsappConfirmation();
+
+      if (mounted) Navigator.pop(context, response);
     } on PostgrestException catch (e) {
       await showDialog(
         context: context,
@@ -810,6 +814,43 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     );
   }
 
+  void _sendWhatsappConfirmation() {
+    final dt = _selectedDateTime;
+    final phone = _phoneController.text.trim();
+    if (dt == null || phone.isEmpty || _selectedServices.isEmpty) return;
+
+    final barber = _barbers.firstWhere(
+      (b) => b.id == _selectedBarberId,
+      orElse: () => BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
+    );
+
+    final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+    final timeStr = DateFormat('HH:mm').format(dt);
+    final services = _selectedServices.map((s) => s.name).join(', ');
+
+    WhatsappService.loadConfig().then((config) {
+      if (!config.enabled || !config.isConfigured) return;
+      final totalPrice = _selectedServices
+        .fold<double>(0, (sum, s) => sum + s.price);
+    final valor = 'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
+
+    final msg = WhatsappService.buildMessage(
+        template: config.template,
+        cliente: _nameController.text.trim(),
+        data: dateStr,
+        hora: timeStr,
+        servico: services,
+        barbeiro: barber.name,
+        valor: valor,
+      );
+      WhatsappService.sendMessage(
+        phone: phone,
+        message: msg,
+        config: config,
+      );
+    });
+  }
+
   Widget _barberTile({
     required String id,
     required String name,
@@ -862,40 +903,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               const Icon(Icons.check_circle_rounded, color: _BP.gold, size: 20),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ServiceHeader extends StatelessWidget {
-  const _ServiceHeader({required this.service});
-  final Service service;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outline.withAlpha(51)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.content_cut, color: theme.colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(service.name, style: theme.textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(service.formattedPrice, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1107,7 +1114,7 @@ class _MultiSelectServicesFromSupabaseState
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         );
       },
