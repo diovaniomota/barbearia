@@ -36,6 +36,12 @@ class WhatsappConfig {
 
   bool get isConfigured => serverUrl.isNotEmpty && apiKey.isNotEmpty;
 
+  String get normalizedUrl {
+    final url = serverUrl.trim().replaceAll(RegExp(r'/$'), '');
+    if (url.startsWith('http')) return url;
+    return 'https://$url';
+  }
+
   WhatsappConfig copyWith({
     String? serverUrl,
     String? apiKey,
@@ -137,7 +143,7 @@ class WhatsappService {
     final fullPhone = clean.startsWith('55') ? clean : '55$clean';
     try {
       final res = await http.post(
-        Uri.parse('${config.serverUrl}/send'),
+        Uri.parse('${config.normalizedUrl}/send'),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': config.apiKey,
@@ -183,7 +189,7 @@ class WhatsappService {
     }
     try {
       final res = await http.get(
-        Uri.parse('${config.serverUrl}/status'),
+        Uri.parse('${config.normalizedUrl}/status'),
         headers: {'x-api-key': config.apiKey},
       ).timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return ServerStatus(online: false, connected: false);
@@ -204,7 +210,7 @@ class WhatsappService {
   static Future<String?> fetchQR(WhatsappConfig config) async {
     try {
       final res = await http.get(
-        Uri.parse('${config.serverUrl}/qr'),
+        Uri.parse('${config.normalizedUrl}/qr'),
         headers: {'x-api-key': config.apiKey},
       ).timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return null;
