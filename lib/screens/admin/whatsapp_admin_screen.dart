@@ -218,9 +218,7 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () {
-              _save().then((_) => _startPolling());
-            },
+            onPressed: _save,
             icon: const Icon(Icons.wifi_find_outlined, size: 18),
             label: const Text('Conectar / verificar'),
           ),
