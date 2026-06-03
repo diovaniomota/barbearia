@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:barbearia/screens/book_appointment_screen.dart';
 import 'package:barbearia/services/whatsapp_service.dart';
 
 class CustomerHistoryScreen extends StatefulWidget {
@@ -222,31 +221,15 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
 
   Future<void> _rescheduleAppointment(Map<String, dynamic> appointment) async {
     if (!mounted) return;
-
-    // Captura antes de navegar
-    final phone   = appointment['customer_phone']?.toString() ?? '';
-    final cliente = appointment['customer_name']?.toString() ?? '';
-
-    final result = await Navigator.push<dynamic>(
-      context,
-      MaterialPageRoute(builder: (_) => const BookAppointmentScreen()),
+    final rescheduled = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RescheduleModal(appointment: appointment),
     );
-
-    if (!mounted || result == null) return;
-
-    // Marca o agendamento antigo como cancelado
-    await _updateStatus(appointment, 'cancelled');
-
-    // Envia mensagem de remarcação (o BookAppointmentScreen já envia a
-    // confirmação do novo agendamento; aqui enviamos aviso do antigo)
-    if (phone.isEmpty) return;
-    WhatsappService.loadConfig().then((config) {
-      if (!config.enabled || !config.isConfigured) return;
-      final msg = '🔄 *Agendamento remarcado*\n\n'
-          'Olá, $cliente! Seu agendamento anterior foi cancelado e um novo '
-          'foi criado. Confira os detalhes na mensagem a seguir. 😊';
-      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
-    });
+    if (!mounted || rescheduled != true) return;
+    final phone = _phone;
+    if (phone != null) await _loadHistory(phone);
   }
 
   Future<void> _refresh() async {
@@ -1099,6 +1082,351 @@ class _StatusInfo {
   final String label;
   final IconData icon;
   final Color color;
+}
+
+// ── Modal de remarcação ───────────────────────────────────────────────────────
+
+class _RescheduleModal extends StatefulWidget {
+  const _RescheduleModal({required this.appointment});
+  final Map<String, dynamic> appointment;
+
+  @override
+  State<_RescheduleModal> createState() => _RescheduleModalState();
+}
+
+class _RescheduleModalState extends State<_RescheduleModal> {
+  DateTime?      _selectedDate;
+  TimeOfDay?     _selectedTime;
+  DateTime?      _selectedDateTime;
+  List<TimeOfDay> _availableSlots = const [];
+  Set<String>    _takenSlots     = const {};
+  bool _loadingSlots = false;
+  bool _saving       = false;
+
+  Map<String, dynamic> get _ap => widget.appointment;
+  String get _barberId      => _ap['barber_id']?.toString()      ?? '';
+  String get _serviceId     => _ap['service_id']?.toString()     ?? '';
+  String get _customerName  => _ap['customer_name']?.toString()  ?? '';
+  String get _customerPhone => _ap['customer_phone']?.toString() ?? '';
+  double get _totalPrice    => (_ap['total_price'] as num?)?.toDouble() ?? 0;
+  String get _oldId         => _ap['id']?.toString()             ?? '';
+
+  String get _barberName {
+    final b = _ap['barbers'];
+    return (b is Map ? b['name'] : null)?.toString() ?? '—';
+  }
+
+  String get _serviceName {
+    final s = _ap['services'];
+    return (s is Map ? s['name'] : null)?.toString() ?? '—';
+  }
+
+  Future<void> _loadSlots(DateTime date) async {
+    setState(() {
+      _loadingSlots = true;
+      _selectedTime = null;
+      _selectedDateTime = null;
+    });
+    try {
+      final dow    = date.weekday;
+      final avRows = await Supabase.instance.client
+          .from('barber_availability')
+          .select('*')
+          .eq('barber_id', _barberId)
+          .eq('day_of_week', dow == 7 ? 0 : dow)
+          .limit(1);
+
+      TimeOfDay start = const TimeOfDay(hour: 9,  minute: 0);
+      TimeOfDay end   = const TimeOfDay(hour: 18, minute: 0);
+      bool enabled    = true;
+      if (avRows.isNotEmpty) {
+        final row = avRows.first;
+        enabled   = (row['is_available'] ?? true) == true;
+        final st  = '${row['start_time'] ?? '09:00'}'.split(':');
+        final et  = '${row['end_time']   ?? '18:00'}'.split(':');
+        start = TimeOfDay(hour: int.tryParse(st[0]) ?? 9,  minute: int.tryParse(st[1]) ?? 0);
+        end   = TimeOfDay(hour: int.tryParse(et[0]) ?? 18, minute: int.tryParse(et[1]) ?? 0);
+      }
+
+      final slots = <TimeOfDay>[];
+      if (enabled) {
+        var cur    = DateTime(date.year, date.month, date.day, start.hour, start.minute);
+        final endDt = DateTime(date.year, date.month, date.day, end.hour,   end.minute);
+        while (cur.isBefore(endDt) || cur.isAtSameMomentAs(endDt)) {
+          slots.add(TimeOfDay(hour: cur.hour, minute: cur.minute));
+          cur = cur.add(const Duration(minutes: 30));
+        }
+      }
+
+      final dateStr  = DateFormat('yyyy-MM-dd').format(date);
+      final takenRows = await Supabase.instance.client
+          .from('appointments')
+          .select('id, appointment_time, status')
+          .eq('barber_id', _barberId)
+          .eq('appointment_date', dateStr);
+
+      final taken = <String>{};
+      for (final r in takenRows as List) {
+        final m = r as Map<String, dynamic>;
+        // Libera o horário do agendamento sendo remarcado
+        if (m['id']?.toString() == _oldId) continue;
+        final st = m['status']?.toString() ?? '';
+        if (st == 'cancelled' || st == 'canceled' || st == 'no_show') continue;
+        final parts = (m['appointment_time']?.toString() ?? '').split(':');
+        if (parts.length >= 2) {
+          taken.add('${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}');
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _availableSlots = slots;
+        _takenSlots     = taken;
+        _loadingSlots   = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingSlots = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final dt = _selectedDateTime;
+    if (dt == null) return;
+    setState(() => _saving = true);
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(dt);
+      final timeStr = '${dt.hour.toString().padLeft(2, '0')}:'
+          '${dt.minute.toString().padLeft(2, '0')}:00';
+
+      // Cria novo agendamento
+      await Supabase.instance.client.from('appointments').insert({
+        'service_id':      _serviceId,
+        'barber_id':       _barberId,
+        'appointment_date': dateStr,
+        'appointment_time': timeStr,
+        'status':          'scheduled',
+        'customer_name':   _customerName,
+        'customer_phone':  _customerPhone,
+        'notes':           'Reagendamento — $_customerName / $_customerPhone',
+        'total_price':     _totalPrice,
+      });
+
+      // Cancela o agendamento antigo → libera o horário
+      await Supabase.instance.client
+          .from('appointments')
+          .update({'status': 'cancelled'})
+          .eq('id', _oldId);
+
+      // WhatsApp
+      final dateF   = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+      final timeF   = DateFormat('HH:mm').format(dt);
+      final nome    = _customerName;
+      final fone    = _customerPhone;
+      final servico = _serviceName;
+      final barbeiro = _barberName;
+      WhatsappService.loadConfig().then((config) {
+        if (!config.enabled || !config.isConfigured) return;
+        final msg = '🔄 *Agendamento remarcado!*\n\n'
+            'Olá, $nome! Seu novo horário está confirmado:\n\n'
+            '📅 Data: $dateF\n'
+            '🕐 Hora: $timeF\n'
+            '✂️ Serviço: $servico\n'
+            '💈 Profissional: $barbeiro\n\n'
+            'Te esperamos! 😊';
+        WhatsappService.sendMessage(phone: fone, message: msg, config: config);
+      });
+
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro ao remarcar: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: _HistoryPalette.panel,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border(top: BorderSide(color: _HistoryPalette.stroke)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottom),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: _HistoryPalette.stroke,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            const Text(
+              'Remarcar agendamento',
+              style: TextStyle(
+                color: _HistoryPalette.text,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$_serviceName  •  $_barberName',
+              style: const TextStyle(color: _HistoryPalette.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+
+            // Seleção de data
+            OutlinedButton.icon(
+              onPressed: () async {
+                final now    = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  locale: const Locale('pt', 'BR'),
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 60)),
+                  initialDate: now,
+                  builder: (ctx, child) => Theme(
+                    data: Theme.of(ctx).copyWith(
+                      colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                        primary:   _HistoryPalette.gold,
+                        onPrimary: _HistoryPalette.bg,
+                      ),
+                    ),
+                    child: child!,
+                  ),
+                );
+                if (picked == null || !mounted) return;
+                final date = DateTime(picked.year, picked.month, picked.day);
+                setState(() => _selectedDate = date);
+                await _loadSlots(date);
+              },
+              icon: const Icon(
+                Icons.calendar_today_outlined,
+                size: 16,
+                color: _HistoryPalette.gold,
+              ),
+              label: Text(
+                _selectedDate == null
+                    ? 'Selecionar nova data'
+                    : DateFormat('EEEE, dd/MM/yyyy', 'pt_BR').format(_selectedDate!),
+                style: const TextStyle(color: _HistoryPalette.gold),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: _HistoryPalette.gold),
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Horários disponíveis
+            if (_loadingSlots)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: CircularProgressIndicator(color: _HistoryPalette.gold),
+                ),
+              )
+            else if (_selectedDate != null && _availableSlots.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Nenhum horário disponível neste dia.',
+                  style: TextStyle(color: _HistoryPalette.muted),
+                ),
+              )
+            else if (_availableSlots.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableSlots.map((t) {
+                  final label   = '${t.hour.toString().padLeft(2, '0')}:'
+                      '${t.minute.toString().padLeft(2, '0')}';
+                  final taken   = _takenSlots.contains(label);
+                  final selected = _selectedTime == t;
+                  return ChoiceChip(
+                    label: Text(label),
+                    selected: selected,
+                    selectedColor: _HistoryPalette.gold,
+                    backgroundColor: _HistoryPalette.card,
+                    disabledColor: _HistoryPalette.card.withValues(alpha: 0.4),
+                    side: BorderSide(
+                      color: selected
+                          ? _HistoryPalette.gold
+                          : _HistoryPalette.stroke,
+                    ),
+                    labelStyle: TextStyle(
+                      color: selected
+                          ? _HistoryPalette.bg
+                          : taken
+                              ? _HistoryPalette.muted
+                              : _HistoryPalette.text,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+                    ),
+                    onSelected: taken
+                        ? null
+                        : (v) {
+                            if (!v) return;
+                            setState(() {
+                              _selectedTime     = t;
+                              _selectedDateTime = DateTime(
+                                _selectedDate!.year,
+                                _selectedDate!.month,
+                                _selectedDate!.day,
+                                t.hour,
+                                t.minute,
+                              );
+                            });
+                          },
+                  );
+                }).toList(),
+              ),
+
+            const SizedBox(height: 20),
+
+            FilledButton.icon(
+              onPressed: (_selectedDateTime == null || _saving) ? null : _confirm,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _HistoryPalette.bg,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: Text(_saving ? 'Remarcando...' : 'Confirmar remarcação'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _selectedDateTime != null
+                    ? _HistoryPalette.gold
+                    : _HistoryPalette.stroke,
+                foregroundColor: _HistoryPalette.bg,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _HistoryPalette {
