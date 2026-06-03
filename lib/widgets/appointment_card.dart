@@ -203,7 +203,7 @@ class AppointmentCard extends StatelessWidget {
                           color: Theme.of(context).colorScheme.error,
                         ),
                         label: Text(
-                          'Cancelar',
+                          'Cancelar agendamento',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                           ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:barbearia/screens/book_appointment_screen.dart';
+import 'package:barbearia/services/whatsapp_service.dart';
 
 class CustomerHistoryScreen extends StatefulWidget {
   const CustomerHistoryScreen({super.key});
@@ -158,6 +160,95 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     }
   }
 
+  Future<void> _cancelAndNotify(Map<String, dynamic> appointment) async {
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _HistoryPalette.panel,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: _HistoryPalette.stroke),
+        ),
+        title: const Text(
+          'Cancelar agendamento?',
+          style: TextStyle(color: _HistoryPalette.text),
+        ),
+        content: const Text(
+          'Esta ação não pode ser desfeita.',
+          style: TextStyle(color: _HistoryPalette.muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar',
+                style: TextStyle(color: _HistoryPalette.muted)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: _HistoryPalette.danger),
+            child: const Text('Sim, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Captura antes do async
+    final phone   = appointment['customer_phone']?.toString() ?? '';
+    final cliente = appointment['customer_name']?.toString() ?? '';
+    final dt      = _appointmentDateTime(appointment);
+    final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+    final timeStr = DateFormat('HH:mm').format(dt);
+    final servico = (appointment['services'] is Map)
+        ? (appointment['services']['name']?.toString() ?? '')
+        : '';
+
+    await _updateStatus(appointment, 'cancelled');
+
+    if (phone.isEmpty) return;
+    WhatsappService.loadConfig().then((config) {
+      if (!config.enabled || !config.isConfigured) return;
+      final msg = '❌ *Agendamento cancelado*\n\n'
+          'Olá, $cliente! Seu agendamento foi cancelado:\n\n'
+          '📅 Data: $dateStr\n'
+          '🕐 Hora: $timeStr\n'
+          '✂️ Serviço: $servico\n\n'
+          'Para reagendar acesse nosso app. 😊';
+      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
+    });
+  }
+
+  Future<void> _rescheduleAppointment(Map<String, dynamic> appointment) async {
+    if (!mounted) return;
+
+    // Captura antes de navegar
+    final phone   = appointment['customer_phone']?.toString() ?? '';
+    final cliente = appointment['customer_name']?.toString() ?? '';
+
+    final result = await Navigator.push<dynamic>(
+      context,
+      MaterialPageRoute(builder: (_) => const BookAppointmentScreen()),
+    );
+
+    if (!mounted || result == null) return;
+
+    // Marca o agendamento antigo como cancelado
+    await _updateStatus(appointment, 'cancelled');
+
+    // Envia mensagem de remarcação (o BookAppointmentScreen já envia a
+    // confirmação do novo agendamento; aqui enviamos aviso do antigo)
+    if (phone.isEmpty) return;
+    WhatsappService.loadConfig().then((config) {
+      if (!config.enabled || !config.isConfigured) return;
+      final msg = '🔄 *Agendamento remarcado*\n\n'
+          'Olá, $cliente! Seu agendamento anterior foi cancelado e um novo '
+          'foi criado. Confira os detalhes na mensagem a seguir. 😊';
+      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
+    });
+  }
+
   Future<void> _refresh() async {
     final phone = _phone;
     if (phone == null) {
@@ -272,9 +363,9 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                                     });
                                   },
                                   onCancel: () =>
-                                      _updateStatus(appointment, 'cancelled'),
-                                  onConfirm: () =>
-                                      _updateStatus(appointment, 'confirmed'),
+                                      _cancelAndNotify(appointment),
+                                  onReschedule: () =>
+                                      _rescheduleAppointment(appointment),
                                 ),
                                 const SizedBox(height: 12),
                               ],
@@ -589,20 +680,20 @@ class _AppointmentCard extends StatelessWidget {
     required this.expanded,
     required this.onTap,
     required this.onCancel,
-    required this.onConfirm,
+    required this.onReschedule,
   });
 
   final Map<String, dynamic> appointment;
   final bool expanded;
   final VoidCallback onTap;
   final VoidCallback onCancel;
-  final VoidCallback onConfirm;
+  final VoidCallback onReschedule;
 
   @override
   Widget build(BuildContext context) {
     final status = _statusInfo(appointment['status']?.toString());
     final dateTime = _appointmentDateTime(appointment);
-    final canConfirm = status.raw == 'scheduled' || status.raw == 'pending';
+
     final canCancel =
         status.raw != 'cancelled' &&
         status.raw != 'canceled' &&
@@ -691,51 +782,57 @@ class _AppointmentCard extends StatelessWidget {
                           text:
                               'Codigo ${appointment['id']?.toString().substring(0, 8) ?? '-'}',
                         ),
-                        if (canCancel || canConfirm) ...[
+                        if (canCancel) ...[
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              if (canCancel)
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: onCancel,
-                                    icon: const Icon(
-                                      Icons.close_rounded,
-                                      size: 17,
-                                    ),
-                                    label: const Text('Cancelar'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: _HistoryPalette.danger,
-                                      side: const BorderSide(
-                                        color: _HistoryPalette.danger,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              if (canCancel && canConfirm)
-                                const SizedBox(width: 10),
-                              if (canConfirm)
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed: onConfirm,
-                                    icon: const Icon(
-                                      Icons.check_rounded,
-                                      size: 17,
-                                    ),
-                                    label: const Text('Confirmar'),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: _HistoryPalette.success,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                          FilledButton.icon(
+                            onPressed: onReschedule,
+                            icon: const Icon(
+                              Icons.event_repeat_rounded,
+                              size: 17,
+                            ),
+                            label: const Text(
+                              'Remarcar agendamento',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _HistoryPalette.gold,
+                              foregroundColor: _HistoryPalette.bg,
+                              minimumSize: const Size(double.infinity, 44),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: onCancel,
+                            icon: const Icon(
+                              Icons.cancel_outlined,
+                              size: 17,
+                            ),
+                            label: const Text(
+                              'Cancelar agendamento',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _HistoryPalette.danger,
+                              backgroundColor:
+                                  _HistoryPalette.danger.withValues(alpha: 0.10),
+                              side: const BorderSide(
+                                color: _HistoryPalette.danger,
+                                width: 1.5,
+                              ),
+                              minimumSize: const Size(double.infinity, 44),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
                         ],
                       ],
