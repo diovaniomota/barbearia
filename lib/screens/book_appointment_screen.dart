@@ -815,8 +815,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   void _sendWhatsappConfirmation() {
-    final dt = _selectedDateTime;
-    final phone = _phoneController.text.trim();
+    final dt       = _selectedDateTime;
+    final phone    = _phoneController.text.trim();
+    final cliente  = _nameController.text.trim(); // captura antes do dispose
     if (dt == null || phone.isEmpty || _selectedServices.isEmpty) return;
 
     final barber = _barbers.firstWhere(
@@ -824,30 +825,24 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       orElse: () => BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
     );
 
-    final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
-    final timeStr = DateFormat('HH:mm').format(dt);
-    final services = _selectedServices.map((s) => s.name).join(', ');
+    final dateStr    = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+    final timeStr    = DateFormat('HH:mm').format(dt);
+    final services   = _selectedServices.map((s) => s.name).join(', ');
+    final totalPrice = _selectedServices.fold<double>(0, (sum, s) => sum + s.price);
+    final valor      = 'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
 
     WhatsappService.loadConfig().then((config) {
       if (!config.enabled || !config.isConfigured) return;
-      final totalPrice = _selectedServices
-        .fold<double>(0, (sum, s) => sum + s.price);
-    final valor = 'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
-
-    final msg = WhatsappService.buildMessage(
+      final msg = WhatsappService.buildMessage(
         template: config.template,
-        cliente: _nameController.text.trim(),
+        cliente: cliente,
         data: dateStr,
         hora: timeStr,
         servico: services,
         barbeiro: barber.name,
         valor: valor,
       );
-      WhatsappService.sendMessage(
-        phone: phone,
-        message: msg,
-        config: config,
-      );
+      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
     });
   }
 
