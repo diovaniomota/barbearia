@@ -93,6 +93,51 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     }
   }
 
+  Future<void> _resetSession() async {
+    final config = _currentConfig;
+    if (!config.isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configure a URL e API Key primeiro.')),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Resetar sessão?'),
+        content: const Text(
+          'Isso apaga a sessão salva no servidor e gera um novo QR Code. '
+          'Você precisará escanear novamente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Resetar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final result = await WhatsappService.resetSession(config);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.ok ? 'Sessão resetada! Aguarde o QR.' : 'Erro: ${result.error}'),
+        backgroundColor: result.ok ? Colors.green : Colors.red,
+      ));
+      if (result.ok) _startPolling();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro: $e')));
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
@@ -222,7 +267,16 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
             icon: const Icon(Icons.wifi_find_outlined, size: 18),
             label: const Text('Conectar / verificar'),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _resetSession,
+            icon: const Icon(Icons.restart_alt, size: 18, color: Colors.red),
+            label: const Text(
+              'Resetar sessão (novo QR)',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // ── Template ─────────────────────────────────────
           Text('Mensagem automática',

@@ -214,6 +214,21 @@ class WhatsappService {
     }
   }
 
+  // ── Resetar sessão ──────────────────────────────────────────────────────
+
+  static Future<WhatsappResult> resetSession(WhatsappConfig config) async {
+    try {
+      final res = await http.post(
+        Uri.parse('${config.normalizedUrl}/reset-session'),
+        headers: {'x-api-key': config.apiKey},
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) return const WhatsappResult(ok: true);
+      return WhatsappResult(ok: false, error: 'Erro ${res.statusCode}');
+    } catch (e) {
+      return WhatsappResult(ok: false, error: e.toString());
+    }
+  }
+
   // ── Buscar QR code ───────────────────────────────────────────────────────
 
   static Future<String?> fetchQR(WhatsappConfig config) async {
