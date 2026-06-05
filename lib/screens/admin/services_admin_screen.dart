@@ -280,11 +280,15 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
 
   String? _saveError;
 
-  Future<String?> _uploadImage() async {
-    if (_pickedImage == null) return _currentImageUrl;
-
+  Future<String> _uploadImage() async {
     final bytes = await _pickedImage!.readAsBytes();
-    final ext = _pickedImage!.name.split('.').last.toLowerCase();
+
+    // On web, XFile.name can be a blob URL — detect extension from bytes
+    String ext = _pickedImage!.name.split('.').last.toLowerCase();
+    if (ext.length > 5 || ext.contains('/') || ext.contains(':')) {
+      ext = (bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) ? 'jpg' : 'png';
+    }
+
     final mime = (ext == 'jpg' || ext == 'jpeg') ? 'image/jpeg' : 'image/$ext';
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
 
@@ -313,8 +317,8 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
       _saveError = null;
     });
 
-    // 1. Upload da imagem primeiro (falha aqui para o save todo)
-    String? imageUrl = _currentImageUrl;
+    // 1. Upload da imagem (se foi selecionada uma nova)
+    String? imageUrl = _currentImageUrl?.isNotEmpty == true ? _currentImageUrl : null;
     if (_pickedImage != null) {
       try {
         imageUrl = await _uploadImage();
@@ -337,7 +341,7 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
       final data = <String, dynamic>{
         'name': name,
         'price': price,
-        if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
+        'image_url': imageUrl, // always include (null clears, URL saves)
       };
 
       if (widget.existing != null) {
