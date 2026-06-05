@@ -1,0 +1,12 @@
+services:
+  whatsapp-server:
+    build: .
+    container_name: whatsapp-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      API_KEY: ${API_KEY}
+    volumes:
+      - ./sessao:/app/sessao
