@@ -127,66 +127,83 @@ class _LoginScreenState extends State<LoginScreen> {
     return 'Erro ao fazer login. Verifique suas credenciais.';
   }
 
+  static const _bg     = Color(0xFF080808);
+  static const _card   = Color(0xFF111111);
+  static const _border = Color(0xFF222222);
+  static const _gold   = Color(0xFFF5C200);
+  static const _text   = Color(0xFFF0EDE8);
+  static const _muted  = Color(0xFF6B7280);
+
+  InputDecoration _field(String label, IconData icon, {Widget? suffix}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: _muted),
+      prefixIcon: Icon(icon, color: _muted, size: 20),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: _card,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _gold, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 56),
 
-              // Logo / título
-              Column(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
+              // ── Logo ────────────────────────────────────────
+              Center(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  width: 120,
+                  height: 120,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 110,
+                    height: 110,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.shadow.withValues(
-                            alpha: 0.1,
-                          ),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      border: Border.all(color: _gold, width: 2),
                     ),
-                    child: Icon(
-                      Icons.content_cut,
-                      size: 60,
-                      color: theme.colorScheme.onPrimary,
-                    ),
+                    child: const Icon(Icons.content_cut_rounded,
+                        color: _gold, size: 48),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Barbearia',
-                    style: theme.textTheme.headlineLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Acesso administrativo',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
+                ),
               ),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 20),
 
-              // Form
+              const Center(
+                child: Text(
+                  'Acesso administrativo',
+                  style: TextStyle(color: _muted, fontSize: 14),
+                ),
+              ),
+
+              const SizedBox(height: 48),
+
+              // ── Formulário ───────────────────────────────────
               Form(
                 key: _formKey,
                 child: Column(
@@ -195,90 +212,42 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        hintText: 'Digite seu email',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outline.withValues(
-                              alpha: 0.3,
-                            ),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite seu email';
-                        }
+                      style: const TextStyle(color: _text),
+                      decoration: _field('Email', Icons.email_outlined),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Digite seu email';
                         final ok = RegExp(
                           r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$',
-                        ).hasMatch(value);
+                        ).hasMatch(v);
                         if (!ok) return 'Digite um email válido';
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _signIn(),
-                      decoration: InputDecoration(
-                        labelText: 'Senha',
-                        hintText: 'Digite sua senha',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
+                      style: const TextStyle(color: _text),
+                      decoration: _field(
+                        'Senha',
+                        Icons.lock_outline,
+                        suffix: IconButton(
                           icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
+                            color: _muted,
+                            size: 20,
                           ),
                           onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
+                              () => _obscurePassword = !_obscurePassword),
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outline.withValues(
-                              alpha: 0.3,
-                            ),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface,
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Digite sua senha';
-                        }
-                        if (value.length < 6) {
-                          return 'A senha deve ter pelo menos 6 caracteres';
-                        }
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Digite sua senha';
+                        if (v.length < 6) return 'Mínimo 6 caracteres';
                         return null;
                       },
                     ),
@@ -286,53 +255,51 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: _isLoading ? null : _showForgotPasswordDialog,
-                  child: Text(
+                  child: const Text(
                     'Esqueci minha senha',
-                    style: TextStyle(color: theme.colorScheme.primary),
+                    style: TextStyle(color: _gold, fontSize: 13),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               SizedBox(
-                height: 56,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _signIn,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
+                    backgroundColor: _gold,
+                    foregroundColor: _bg,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    elevation: 2,
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   child: _isLoading
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
                           child: CircularProgressIndicator(
-                            color: theme.colorScheme.onPrimary,
-                            strokeWidth: 2,
+                            color: _bg,
+                            strokeWidth: 2.5,
                           ),
                         )
-                      : const Text(
-                          'Entrar',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      : const Text('Entrar'),
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
             ],
           ),
         ),

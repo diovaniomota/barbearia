@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:barbearia/theme.dart';
-import 'package:barbearia/screens/role_choice_screen.dart';
+import 'package:barbearia/router.dart';
 import 'package:barbearia/supabase/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:barbearia/utils/user_bootstrap.dart'; // << importa o helper
+import 'package:barbearia/utils/user_bootstrap.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy(); // URLs limpas: /agendamentocliente em vez de /#/agendamentocliente
   await initializeDateFormatting('pt_BR');
 
   try {
@@ -36,7 +38,7 @@ class BarbeariaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Barbearia',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
@@ -49,7 +51,7 @@ class BarbeariaApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
-      home: const RoleChoiceScreen(),
+      routerConfig: appRouter,
     );
   }
 }
