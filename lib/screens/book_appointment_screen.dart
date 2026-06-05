@@ -61,9 +61,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   TimeOfDay? _selectedTime;
   List<TimeOfDay> _availableSlots = const [];
   Set<String> _takenSlots = const {};
+  int _datePageOffset = 0; // offset em semanas (0 = próximos 7 dias)
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+
+  bool _isPlanClient = false;
+  bool _checkingPlan = false;
 
   bool _loadingBarbers = true;
   String? _barbersError;
@@ -129,6 +133,33 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       setState(() {
         _barbersError = 'Erro: $e';
         _loadingBarbers = false;
+      });
+    }
+  }
+
+  Future<void> _checkPlanClient(String phone) async {
+    final normalized = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (normalized.length < 10) {
+      if (_isPlanClient) setState(() => _isPlanClient = false);
+      return;
+    }
+    setState(() => _checkingPlan = true);
+    try {
+      final rows = await Supabase.instance.client
+          .from('plan_clients')
+          .select('id')
+          .eq('phone', normalized)
+          .limit(1);
+      if (!mounted) return;
+      setState(() {
+        _isPlanClient = rows is List && rows.isNotEmpty;
+        _checkingPlan = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isPlanClient = false;
+        _checkingPlan = false;
       });
     }
   }
@@ -322,6 +353,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           'notes':
               'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
           'total_price': s.price,
+          'is_plan_client': _isPlanClient,
         };
       }).toList();
 
@@ -626,8 +658,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               content: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_selectedServices.isNotEmpty)
-                    _SelectedServicesHeader(services: _selectedServices),
                   _MultiSelectServicesFromSupabase(
                     initialSelectedIds:
                         _selectedServices.map((s) => s.id).toSet(),
@@ -692,46 +722,154 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               content: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.calendar_today_outlined,
-                        size: 16, color: _BP.gold),
-                    label: Text(
-                      _selectedDate == null
-                          ? 'Selecionar data'
-                          : DateFormat('dd/MM/yyyy').format(_selectedDate!),
-                      style: const TextStyle(color: _BP.gold),
+                  // ── Modo: seleção de dia OU seleção de horário ───────────
+                  if (_selectedDate == null) ...[
+                    // — Grade de dias —
+                    const Text(
+                      'Selecione o dia da semana desejado:',
+                      style: TextStyle(color: _BP.muted, fontSize: 12),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: _BP.gold),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: _datePageOffset == 0
+                              ? null
+                              : () => setState(() => _datePageOffset--),
+                          child: Icon(
+                            Icons.chevron_left_rounded,
+                            color: _datePageOffset == 0 ? _BP.border : _BP.gold,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: List.generate(7, (i) {
+                              final day = DateTime.now().add(
+                                Duration(days: _datePageOffset * 7 + i),
+                              );
+                              final d = DateTime(day.year, day.month, day.day);
+                              final raw = DateFormat('E', 'pt_BR')
+                                  .format(d)
+                                  .replaceFirst(RegExp(r'\.$'), '');
+                              final dayName = raw.isEmpty
+                                  ? ''
+                                  : raw[0].toUpperCase() + raw.substring(1);
+                              return GestureDetector(
+                                onTap: _selectedBarberId == null
+                                    ? null
+                                    : () async {
+                                        setState(() => _selectedDate = d);
+                                        await _refreshSlots();
+                                      },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  width: 64,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10, horizontal: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: _selectedBarberId == null
+                                          ? _BP.border
+                                          : _BP.gold,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: _selectedBarberId == null
+                                              ? _BP.muted
+                                              : _BP.gold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        dayName,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: _selectedBarberId == null
+                                              ? _BP.muted
+                                              : _BP.gold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: _datePageOffset >= 7
+                              ? null
+                              : () => setState(() => _datePageOffset++),
+                          child: Icon(
+                            Icons.chevron_right_rounded,
+                            color: _datePageOffset >= 7 ? _BP.border : _BP.gold,
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_selectedBarberId == null) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Selecione um barbeiro no passo anterior.',
+                        style: TextStyle(color: _BP.muted, fontSize: 12),
                       ),
+                    ],
+                  ] else ...[
+                    // — Horários disponíveis —
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            DateFormat("EEEE, dd/MM", 'pt_BR').format(_selectedDate!),
+                            style: const TextStyle(
+                              color: _BP.gold,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => setState(() {
+                            _selectedDate = null;
+                            _selectedTime = null;
+                            _selectedDateTime = null;
+                            _availableSlots = const [];
+                          }),
+                          icon: const Icon(Icons.calendar_month_outlined,
+                              size: 14, color: _BP.muted),
+                          label: const Text('Trocar data',
+                              style: TextStyle(color: _BP.muted, fontSize: 12)),
+                          style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                        ),
+                      ],
                     ),
-                    onPressed: () async {
-                      final now = DateTime.now();
-                      final date = await showDatePicker(
-                        context: context,
-                        locale: const Locale('pt', 'BR'),
-                        firstDate: now,
-                        lastDate: now.add(const Duration(days: 60)),
-                        initialDate: now,
-                      );
-                      if (date == null || !mounted) return;
-                      setState(() => _selectedDate =
-                          DateTime(date.year, date.month, date.day));
-                      await _refreshSlots();
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  if (_selectedBarberId == null)
-                    const Text('Selecione um barbeiro no passo anterior.',
-                        style: TextStyle(color: _BP.muted))
-                  else if (_selectedDate == null)
-                    const Text('Selecione uma data para ver os horários.',
-                        style: TextStyle(color: _BP.muted))
-                  else if (_availableSlots.isEmpty)
-                    const Text('Sem horários disponíveis para este dia.',
-                        style: TextStyle(color: _BP.muted))
+                    const SizedBox(height: 12),
+                    if (_availableSlots.isEmpty)
+                      const Text('Sem horários disponíveis para este dia.',
+                          style: TextStyle(color: _BP.muted))
                   else
                     Wrap(
                       spacing: 8,
@@ -778,6 +916,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         );
                       }).toList(),
                     ),
+                  ],
                 ],
               ),
             ),
@@ -802,9 +941,53 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         filter: {'#': RegExp(r'[0-9]')},
                       ),
                     ],
+                    onChanged: _checkPlanClient,
                     decoration: _inputDeco('Telefone', Icons.phone_outlined)
                         .copyWith(hintText: '(00) 00000-0000'),
                   ),
+                  if (_checkingPlan)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 8),
+                          Text('Verificando plano...',
+                              style: TextStyle(color: _BP.muted, fontSize: 12)),
+                        ],
+                      ),
+                    )
+                  else if (_isPlanClient)
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade400),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.card_membership,
+                              color: Colors.green.shade400, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Cliente Plano — não contabilizado no caixa',
+                            style: TextStyle(
+                              color: Colors.green.shade400,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -898,67 +1081,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               const Icon(Icons.check_circle_rounded, color: _BP.gold, size: 20),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SelectedServicesHeader extends StatelessWidget {
-  const _SelectedServicesHeader({required this.services});
-  final List<Service> services;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _BP.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _BP.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.content_cut_rounded, color: _BP.gold, size: 16),
-              SizedBox(width: 8),
-              Text(
-                'Serviços selecionados',
-                style: TextStyle(
-                  color: _BP.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: services
-                .map((s) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _BP.gold.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: _BP.gold.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(
-                        s.name,
-                        style: const TextStyle(
-                          color: _BP.gold,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ],
       ),
     );
   }

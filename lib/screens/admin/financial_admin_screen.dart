@@ -74,35 +74,46 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
     }
     try {
       final supabase = Supabase.instance.client;
-      final start = _startOfPeriod(_selected).toIso8601String();
-      final end = _endOfPeriod(_selected).toIso8601String();
+      final startDate = DateFormat('yyyy-MM-dd').format(_startOfPeriod(_selected));
+      final endDate = DateFormat('yyyy-MM-dd').format(_endOfPeriod(_selected));
 
       var query = supabase
           .from('appointments')
           .select(
-            'created_at, attended_at, status, performed_service_ids, barber_id, barbers:barber_id(name), services:service_id(id, name, price)',
+            'appointment_date, appointment_time, status, performed_service_ids, is_plan_client, barber_id, barbers:barber_id(name), services:service_id(id, name, price)',
           )
-          .gte('attended_at', start)
-          .lt('attended_at', end);
+          .gte('appointment_date', startDate)
+          .lt('appointment_date', endDate);
 
       if (_barberId != null && _barberId!.isNotEmpty) {
         query = query.eq('barber_id', _barberId!);
       }
 
-      final rows = await query.order('created_at', ascending: true);
+      final rows = await query.order('appointment_date', ascending: true);
       final list = List<Map<String, dynamic>>.from(rows);
 
       final byBarber = <String, _FinanceRow>{};
       double total = 0.0;
+      final now = DateTime.now();
       for (final r in list) {
         final status = (r['status']?.toString() ?? '').toLowerCase();
-        final attendedAtRaw = r['attended_at']?.toString();
-        if (attendedAtRaw == null || attendedAtRaw.isEmpty) {
-          // Não contabiliza sem atendido
-          continue;
-        }
-        if (status.isNotEmpty && status != 'attended') {
-          // Não contabiliza no-show ou outros
+        // Exclui cancelados e não compareceu
+        if (status == 'no_show' || status == 'cancelled' || status == 'canceled') continue;
+        // Exclui clientes plano
+        if (r['is_plan_client'] == true) continue;
+        // Só contabiliza se o horário já passou
+        final ds = r['appointment_date']?.toString() ?? '';
+        final ts = (r['appointment_time']?.toString() ?? '').split(':');
+        if (ds.isEmpty) continue;
+        try {
+          final dp = ds.split('-');
+          final apptDt = DateTime(
+            int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
+            ts.isNotEmpty ? int.tryParse(ts[0]) ?? 0 : 0,
+            ts.length > 1 ? int.tryParse(ts[1]) ?? 0 : 0,
+          );
+          if (apptDt.isAfter(now)) continue;
+        } catch (_) {
           continue;
         }
         final barberRaw = r['barbers'];
@@ -168,232 +179,96 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       });
     } catch (e) {
       final msg = e.toString();
-      String? missing;
-      final re1 = RegExp(
-        r"column (?:appointments\.)?(\w+) does not exist",
+      // Detecta coluna opcional faltando (performed_service_ids ou is_plan_client)
+      // e retenta sem essas colunas opcionais
+      final missingMatch = RegExp(
+        r"column (?:appointments\.)?(\w+) does not exist|Could not find the '(\w+)' column",
         caseSensitive: false,
-      );
-      final re2 = RegExp(
-        r"Could not find the '(\w+)' column of 'appointments'",
-        caseSensitive: false,
-      );
-      final re3 = RegExp(
-        r'column "(?:appointments\.)?(\w+)" does not exist',
-        caseSensitive: false,
-      );
-      final m1 = re1.firstMatch(msg);
-      final m2 = re2.firstMatch(msg);
-      if (m1 != null) missing = m1.group(1);
-      if (m2 != null) missing = m2.group(1);
-      final m3 = re3.firstMatch(msg);
-      if (m3 != null) missing = m3.group(1);
-      if (!mounted) return;
-      if (missing != null && missing.isNotEmpty) {
-        // Tenta fallback para continuar funcionando
+      ).firstMatch(msg);
+      final missing = missingMatch?.group(1) ?? missingMatch?.group(2);
+
+      if (missing == 'performed_service_ids' || missing == 'is_plan_client') {
         try {
           final supabase = Supabase.instance.client;
-          final start = _startOfPeriod(_selected).toIso8601String();
-          final end = _endOfPeriod(_selected).toIso8601String();
-
-          Future<List<Map<String, dynamic>>> runQuery({
-            required bool byCreated,
-            required bool includePerformed,
-            required bool includeStatus,
-            required bool filterStatus,
-          }) async {
-            var sel =
-                'created_at, barber_id, barbers:barber_id(name), services:service_id(id, name, price)';
-            if (includeStatus) sel = sel + ', status';
-            if (includePerformed) sel = sel + ', performed_service_ids';
-            var q = supabase.from('appointments').select(sel);
-            if (byCreated) {
-              q = q.gte('created_at', start).lt('created_at', end);
-              if (filterStatus) q = q.eq('status', 'attended');
-            } else {
-              q = q.gte('attended_at', start).lt('attended_at', end);
-            }
-            if (_barberId != null && _barberId!.isNotEmpty) {
-              q = q.eq('barber_id', _barberId!);
-            }
-            final rows = await q.order('created_at', ascending: true);
-            return List<Map<String, dynamic>>.from(rows);
+          final startDate = DateFormat('yyyy-MM-dd').format(_startOfPeriod(_selected));
+          final endDate = DateFormat('yyyy-MM-dd').format(_endOfPeriod(_selected));
+          var q = supabase
+              .from('appointments')
+              .select('appointment_date, appointment_time, status, barber_id, barbers:barber_id(name), services:service_id(id, name, price)')
+              .gte('appointment_date', startDate)
+              .lt('appointment_date', endDate);
+          if (_barberId != null && _barberId!.isNotEmpty) {
+            q = q.eq('barber_id', _barberId!);
           }
-
-          List<Map<String, dynamic>> list;
-          if (missing == 'attended_at') {
-            try {
-              list = await runQuery(
-                byCreated: true,
-                includePerformed: true,
-                includeStatus: true,
-                filterStatus: true,
-              );
-            } catch (_) {
-              try {
-                list = await runQuery(
-                  byCreated: true,
-                  includePerformed: true,
-                  includeStatus: false,
-                  filterStatus: false,
-                );
-              } catch (_) {
-                list = await runQuery(
-                  byCreated: true,
-                  includePerformed: false,
-                  includeStatus: false,
-                  filterStatus: false,
-                );
-              }
-            }
-          } else if (missing == 'performed_service_ids') {
-            list = await runQuery(
-              byCreated: false,
-              includePerformed: false,
-              includeStatus: true,
-              filterStatus: true,
-            );
-          } else {
-            // status ausente
-            try {
-              list = await runQuery(
-                byCreated: false,
-                includePerformed: true,
-                includeStatus: true,
-                filterStatus: true,
-              );
-            } catch (_) {
-              list = await runQuery(
-                byCreated: false,
-                includePerformed: true,
-                includeStatus: false,
-                filterStatus: false,
-              );
-            }
-          }
-
+          final rows = await q.order('appointment_date', ascending: true);
+          final list = List<Map<String, dynamic>>.from(rows);
           final byBarber = <String, _FinanceRow>{};
           double total = 0.0;
+          final now = DateTime.now();
           for (final r in list) {
             final status = (r['status']?.toString() ?? '').toLowerCase();
-            if (missing != 'attended_at') {
-              final attendedAtRaw = r['attended_at']?.toString();
-              if (attendedAtRaw == null || attendedAtRaw.isEmpty) {
-                continue;
-              }
-            } else {
-              if (status.isNotEmpty && status != 'attended') continue;
+            if (status == 'no_show' || status == 'cancelled' || status == 'canceled') continue;
+            final ds = r['appointment_date']?.toString() ?? '';
+            final ts = (r['appointment_time']?.toString() ?? '').split(':');
+            if (ds.isEmpty) continue;
+            try {
+              final dp = ds.split('-');
+              final apptDt = DateTime(
+                int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
+                ts.isNotEmpty ? int.tryParse(ts[0]) ?? 0 : 0,
+                ts.length > 1 ? int.tryParse(ts[1]) ?? 0 : 0,
+              );
+              if (apptDt.isAfter(now)) continue;
+            } catch (_) {
+              continue;
             }
-
             final barberRaw = r['barbers'];
             String barberName = '';
             if (barberRaw is Map) {
               barberName = barberRaw['name']?.toString() ?? '';
             } else if (barberRaw is List && barberRaw.isNotEmpty) {
               final first = barberRaw.first;
-              if (first is Map) {
-                barberName = first['name']?.toString() ?? '';
-              }
+              if (first is Map) barberName = first['name']?.toString() ?? '';
             }
             final barberId = (r['barber_id'] ?? '').toString();
             final servicesRaw = r['services'];
-            final performed = <String>{};
-            final performedRaw = r['performed_service_ids'];
-            if (performedRaw is List) {
-              for (final id in performedRaw) {
-                performed.add(id.toString());
-              }
-            }
             double price = 0.0;
             if (servicesRaw is Map) {
-              final id = servicesRaw['id']?.toString() ?? '';
-              if (performed.isEmpty || performed.contains(id)) {
-                final p = servicesRaw['price'] as num?;
-                price = (p == null) ? 0.0 : p.toDouble();
-              }
+              final p = servicesRaw['price'] as num?;
+              price = p?.toDouble() ?? 0.0;
             } else if (servicesRaw is List) {
               for (final s in servicesRaw) {
                 if (s is Map) {
-                  final id = s['id']?.toString() ?? '';
-                  if (performed.isEmpty || performed.contains(id)) {
-                    final p = s['price'] as num?;
-                    if (p != null) price += p.toDouble();
-                  }
+                  final p = s['price'] as num?;
+                  if (p != null) price += p.toDouble();
                 }
               }
             }
             total += price;
             final current = byBarber[barberId];
             if (current == null) {
-              byBarber[barberId] = _FinanceRow(
-                barberId: barberId,
-                barberName: barberName,
-                total: price,
-              );
+              byBarber[barberId] = _FinanceRow(barberId: barberId, barberName: barberName, total: price);
             } else {
-              byBarber[barberId] = _FinanceRow(
-                barberId: barberId,
-                barberName: current.barberName,
-                total: current.total + price,
-              );
+              byBarber[barberId] = _FinanceRow(barberId: barberId, barberName: current.barberName, total: current.total + price);
             }
           }
-          setState(() {
-            _rows = byBarber.values.toList()
-              ..sort((a, b) => b.total.compareTo(a.total));
-            _total = total;
-            _loading = false;
-          });
-          return;
-        } catch (_) {
           if (mounted) {
             setState(() {
+              _rows = byBarber.values.toList()..sort((a, b) => b.total.compareTo(a.total));
+              _total = total;
               _loading = false;
             });
           }
-          _showSchemaHelp(missing);
-        }
-      } else {
-        setState(() {
-          _error = msg;
-          _loading = false;
-        });
+          return;
+        } catch (_) {}
       }
-    }
-  }
 
-  void _showSchemaHelp(String missing) {
-    final sql = [
-      "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS status text DEFAULT 'scheduled';",
-      "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS attended_at timestamptz;",
-      "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS performed_service_ids text[] DEFAULT '{}'::text[];",
-    ].join("\n");
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Configurar colunas'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Faltou a coluna: $missing'),
-                const SizedBox(height: 8),
-                const Text('Execute no Supabase (Editor SQL):'),
-                const SizedBox(height: 8),
-                SelectableText(sql),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Ok'),
-            ),
-          ],
-        );
-      },
-    );
+      if (!mounted) return;
+      setState(() {
+        _error = msg;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _pickDate() async {
