@@ -23,7 +23,7 @@ class RoleChoiceScreen extends StatelessWidget {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.png',
+                  'assets/images/logo.jpeg',
                   width: 110,
                   height: 110,
                   errorBuilder: (_, __, ___) => Container(

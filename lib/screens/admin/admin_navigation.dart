@@ -89,7 +89,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 child: Row(
                   children: [
                     Image.asset(
-                      'assets/images/logo.png',
+                      'assets/images/logo.jpeg',
                       width: 44,
                       height: 44,
                       errorBuilder: (_, __, ___) => const Icon(Icons.content_cut, color: _AP.gold, size: 28),

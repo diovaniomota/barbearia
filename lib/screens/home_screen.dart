@@ -159,7 +159,7 @@ class _PageHeader extends StatelessWidget {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.png',
+                  'assets/images/logo.jpeg',
                   width: 120,
                   height: 120,
                   errorBuilder: (_, __, ___) => Container(

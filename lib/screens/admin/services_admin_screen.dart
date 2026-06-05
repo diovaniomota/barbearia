@@ -278,32 +278,28 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
     }
   }
 
+  String? _saveError;
+
   Future<String?> _uploadImage() async {
     if (_pickedImage == null) return _currentImageUrl;
 
     final bytes = await _pickedImage!.readAsBytes();
     final ext = _pickedImage!.name.split('.').last.toLowerCase();
-    final mime = ext == 'jpg' ? 'image/jpeg' : 'image/$ext';
+    final mime = (ext == 'jpg' || ext == 'jpeg') ? 'image/jpeg' : 'image/$ext';
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-    try {
-      await Supabase.instance.client.storage
-          .from('service-images')
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: FileOptions(contentType: mime, upsert: true),
-          );
-      return Supabase.instance.client.storage
-          .from('service-images')
-          .getPublicUrl(fileName);
-    } catch (e) {
-      _uploadError = e.toString();
-      return _currentImageUrl;
-    }
-  }
+    await Supabase.instance.client.storage
+        .from('service-images')
+        .uploadBinary(
+          fileName,
+          bytes,
+          fileOptions: FileOptions(contentType: mime, upsert: true),
+        );
 
-  String? _uploadError;
+    return Supabase.instance.client.storage
+        .from('service-images')
+        .getPublicUrl(fileName);
+  }
 
   Future<void> _save() async {
     final name = _nameCtr.text.trim();
@@ -315,19 +311,33 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
     setState(() {
       _saving = true;
       _saveError = null;
-      _uploadError = null;
     });
 
-    try {
-      final imageUrl = await _uploadImage();
+    // 1. Upload da imagem primeiro (falha aqui para o save todo)
+    String? imageUrl = _currentImageUrl;
+    if (_pickedImage != null) {
+      try {
+        imageUrl = await _uploadImage();
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _saveError = 'Erro no upload da foto: ${e.toString()}';
+            _saving = false;
+          });
+        }
+        return;
+      }
+    }
 
+    // 2. Salva no banco
+    try {
       final digits = _priceCtr.text.replaceAll(RegExp(r'[^0-9]'), '');
       final price = digits.isEmpty ? 0.0 : double.parse(digits) / 100.0;
 
       final data = <String, dynamic>{
         'name': name,
         'price': price,
-        if (imageUrl != null) 'image_url': imageUrl,
+        if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
       };
 
       if (widget.existing != null) {
@@ -340,18 +350,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
       }
 
       if (!mounted) return;
-
-      if (_uploadError != null) {
-        // Dados salvos mas imagem falhou — avisa e fecha
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Salvo! Mas a foto falhou: $_uploadError'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-
       Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -362,8 +360,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
       }
     }
   }
-
-  String? _saveError;
 
   @override
   Widget build(BuildContext context) {
