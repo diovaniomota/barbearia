@@ -147,111 +147,106 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Card de boas-vindas ──────────────────────────
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-          decoration: BoxDecoration(
-            color: _P.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _P.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Brand + contador
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/images/logo.png',
-                    width: 38,
-                    height: 38,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _P.gold, width: 1.5),
-                      ),
-                      child: const Icon(Icons.content_cut_rounded, color: _P.gold, size: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Spacer(),
-                  _CountBadge(count: count),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              // Saudação + heading na mesma linha visual
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    margin: const EdgeInsets.only(right: 6, bottom: 1),
-                    decoration: const BoxDecoration(
-                      color: _P.gold,
+        // ── Logo centralizado ────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+          child: SizedBox(
+            height: 130,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Logo
+                Image.asset(
+                  'assets/images/logo.png',
+                  width: 120,
+                  height: 120,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      border: Border.all(color: _P.gold, width: 2),
                     ),
+                    child: const Icon(Icons.content_cut_rounded,
+                        color: _P.gold, size: 48),
                   ),
-                  Text(
-                    '$_greeting!  ',
-                    style: tt.labelMedium?.copyWith(
-                      color: _P.gold,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'O que vai ser hoje?',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.titleMedium?.copyWith(
-                        color: _P.text,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+                // Badge de serviços no canto direito
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: _CountBadge(count: count),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ── Saudação ─────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 5,
+                height: 5,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: const BoxDecoration(
+                  color: _P.gold,
+                  shape: BoxShape.circle,
+                ),
               ),
-
-              const SizedBox(height: 12),
-
-              // Divisor centrado
-              Row(
-                children: [
-                  const Expanded(
-                    child: Divider(color: _P.border, thickness: 1),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'SERVIÇOS',
-                      style: tt.labelSmall?.copyWith(
-                        color: _P.muted,
-                        letterSpacing: 2.2,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const Expanded(
-                    child: Divider(color: _P.border, thickness: 1),
-                  ),
-                ],
+              Text(
+                '$_greeting!  ',
+                style: tt.labelMedium?.copyWith(
+                  color: _P.gold,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                'O que vai ser hoje?',
+                style: tt.titleMedium?.copyWith(
+                  color: _P.text,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
+
+        // ── Divisor SERVIÇOS ─────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const Expanded(child: Divider(color: _P.border, thickness: 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  'SERVIÇOS',
+                  style: tt.labelSmall?.copyWith(
+                    color: _P.muted,
+                    letterSpacing: 2.2,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              const Expanded(child: Divider(color: _P.border, thickness: 1)),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        const SizedBox(height: 4),
       ],
     );
   }
