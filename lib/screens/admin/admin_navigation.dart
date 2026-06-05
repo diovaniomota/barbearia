@@ -6,6 +6,7 @@ import 'package:barbearia/screens/admin/appointments_admin_screen.dart';
 import 'package:barbearia/screens/admin/financial_admin_screen.dart';
 import 'package:barbearia/screens/admin/whatsapp_admin_screen.dart';
 import 'package:barbearia/screens/admin/plan_clients_admin_screen.dart';
+import 'package:barbearia/screens/admin/remarcar_admin_screen.dart';
 
 class _AP {
   static const Color bg     = Color(0xFF080808);
@@ -116,6 +117,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
               _DrawerItem(Icons.content_cut_outlined, 'Serviços', () => _pushScreen(const ServicesAdminScreen())),
               _DrawerItem(Icons.person_outline, 'Barbeiros', () => _pushScreen(const BarbersAdminScreen())),
               _DrawerItem(Icons.card_membership_outlined, 'Clientes Plano', () => _pushScreen(const PlanClientsAdminScreen())),
+              _DrawerItem(Icons.person_off_outlined, 'Remarcar', () => _pushScreen(const RemarcarAdminScreen())),
             ],
           ),
         ),

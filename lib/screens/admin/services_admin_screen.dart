@@ -233,7 +233,6 @@ class _ServiceFormDialog extends StatefulWidget {
 class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   final _nameCtr = TextEditingController();
   final _priceCtr = TextEditingController();
-  final _durationCtr = TextEditingController();
 
   String? _currentImageUrl;
   XFile? _pickedImage;
@@ -251,8 +250,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
         locale: 'pt_BR',
         symbol: 'R\$',
       ).format(price);
-      final dur = e['duration_minutes'] ?? e['duration'] ?? 0;
-      _durationCtr.text = dur.toString();
       _currentImageUrl = (e['image_url'] ?? '').toString();
     }
   }
@@ -261,7 +258,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   void dispose() {
     _nameCtr.dispose();
     _priceCtr.dispose();
-    _durationCtr.dispose();
     super.dispose();
   }
 
@@ -327,12 +323,10 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
 
       final digits = _priceCtr.text.replaceAll(RegExp(r'[^0-9]'), '');
       final price = digits.isEmpty ? 0.0 : double.parse(digits) / 100.0;
-      final duration = int.tryParse(_durationCtr.text.trim()) ?? 0;
 
       final data = <String, dynamic>{
         'name': name,
         'price': price,
-        'duration_minutes': duration,
         if (imageUrl != null) 'image_url': imageUrl,
       };
 
@@ -418,51 +412,30 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
               ),
               const SizedBox(height: 12),
 
-              // ── Preço + Duração ──────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: TextField(
-                      controller: _priceCtr,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Preço (R\$)',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (v) {
-                        final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
-                        if (digits.isEmpty) {
-                          _priceCtr.text = '';
-                          return;
-                        }
-                        final val = double.parse(digits) / 100.0;
-                        final text = NumberFormat.currency(
-                          locale: 'pt_BR',
-                          symbol: 'R\$',
-                        ).format(val);
-                        _priceCtr.value = TextEditingValue(
-                          text: text,
-                          selection: TextSelection.collapsed(
-                            offset: text.length,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _durationCtr,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Duração (min)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
+              // ── Preço ──────────────────────────────────
+              TextField(
+                controller: _priceCtr,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Preço (R\$)',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) {
+                  final digits = v.replaceAll(RegExp(r'[^0-9]'), '');
+                  if (digits.isEmpty) {
+                    _priceCtr.text = '';
+                    return;
+                  }
+                  final val = double.parse(digits) / 100.0;
+                  final text = NumberFormat.currency(
+                    locale: 'pt_BR',
+                    symbol: 'R\$',
+                  ).format(val);
+                  _priceCtr.value = TextEditingValue(
+                    text: text,
+                    selection: TextSelection.collapsed(offset: text.length),
+                  );
+                },
               ),
             ],
           ),
