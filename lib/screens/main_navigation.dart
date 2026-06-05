@@ -39,7 +39,7 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      backgroundColor: const Color(0xFF0C0D10),
+      backgroundColor: const Color(0xFF080808),
       body: IndexedStack(
         index: _currentIndex,
         children: List.generate(_items.length, (index) {
@@ -96,9 +96,9 @@ class _FloatingNavBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(28, 8, 28, 14),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: const Color(0xFF14161A),
+            color: const Color(0xFF111111),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: const Color(0xFF252830)),
+            border: Border.all(color: const Color(0xFF222222)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x70000000),
@@ -125,14 +125,14 @@ class _FloatingNavBar extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: selected
-                                ? const Color(0xFFF5C440).withValues(alpha: 0.15)
+                                ? const Color(0xFFF5C200).withValues(alpha: 0.15)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             selected ? item.selectedIcon : item.icon,
                             color: selected
-                                ? const Color(0xFFF5C440)
+                                ? const Color(0xFFF5C200)
                                 : const Color(0xFF6B7280),
                             size: 22,
                           ),
@@ -142,7 +142,7 @@ class _FloatingNavBar extends StatelessWidget {
                           item.label,
                           style: TextStyle(
                             color: selected
-                                ? const Color(0xFFF5C440)
+                                ? const Color(0xFFF5C200)
                                 : const Color(0xFF6B7280),
                             fontWeight: selected
                                 ? FontWeight.w800

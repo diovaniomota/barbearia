@@ -232,7 +232,6 @@ class _ServiceFormDialog extends StatefulWidget {
 
 class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   final _nameCtr = TextEditingController();
-  final _descCtr = TextEditingController();
   final _priceCtr = TextEditingController();
   final _durationCtr = TextEditingController();
 
@@ -247,7 +246,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
     final e = widget.existing;
     if (e != null) {
       _nameCtr.text = e['name']?.toString() ?? '';
-      _descCtr.text = e['description']?.toString() ?? '';
       final price = (e['price'] as num? ?? 0).toDouble();
       _priceCtr.text = NumberFormat.currency(
         locale: 'pt_BR',
@@ -262,7 +260,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   @override
   void dispose() {
     _nameCtr.dispose();
-    _descCtr.dispose();
     _priceCtr.dispose();
     _durationCtr.dispose();
     super.dispose();
@@ -334,7 +331,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
 
       final data = <String, dynamic>{
         'name': name,
-        'description': _descCtr.text.trim(),
         'price': price,
         'duration_minutes': duration,
         if (imageUrl != null) 'image_url': imageUrl,
@@ -417,18 +413,6 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Nome *',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // ── Descrição ────────────────────────────────
-              TextField(
-                controller: _descCtr,
-                maxLines: 2,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Descrição',
                   border: OutlineInputBorder(),
                 ),
               ),

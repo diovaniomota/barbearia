@@ -165,28 +165,21 @@ class _PageHeader extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: _P.gold, width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.content_cut_rounded,
-                      color: _P.gold,
-                      size: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'BARBEARIA',
-                    style: tt.labelSmall?.copyWith(
-                      color: _P.text,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2.2,
+                  Image.asset(
+                    'assets/images/logo.png',
+                    width: 38,
+                    height: 38,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _P.gold, width: 1.5),
+                      ),
+                      child: const Icon(Icons.content_cut_rounded, color: _P.gold, size: 18),
                     ),
                   ),
+                  const SizedBox(width: 10),
                   const Spacer(),
                   _CountBadge(count: count),
                 ],
@@ -568,10 +561,10 @@ class _EmptyState extends StatelessWidget {
 // ── Palette ───────────────────────────────────────────────────────────────────
 
 class _P {
-  static const Color bg     = Color(0xFF0C0D10);
-  static const Color card   = Color(0xFF14161A);
-  static const Color border = Color(0xFF252830);
-  static const Color gold   = Color(0xFFF5C440);
+  static const Color bg     = Color(0xFF080808);
+  static const Color card   = Color(0xFF111111);
+  static const Color border = Color(0xFF222222);
+  static const Color gold   = Color(0xFFF5C200);
   static const Color text   = Color(0xFFF0EDE8);
   static const Color muted  = Color(0xFF6B7280);
 }
