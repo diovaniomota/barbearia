@@ -66,6 +66,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
 
+  // Criada UMA vez só — se for recriada no build, perde o estado e apaga o texto.
+  final _phoneMask = MaskTextInputFormatter(
+    mask: '(##) #####-####',
+    filter: {'#': RegExp(r'[0-9]')},
+  );
+
   bool _isPlanClient = false;
   bool _checkingPlan = false;
 
@@ -981,12 +987,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     style: const TextStyle(color: _BP.text),
-                    inputFormatters: [
-                      MaskTextInputFormatter(
-                        mask: '(##) #####-####',
-                        filter: {'#': RegExp(r'[0-9]')},
-                      ),
-                    ],
+                    inputFormatters: [_phoneMask],
                     onChanged: _checkPlanClient,
                     decoration: _inputDeco('Telefone', Icons.phone_outlined)
                         .copyWith(hintText: '(00) 00000-0000'),
