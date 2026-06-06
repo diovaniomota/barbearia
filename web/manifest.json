@@ -1,11 +1,11 @@
 {
-    "name": "Barbearia",
-    "short_name": "Barbearia",
+    "name": "Toni Dinis Barbearia",
+    "short_name": "TD Barbearia",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FDFBF7",
-    "theme_color": "#8B4513",
-    "description": "Sistema de agendamentos para barbearia.",
+    "background_color": "#080808",
+    "theme_color": "#080808",
+    "description": "Agende seu horário na Toni Dinis Barbearia.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
