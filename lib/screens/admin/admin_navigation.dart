@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:barbearia/screens/admin/dashboard_screen.dart';
 import 'package:barbearia/screens/admin/services_admin_screen.dart';
 import 'package:barbearia/screens/admin/barbers_admin_screen.dart';
@@ -89,7 +89,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 child: Row(
                   children: [
                     Image.asset(
-                      'assets/images/logo.jpeg',
+                      'assets/images/logo.png',
                       width: 44,
                       height: 44,
                       errorBuilder: (_, __, ___) => const Icon(Icons.content_cut, color: _AP.gold, size: 28),

@@ -145,11 +145,28 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            subtitle: Text(
-                              NumberFormat.currency(
-                                locale: 'pt_BR',
-                                symbol: 'R\$',
-                              ).format(price),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  NumberFormat.currency(
+                                    locale: 'pt_BR',
+                                    symbol: 'R\$',
+                                  ).format(price),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  imageUrl.isEmpty
+                                      ? '⚠ SEM URL no banco'
+                                      : 'URL: $imageUrl',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: imageUrl.isEmpty
+                                        ? Colors.redAccent
+                                        : Colors.greenAccent,
+                                  ),
+                                ),
+                              ],
                             ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,

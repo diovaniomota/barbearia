@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:barbearia/services/auth_service.dart';
@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
               // ── Logo ────────────────────────────────────────
               Center(
                 child: Image.asset(
-                  'assets/images/logo.jpeg',
+                  'assets/images/logo.png',
                   width: 120,
                   height: 120,
                   errorBuilder: (_, __, ___) => Container(

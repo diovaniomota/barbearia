@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
 import 'package:barbearia/screens/book_appointment_screen.dart';
@@ -159,7 +159,7 @@ class _PageHeader extends StatelessWidget {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.jpeg',
+                  'assets/images/logo.png',
                   width: 120,
                   height: 120,
                   errorBuilder: (_, __, ___) => Container(

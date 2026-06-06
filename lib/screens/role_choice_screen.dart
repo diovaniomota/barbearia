@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:barbearia/screens/login_screen.dart';
 import 'package:barbearia/screens/main_navigation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,7 +23,7 @@ class RoleChoiceScreen extends StatelessWidget {
               children: [
                 // Logo
                 Image.asset(
-                  'assets/images/logo.jpeg',
+                  'assets/images/logo.png',
                   width: 110,
                   height: 110,
                   errorBuilder: (_, __, ___) => Container(
