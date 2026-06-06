@@ -1025,7 +1025,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                               color: Colors.green.shade400, size: 16),
                           const SizedBox(width: 6),
                           Text(
-                            'Cliente Plano — não contabilizado no caixa',
+                            'Cliente Mensalista',
                             style: TextStyle(
                               color: Colors.green.shade400,
                               fontWeight: FontWeight.w600,
