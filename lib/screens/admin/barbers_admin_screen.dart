@@ -74,19 +74,24 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
     }
   }
 
-  Future<void> _createBarber() async {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final phoneController = TextEditingController();
+  Future<void> _createBarber({Map<String, dynamic>? existing}) async {
+    final nameController =
+        TextEditingController(text: existing?['name']?.toString() ?? '');
+    final emailController =
+        TextEditingController(text: existing?['email']?.toString() ?? '');
+    final phoneController =
+        TextEditingController(text: existing?['phone']?.toString() ?? '');
     XFile? pickedImage;
     final specialtiesController = TextEditingController();
-    List<String> specialties = [];
+    List<String> specialties = existing?['specialties'] is List
+        ? List<String>.from(existing!['specialties'])
+        : <String>[];
 
     await showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Novo barbeiro'),
+          title: Text(existing == null ? 'Novo barbeiro' : 'Editar barbeiro'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -113,8 +118,20 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                           height: 96,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: pickedImage == null
-                                ? Container(
+                            child: pickedImage != null
+                                ? Image.file(
+                                    File(pickedImage!.path),
+                                    fit: BoxFit.cover,
+                                  )
+                                : (existing?['image_url'] != null &&
+                                      existing!['image_url']
+                                          .toString()
+                                          .isNotEmpty)
+                                ? Image.network(
+                                    existing['image_url'].toString(),
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(
                                     color: Theme.of(
                                       context,
                                     ).colorScheme.surfaceVariant,
@@ -124,10 +141,6 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                                         context,
                                       ).colorScheme.primary,
                                     ),
-                                  )
-                                : Image.file(
-                                    File(pickedImage!.path),
-                                    fit: BoxFit.cover,
                                   ),
                           ),
                         ),
@@ -256,14 +269,24 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       }
                     }
                   }
-                  await Supabase.instance.client.from('barbers').insert({
+                  final data = <String, dynamic>{
                     'name': nameController.text.trim(),
                     'email': emailController.text.trim(),
                     'phone': phoneController.text.trim(),
-                    'is_available': true,
                     if (specialties.isNotEmpty) 'specialties': specialties,
                     if (imageUrl != null) 'image_url': imageUrl,
-                  });
+                  };
+                  if (existing != null) {
+                    await Supabase.instance.client
+                        .from('barbers')
+                        .update(data)
+                        .eq('id', existing['id'].toString());
+                  } else {
+                    data['is_available'] = true;
+                    await Supabase.instance.client
+                        .from('barbers')
+                        .insert(data);
+                  }
                   if (mounted) Navigator.pop(ctx);
                   await _load();
                 } catch (e) {
@@ -308,6 +331,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                     leading: const Icon(Icons.person),
                     title: Text(b['name']?.toString() ?? ''),
                     subtitle: Text(b['email']?.toString() ?? ''),
+                    onTap: () => _createBarber(existing: b),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -316,12 +340,20 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                           onChanged: (_) => _toggleAvailable(b),
                         ),
                         IconButton(
+                          tooltip: 'Editar',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _createBarber(existing: b),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
                           tooltip: 'Disponibilidade',
+                          visualDensity: VisualDensity.compact,
                           onPressed: () => _openAvailabilityDialog(b),
                           icon: const Icon(Icons.schedule),
                         ),
                         IconButton(
                           tooltip: 'Excluir',
+                          visualDensity: VisualDensity.compact,
                           onPressed: () => _deleteBarber(b['id'].toString()),
                           icon: const Icon(Icons.delete_outline),
                         ),
