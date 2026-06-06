@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
 import 'package:barbearia/screens/book_appointment_screen.dart';
@@ -50,7 +50,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openBooking(Service service) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => BookAppointmentScreen(service: service)),
+      MaterialPageRoute(
+        builder: (_) => BookAppointmentScreen(service: service),
+      ),
     );
   }
 
@@ -169,16 +171,15 @@ class _PageHeader extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: _P.gold, width: 2),
                     ),
-                    child: const Icon(Icons.content_cut_rounded,
-                        color: _P.gold, size: 48),
+                    child: const Icon(
+                      Icons.content_cut_rounded,
+                      color: _P.gold,
+                      size: 48,
+                    ),
                   ),
                 ),
                 // Badge de serviços no canto direito
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: _CountBadge(count: count),
-                ),
+                Positioned(right: 0, top: 0, child: _CountBadge(count: count)),
               ],
             ),
           ),
@@ -291,9 +292,9 @@ class _CountBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             count == 1 ? 'serviço' : 'serviços',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _P.muted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: _P.muted),
           ),
         ],
       ),
@@ -330,14 +331,7 @@ class _ServicePhotoCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Background image or placeholder
-                  url.isNotEmpty
-                      ? Image.network(
-                          url,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _Placeholder(),
-                        )
-                      : const _Placeholder(),
+                  _ServiceImage(url: url),
 
                   // Gradient overlay — strong at bottom for readability
                   DecoratedBox(
@@ -367,24 +361,26 @@ class _ServicePhotoCard extends StatelessWidget {
                           service.name.toUpperCase(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                            shadows: const [
-                              Shadow(color: Colors.black54, blurRadius: 8),
-                            ],
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                                shadows: const [
+                                  Shadow(color: Colors.black54, blurRadius: 8),
+                                ],
+                              ),
                         ),
                         const SizedBox(height: 5),
                         Row(
                           children: [
                             Text(
                               service.formattedPrice,
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: _P.gold,
-                                fontWeight: FontWeight.w800,
-                              ),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: _P.gold,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                             Text(
                               '  ·  ',
@@ -392,10 +388,11 @@ class _ServicePhotoCard extends StatelessWidget {
                             ),
                             Text(
                               service.duration,
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: _P.muted,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: _P.muted,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ],
                         ),
@@ -405,9 +402,10 @@ class _ServicePhotoCard extends StatelessWidget {
                             desc,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.55),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                ),
                           ),
                         ],
                       ],
@@ -452,6 +450,31 @@ class _ServicePhotoCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServiceImage extends StatelessWidget {
+  const _ServiceImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) return const _Placeholder();
+
+    return Image.network(
+      url,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      alignment: Alignment.center,
+      filterQuality: FilterQuality.medium,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const _Placeholder();
+      },
+      errorBuilder: (_, _, _) => const _Placeholder(),
     );
   }
 }
@@ -543,8 +566,9 @@ class _EmptyState extends StatelessWidget {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: _P.muted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: _P.muted),
             ),
           ],
         ),
@@ -556,10 +580,10 @@ class _EmptyState extends StatelessWidget {
 // ── Palette ───────────────────────────────────────────────────────────────────
 
 class _P {
-  static const Color bg     = Color(0xFF080808);
-  static const Color card   = Color(0xFF111111);
+  static const Color bg = Color(0xFF080808);
+  static const Color card = Color(0xFF111111);
   static const Color border = Color(0xFF222222);
-  static const Color gold   = Color(0xFFF5C200);
-  static const Color text   = Color(0xFFF0EDE8);
-  static const Color muted  = Color(0xFF6B7280);
+  static const Color gold = Color(0xFFF5C200);
+  static const Color text = Color(0xFFF0EDE8);
+  static const Color muted = Color(0xFF6B7280);
 }

@@ -17,8 +17,9 @@ class Service {
     required this.imageUrl,
   });
 
-  String get formattedPrice => NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(price);
-  String get duration => '${durationMinutes} min';
+  String get formattedPrice =>
+      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(price);
+  String get duration => '$durationMinutes min';
 
   // Helpers sem underscore (evita lint chato)
   static double parseDouble(dynamic v) {
@@ -34,16 +35,32 @@ class Service {
     return int.tryParse(v.toString()) ?? 0;
   }
 
+  static String parseImageUrl(Map<String, dynamic> map) {
+    final raw =
+        map['image_url'] ??
+        map['imageUrl'] ??
+        map['photo_url'] ??
+        map['photoUrl'] ??
+        map['foto_url'] ??
+        map['foto'] ??
+        map['image'] ??
+        map['cover'] ??
+        '';
+    final value = raw.toString().trim();
+    return value == 'null' ? '' : value;
+  }
+
   /// Converte do Supabase tolerando nomes diferentes no schema
   factory Service.fromMap(Map<String, dynamic> map) {
     return Service(
       id: map['id'].toString(),
       name: (map['name'] ?? map['titulo'] ?? 'Sem nome').toString(),
-      description: (map['description'] ??
-              map['descricao'] ??
-              map['details'] ??
-              'Sem descrição')
-          .toString(),
+      description:
+          (map['description'] ??
+                  map['descricao'] ??
+                  map['details'] ??
+                  'Sem descrição')
+              .toString(),
       price: parseDouble(map['price'] ?? map['valor'] ?? map['preco']),
       durationMinutes: parseInt(
         map['duration_minutes'] ??
@@ -51,8 +68,7 @@ class Service {
             map['time_minutes'] ??
             map['duracao'],
       ),
-      imageUrl:
-          (map['image_url'] ?? map['image'] ?? map['cover'] ?? '').toString(),
+      imageUrl: parseImageUrl(map),
     );
   }
 

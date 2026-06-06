@@ -89,6 +89,8 @@ class ServiceCard extends StatelessWidget {
   }
 
   Widget _buildFullCard(BuildContext context) {
+    final imageUrl = service.imageUrl.trim();
+
     return Container(
       decoration: BoxDecoration(
         color: isSelected
@@ -115,29 +117,17 @@ class ServiceCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    service.imageUrl,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(12),
+                  child: imageUrl.isEmpty
+                      ? _ImageFallback()
+                      : Image.network(
+                          imageUrl,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _ImageFallback();
+                          },
                         ),
-                        child: Icon(
-                          Icons.content_cut,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 32,
-                        ),
-                      );
-                    },
-                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -204,6 +194,27 @@ class ServiceCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        Icons.content_cut,
+        color: Theme.of(context).colorScheme.primary,
+        size: 32,
       ),
     );
   }

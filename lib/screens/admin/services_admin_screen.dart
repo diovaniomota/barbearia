@@ -1,9 +1,14 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:barbearia/models/service.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+const _serviceImagesBucket = 'fotos';
+const _serviceImagesFolder = 'services';
+const _legacyServiceImagesBucket = 'service-images';
 
 class ServicesAdminScreen extends StatefulWidget {
   const ServicesAdminScreen({super.key});
@@ -55,8 +60,9 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
       }
     }
   }
@@ -86,8 +92,9 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
       }
     }
   }
@@ -129,15 +136,18 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                       itemBuilder: (context, i) {
                         final s = _services[i];
                         final active = (s['is_active'] ?? true) == true;
-                        final imageUrl =
-                            (s['image_url'] ?? '').toString().trim();
-                        final price =
-                            (s['price'] as num? ?? 0).toDouble();
+                        final imageUrl = Service.parseImageUrl(s);
+                        final price = (s['price'] as num? ?? 0).toDouble();
 
                         return Card(
                           child: ListTile(
-                            contentPadding:
-                                const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                            minLeadingWidth: 68,
+                            contentPadding: const EdgeInsets.fromLTRB(
+                              12,
+                              8,
+                              8,
+                              8,
+                            ),
                             leading: _Thumb(url: imageUrl),
                             title: Text(
                               s['name']?.toString() ?? '',
@@ -158,7 +168,7 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                 Text(
                                   imageUrl.isEmpty
                                       ? '⚠ SEM URL no banco'
-                                      : 'URL: $imageUrl',
+                                      : 'Foto salva',
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: imageUrl.isEmpty
@@ -183,8 +193,7 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                 IconButton(
                                   tooltip: 'Excluir',
                                   icon: const Icon(Icons.delete_outline),
-                                  onPressed: () =>
-                                      _delete(s['id'].toString()),
+                                  onPressed: () => _delete(s['id'].toString()),
                                 ),
                               ],
                             ),
@@ -203,6 +212,7 @@ class _Thumb extends StatelessWidget {
   const _Thumb({required this.url});
 
   final String url;
+  static const double size = 64;
 
   @override
   Widget build(BuildContext context) {
@@ -214,19 +224,32 @@ class _Thumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: Image.network(
         url,
-        width: 52,
-        height: 52,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) =>
-            _box(color, child: const Icon(Icons.broken_image_outlined, size: 22)),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return _box(
+            color,
+            child: const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+        errorBuilder: (_, _, _) => _box(
+          color,
+          child: const Icon(Icons.broken_image_outlined, size: 22),
+        ),
       ),
     );
   }
 
   Widget _box(Color color, {required Widget child}) {
     return Container(
-      width: 52,
-      height: 52,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(8),
@@ -298,19 +321,212 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   String? _saveError;
 
   Future<String> _uploadImage() async {
+    final picked = _pickedImage;
+    if (picked == null) {
+      throw StateError('Nenhuma foto selecionada.');
+    }
+
+    final bytes = _pickedBytes ?? await picked.readAsBytes();
+    final ext = _detectImageExtension(picked, bytes);
+    final mime = _mimeForExtension(ext);
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = 'service_$timestamp.$ext';
+    final filePath = '$_serviceImagesFolder/$fileName';
+
+    try {
+      return await _uploadToBucket(
+        bucket: _serviceImagesBucket,
+        path: filePath,
+        bytes: bytes,
+        mime: mime,
+      );
+    } catch (primaryError) {
+      try {
+        return await _uploadImageFromLegacyBucket();
+      } catch (legacyError) {
+        final message = _formatStorageUploadError(
+          primaryError: primaryError,
+          legacyError: legacyError,
+        );
+        debugPrint(message);
+        throw Exception(message);
+      }
+    }
+  }
+
+  String _formatStorageUploadError({
+    required Object primaryError,
+    required Object legacyError,
+  }) {
+    final primary = _storageErrorDetails(primaryError);
+    final legacy = _storageErrorDetails(legacyError);
+    final combined = '$primary $legacy'.toLowerCase();
+
+    String hint;
+    if (combined.contains('mime') ||
+        combined.contains('content-type') ||
+        combined.contains('not supported') ||
+        combined.contains('unsupported')) {
+      hint =
+          'O bucket nao esta aceitando este tipo de imagem. Rode novamente '
+          'lib/supabase/service_images_storage_migration.sql no SQL Editor do Supabase.';
+    } else if (combined.contains('row-level security') ||
+        combined.contains('policy') ||
+        combined.contains('unauthorized') ||
+        combined.contains('forbidden')) {
+      hint =
+          'Faltou permissao no Storage. Rode novamente '
+          'lib/supabase/service_images_storage_migration.sql no SQL Editor do Supabase e entre no admin de novo.';
+    } else if (combined.contains('bucket') || combined.contains('not found')) {
+      hint =
+          'O bucket de fotos nao existe ou esta em outro projeto. Rode '
+          'lib/supabase/service_images_storage_migration.sql no projeto uebvtbgvsyzbyzdilren.';
+    } else {
+      hint =
+          'Rode lib/supabase/service_images_storage_migration.sql no SQL Editor do Supabase e tente salvar novamente.';
+    }
+
+    return '$hint\nErro em "$_serviceImagesBucket": $primary\nErro em "$_legacyServiceImagesBucket": $legacy';
+  }
+
+  String _storageErrorDetails(Object error) {
+    if (error is StorageException) {
+      final parts = <String>[
+        if (error.statusCode != null) 'status ${error.statusCode}',
+        error.message,
+        if (error.error != null) error.error!,
+      ];
+      return parts.join(' - ');
+    }
+    return error.toString();
+  }
+
+  Future<String> _uploadToBucket({
+    required String bucket,
+    required String path,
+    required Uint8List bytes,
+    required String mime,
+  }) async {
+    if (kIsWeb) {
+      await _uploadToBucketWithHttp(
+        bucket: bucket,
+        path: path,
+        bytes: bytes,
+        mime: mime,
+      );
+      return Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+    }
+
+    await Supabase.instance.client.storage
+        .from(bucket)
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mime, upsert: true),
+        );
+
+    return Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+  }
+
+  Future<void> _uploadToBucketWithHttp({
+    required String bucket,
+    required String path,
+    required Uint8List bytes,
+    required String mime,
+  }) async {
+    final storage = Supabase.instance.client.storage;
+    final uri = Uri.parse('${storage.url}/object/$bucket/$path');
+    final headers = <String, String>{
+      ...storage.headers,
+      'content-type': mime,
+      'x-upsert': 'true',
+    };
+
+    final response = await http.post(uri, headers: headers, body: bytes);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    throw StorageException(
+      response.body.isEmpty
+          ? response.reasonPhrase ?? 'Upload recusado'
+          : response.body,
+      statusCode: response.statusCode.toString(),
+      error: 'HTTP ${response.statusCode}',
+    );
+  }
+
+  String _detectImageExtension(XFile file, Uint8List bytes) {
+    final mime = file.mimeType?.toLowerCase();
+    if (mime == 'image/jpeg') return 'jpg';
+    if (mime == 'image/png') return 'png';
+    if (mime == 'image/webp') return 'webp';
+    if (mime == 'image/gif') return 'gif';
+
+    for (final candidate in [file.name, file.path]) {
+      final ext = candidate.split('.').last.toLowerCase();
+      if (['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext)) {
+        return ext == 'jpeg' ? 'jpg' : ext;
+      }
+    }
+
+    if (bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+      return 'jpg';
+    }
+    if (bytes.length > 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+    if (bytes.length > 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'webp';
+    }
+    if (bytes.length > 3 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46) {
+      return 'gif';
+    }
+
+    return 'jpg';
+  }
+
+  String _mimeForExtension(String ext) {
+    return switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      _ => 'image/jpeg',
+    };
+  }
+
+  Future<String> _uploadImageFromLegacyBucket() async {
     final bytes = await _pickedImage!.readAsBytes();
 
     // On web, XFile.name can be a blob URL — detect extension from bytes
     String ext = _pickedImage!.name.split('.').last.toLowerCase();
     if (ext.length > 5 || ext.contains('/') || ext.contains(':')) {
-      ext = (bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) ? 'jpg' : 'png';
+      ext = (bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8)
+          ? 'jpg'
+          : 'png';
     }
 
     final mime = (ext == 'jpg' || ext == 'jpeg') ? 'image/jpeg' : 'image/$ext';
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await Supabase.instance.client.storage
-        .from('service-images')
+        .from(_legacyServiceImagesBucket)
         .uploadBinary(
           fileName,
           bytes,
@@ -318,7 +534,7 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
         );
 
     return Supabase.instance.client.storage
-        .from('service-images')
+        .from(_legacyServiceImagesBucket)
         .getPublicUrl(fileName);
   }
 
@@ -335,7 +551,9 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
     });
 
     // 1. Upload da imagem (se foi selecionada uma nova)
-    String? imageUrl = _currentImageUrl?.isNotEmpty == true ? _currentImageUrl : null;
+    String? imageUrl = _currentImageUrl?.trim().isNotEmpty == true
+        ? _currentImageUrl!.trim()
+        : null;
     if (_pickedImage != null) {
       try {
         imageUrl = await _uploadImage();
@@ -361,13 +579,27 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
         'image_url': imageUrl, // always include (null clears, URL saves)
       };
 
+      dynamic savedRows;
       if (widget.existing != null) {
-        await Supabase.instance.client
+        savedRows = await Supabase.instance.client
             .from('services')
             .update(data)
-            .eq('id', widget.existing!['id'].toString());
+            .eq('id', widget.existing!['id'].toString())
+            .select('id,image_url');
       } else {
-        await Supabase.instance.client.from('services').insert(data);
+        savedRows = await Supabase.instance.client
+            .from('services')
+            .insert(data)
+            .select('id,image_url');
+      }
+
+      final updated = savedRows is List && savedRows.isNotEmpty;
+      if (!updated) {
+        throw Exception(
+          'O Supabase nao atualizou o servico. Rode novamente '
+          'lib/supabase/service_images_storage_migration.sql no SQL Editor '
+          'e tente salvar a foto de novo.',
+        );
       }
 
       if (!mounted) return;
@@ -491,8 +723,7 @@ class _ImagePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasNetwork =
-        pickedBytes == null && (currentUrl?.isNotEmpty ?? false);
+    final hasNetwork = pickedBytes == null && (currentUrl?.isNotEmpty ?? false);
     final hasLocal = pickedBytes != null;
 
     return Container(

@@ -273,6 +273,21 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  /// Verifica se, começando no slot [startIndex], há N slots livres
+  /// consecutivos (N = quantidade de serviços selecionados), todos dentro
+  /// do expediente e nenhum já ocupado.
+  bool _slotFits(int startIndex) {
+    final n = _selectedServices.isEmpty ? 1 : _selectedServices.length;
+    if (startIndex + n > _availableSlots.length) return false;
+    for (var k = 0; k < n; k++) {
+      final t = _availableSlots[startIndex + k];
+      final label =
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      if (_takenSlots.contains(label)) return false;
+    }
+    return true;
+  }
+
   Future<void> _saveAppointment() async {
     final barberId = _selectedBarberId;
     final dt = _selectedDateTime;
@@ -290,28 +305,31 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
 
     try {
-      dynamic conflict;
+      final n = _selectedServices.length;
       final appointmentDate = _dateOnlyForDb(dt);
-      final appointmentTime = _timeOnlyForDb(dt);
-      try {
-        conflict = await Supabase.instance.client
-            .from('appointments')
-            .select('id,status')
-            .eq('barber_id', barberId)
-            .eq('appointment_date', appointmentDate)
-            .eq('appointment_time', appointmentTime)
-            .or('status.eq.scheduled,status.eq.confirmed,status.eq.in_progress')
-            .limit(1);
-      } catch (_) {
-        conflict = await Supabase.instance.client
-            .from('appointments')
-            .select('id')
-            .eq('barber_id', barberId)
-            .eq('appointment_date', appointmentDate)
-            .eq('appointment_time', appointmentTime)
-            .limit(1);
+      // 1 slot de 30min por serviço → horários consecutivos.
+      final slotTimes =
+          List.generate(n, (i) => dt.add(Duration(minutes: 30 * i)));
+      final wantedHHmm = slotTimes
+          .map((d) =>
+              '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}')
+          .toList();
+
+      // Conflito: algum dos horários necessários já está ocupado?
+      final existing = await Supabase.instance.client
+          .from('appointments')
+          .select('appointment_time,status')
+          .eq('barber_id', barberId)
+          .eq('appointment_date', appointmentDate);
+      final occupied = <String>{};
+      for (final m in existing) {
+        final st = (m['status'] ?? '').toString();
+        if (st == 'cancelled' || st == 'no_show') continue;
+        final t = _timeForDb(m['appointment_time']);
+        if (t != null) occupied.add(t);
       }
-      if (conflict is List && conflict.isNotEmpty) {
+      final hasConflict = wantedHHmm.any(occupied.contains);
+      if (hasConflict) {
         await showDialog(
           context: context,
           builder: (ctx) {
@@ -327,8 +345,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   const Text('Horário indisponível'),
                 ],
               ),
-              content: const Text(
-                'Este barbeiro já possui agendamento neste horário.',
+              content: Text(
+                n > 1
+                    ? 'Um dos horários necessários para esses $n serviços já está ocupado. Escolha outro horário.'
+                    : 'Este barbeiro já possui agendamento neste horário.',
               ),
               actions: [
                 TextButton(
@@ -341,12 +361,16 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         );
         return;
       }
-      final payload = _selectedServices.map((s) {
-        return {
+      // Cada serviço ocupa um slot consecutivo (9h, 9h30, ...).
+      final payload = <Map<String, dynamic>>[];
+      for (var i = 0; i < n; i++) {
+        final s = _selectedServices[i];
+        final slotDt = slotTimes[i];
+        payload.add({
           'service_id': s.id,
           'barber_id': barberId,
-          'appointment_date': appointmentDate,
-          'appointment_time': appointmentTime,
+          'appointment_date': _dateOnlyForDb(slotDt),
+          'appointment_time': _timeOnlyForDb(slotDt),
           'status': 'scheduled',
           'customer_name': _nameController.text.trim(),
           'customer_phone': _phoneController.text.trim(),
@@ -354,8 +378,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
           'total_price': s.price,
           'is_plan_client': _isPlanClient,
-        };
-      }).toList();
+        });
+      }
 
       final insertQuery = Supabase.instance.client
           .from('appointments')
@@ -867,6 +891,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    if (_selectedServices.length > 1) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline,
+                              size: 13, color: _BP.gold),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${_selectedServices.length} serviços ocupam ${_selectedServices.length} horários seguidos (${_selectedServices.length * 30}min).',
+                              style: const TextStyle(
+                                  color: _BP.muted, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     if (_availableSlots.isEmpty)
                       const Text('Sem horários disponíveis para este dia.',
                           style: TextStyle(color: _BP.muted))
@@ -874,10 +915,15 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _availableSlots.map((t) {
+                      children: _availableSlots.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final t = entry.value;
                         final label =
                             '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
                         final taken = _takenSlots.contains(label);
+                        // Para multi-serviço: só permite começar onde cabem
+                        // todos os slots consecutivos necessários.
+                        final disabled = taken || !_slotFits(i);
                         final selected = _selectedTime == t;
                         return ChoiceChip(
                           label: Text(label),
@@ -891,14 +937,14 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           labelStyle: TextStyle(
                             color: selected
                                 ? _BP.bg
-                                : taken
+                                : disabled
                                     ? _BP.muted
                                     : _BP.text,
                             fontWeight: selected
                                 ? FontWeight.w700
                                 : FontWeight.normal,
                           ),
-                          onSelected: taken
+                          onSelected: disabled
                               ? null
                               : (v) {
                                   if (!v) return;
