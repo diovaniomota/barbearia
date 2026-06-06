@@ -11,12 +11,14 @@ class BarberLite {
   final String name;
   final String avatarUrl;
   final double rating;
+  final String phone;
 
   BarberLite({
     required this.id,
     required this.name,
     required this.avatarUrl,
     required this.rating,
+    this.phone = '',
   });
 
   factory BarberLite.fromMap(Map<String, dynamic> map) {
@@ -38,6 +40,7 @@ class BarberLite {
       name: (map['name'] ?? '').toString(),
       avatarUrl: avatar,
       rating: doubleRating,
+      phone: (map['phone'] ?? map['telefone'] ?? '').toString(),
     );
   }
 }
@@ -1073,6 +1076,22 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         valor: valor,
       );
       WhatsappService.sendMessage(phone: phone, message: msg, config: config);
+
+      // Notifica o barbeiro escolhido (telefone cadastrado na tela de Barbeiros)
+      final barberPhone = barber.phone.trim();
+      if (barberPhone.isNotEmpty) {
+        final msgBarbeiro = '📅 *Novo agendamento!*\n\n'
+            '👤 Cliente: $cliente\n'
+            '📞 Telefone: $phone\n'
+            '✂️ Serviço: $services\n'
+            '🗓️ Data: $dateStr às $timeStr\n'
+            '💰 Valor: $valor';
+        WhatsappService.sendMessage(
+          phone: barberPhone,
+          message: msgBarbeiro,
+          config: config,
+        );
+      }
     });
   }
 
