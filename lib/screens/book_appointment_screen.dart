@@ -669,7 +669,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   TextButton(
                     onPressed: details.onStepCancel,
                     style: TextButton.styleFrom(foregroundColor: _BP.muted),
-                    child: const Text('Cancelar'),
+                    child: const Text('Voltar'),
                   ),
                 ],
               ),
