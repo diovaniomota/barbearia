@@ -875,6 +875,12 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
       initialDatePickerMode: _period == _Period.year
           ? DatePickerMode.year
           : DatePickerMode.day,
+      // Fixa a escala de texto p/ os números do calendário não quebrarem linha
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: const TextScaler.linear(1.0)),
+        child: child!,
+      ),
     );
     if (d != null) {
       setState(() => _selected = d);

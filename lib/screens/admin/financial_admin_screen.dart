@@ -282,6 +282,11 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       initialDatePickerMode: _period == _Period.year
           ? DatePickerMode.year
           : DatePickerMode.day,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: const TextScaler.linear(1.0)),
+        child: child!,
+      ),
     );
     if (d != null) {
       setState(() => _selected = d);

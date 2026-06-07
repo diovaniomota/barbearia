@@ -52,6 +52,20 @@ class BarbeariaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
       ],
       routerConfig: appRouter,
+      // Limita a escala de texto do sistema p/ os números/layout não quebrarem
+      // em aparelhos com fonte grande.
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: mq.textScaler.clamp(
+              minScaleFactor: 0.8,
+              maxScaleFactor: 1.0,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
