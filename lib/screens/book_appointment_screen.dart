@@ -370,6 +370,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         );
         return;
       }
+      // Marca quem está agendando: admin logado x cliente (anônimo).
+      final authUser = Supabase.instance.client.auth.currentUser;
+      final isAdmin = authUser != null && !authUser.isAnonymous;
+
       // Cada serviço ocupa um slot consecutivo (9h, 9h30, ...).
       final payload = <Map<String, dynamic>>[];
       for (var i = 0; i < n; i++) {
@@ -387,6 +391,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
           'total_price': s.price,
           'is_plan_client': _isPlanClient,
+          'source': isAdmin ? 'admin' : 'client',
         });
       }
 

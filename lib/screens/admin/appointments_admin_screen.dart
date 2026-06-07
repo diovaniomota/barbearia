@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:barbearia/screens/admin/agenda_dia_view.dart';
 
 enum _Period { day, month, year }
 
@@ -997,7 +998,13 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_appointments.isEmpty)
+                  if (_period == _Period.day)
+                    AgendaDiaView(
+                      date: _selected,
+                      barberId: _barberId,
+                      barbers: _barbers,
+                    ),
+                  if (_period != _Period.day && _appointments.isEmpty)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -1013,7 +1020,8 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                         style: theme.textTheme.bodyMedium,
                       ),
                     ),
-                  ...List.generate(_appointments.length, (index) {
+                  if (_period != _Period.day)
+                    ...List.generate(_appointments.length, (index) {
                     final a = _appointments[index];
                     final theme = Theme.of(context);
                     final userName = (a['user_name']?.toString() ?? '').trim();
