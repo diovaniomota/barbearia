@@ -258,6 +258,224 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  InputDecoration _dlgDeco(String label) => InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: _muted),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _gold, width: 1.5),
+        ),
+      );
+
+  /// Agendamento manual feito pelo admin a partir de um slot livre.
+  /// Grava como `source = 'admin'` (fica roxo) e ocupa o horário.
+  Future<void> _openManualBooking(_Slot startSlot) async {
+    List<Map<String, dynamic>> services = [];
+    try {
+      final rows = await Supabase.instance.client
+          .from('services')
+          .select('id,name,price')
+          .order('name');
+      services = List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      _toast('Erro ao carregar serviços: $e');
+      return;
+    }
+    if (!mounted || services.isEmpty) {
+      if (services.isEmpty) _toast('Nenhum serviço cadastrado.');
+      return;
+    }
+
+    final selectedIds = <String>{};
+    final nameCtr = TextEditingController();
+    final phoneCtr = TextEditingController();
+    bool saving = false;
+    String? err;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: _card,
+          title: Text('Agendar • ${startSlot.label}',
+              style: const TextStyle(color: _text)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Serviços:',
+                    style: TextStyle(color: _muted, fontSize: 12)),
+                ...services.map((s) {
+                  final id = s['id'].toString();
+                  final price = (s['price'] as num? ?? 0).toDouble();
+                  return CheckboxListTile(
+                    value: selectedIds.contains(id),
+                    onChanged: (v) => setSt(() {
+                      if (v == true) {
+                        selectedIds.add(id);
+                      } else {
+                        selectedIds.remove(id);
+                      }
+                    }),
+                    title: Text(s['name']?.toString() ?? '',
+                        style: const TextStyle(color: _text)),
+                    subtitle: Text(
+                      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
+                          .format(price),
+                      style: const TextStyle(color: _muted),
+                    ),
+                    activeColor: _gold,
+                    checkColor: Colors.black,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  );
+                }),
+                const Divider(color: _border),
+                TextField(
+                  controller: nameCtr,
+                  style: const TextStyle(color: _text),
+                  decoration: _dlgDeco('Nome do cliente'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: phoneCtr,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: _text),
+                  decoration: _dlgDeco('Telefone'),
+                ),
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(err!,
+                        style: const TextStyle(
+                            color: Color(0xFFF06666), fontSize: 12)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancelar', style: TextStyle(color: _muted)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFA888F5),
+                  foregroundColor: Colors.black),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (selectedIds.isEmpty) {
+                        setSt(() => err = 'Selecione ao menos um serviço.');
+                        return;
+                      }
+                      if (nameCtr.text.trim().isEmpty) {
+                        setSt(() => err = 'Informe o nome do cliente.');
+                        return;
+                      }
+                      setSt(() {
+                        saving = true;
+                        err = null;
+                      });
+                      final chosen = services
+                          .where((s) => selectedIds.contains(s['id'].toString()))
+                          .toList();
+                      final res = await _saveManual(
+                        startSlot,
+                        chosen,
+                        nameCtr.text.trim(),
+                        phoneCtr.text.trim(),
+                      );
+                      if (res != null) {
+                        setSt(() {
+                          saving = false;
+                          err = res;
+                        });
+                        return;
+                      }
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black),
+                    )
+                  : const Text('Agendar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await _load();
+  }
+
+  /// Valida os slots consecutivos e grava o(s) agendamento(s) manual(is).
+  /// Retorna null em sucesso, ou a mensagem de erro.
+  Future<String?> _saveManual(
+    _Slot startSlot,
+    List<Map<String, dynamic>> services,
+    String name,
+    String phone,
+  ) async {
+    final n = services.length;
+    final startIdx = _slots.indexWhere((s) => s.label == startSlot.label);
+    if (startIdx < 0) return 'Horário inválido.';
+    if (startIdx + n > _slots.length) {
+      return 'Não há $n horários seguidos livres a partir das ${startSlot.label}.';
+    }
+    for (var k = 0; k < n; k++) {
+      final s = _slots[startIdx + k];
+      if (s.state != _SlotState.free) {
+        return 'O horário ${s.label} não está livre.';
+      }
+    }
+    try {
+      final sb = Supabase.instance.client;
+      bool isPlan = false;
+      final normPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (normPhone.length >= 10) {
+        try {
+          final pc = await sb
+              .from('plan_clients')
+              .select('id')
+              .eq('phone', normPhone)
+              .limit(1);
+          isPlan = pc.isNotEmpty;
+        } catch (_) {}
+      }
+      final payload = <Map<String, dynamic>>[];
+      for (var i = 0; i < n; i++) {
+        final s = services[i];
+        final label = _slots[startIdx + i].label;
+        payload.add({
+          'service_id': s['id'],
+          'barber_id': widget.barberId,
+          'appointment_date': _dateStr,
+          'appointment_time': '$label:00',
+          'status': 'scheduled',
+          'customer_name': name,
+          'customer_phone': phone,
+          'notes': 'Encaixe manual (admin)\nCliente: $name\nTelefone: $phone',
+          'total_price': (s['price'] as num? ?? 0).toDouble(),
+          'is_plan_client': isPlan,
+          'source': 'admin',
+        });
+      }
+      await sb.from('appointments').insert(payload);
+      return null;
+    } catch (e) {
+      return 'Erro ao agendar: $e';
+    }
+  }
+
   void _onTapSlot(_Slot slot) {
     if (slot.state == _SlotState.free) {
       showDialog(
@@ -266,20 +484,29 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           backgroundColor: _card,
           title: Text('Horário ${slot.label}',
               style: const TextStyle(color: _text)),
-          content: const Text('Bloquear este horário? Ele ficará indisponível para agendamento.',
+          content: const Text('Horário livre. O que deseja fazer?',
               style: TextStyle(color: _muted)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancelar', style: TextStyle(color: _muted)),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 _block(slot);
               },
-              child: const Text('Bloquear'),
+              child: const Text('Bloquear',
+                  style: TextStyle(color: Color(0xFFF06666))),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: _gold, foregroundColor: Colors.black),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _openManualBooking(slot);
+              },
+              child: const Text('Agendar'),
             ),
           ],
         ),
@@ -344,18 +571,35 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   // ── Cores por estado ────────────────────────────────────────────────────────
 
+  // Cor sólida do card (estilo da referência)
   Color _bgFor(_SlotState s) {
     switch (s) {
       case _SlotState.free:
-        return const Color(0xFF141414);
+        return const Color(0xFF3C3C3C); // cinza escuro (vago)
       case _SlotState.client:
-        return const Color(0xFF202228);
+        return const Color(0xFFDCDCDC); // cinza claro (cliente)
       case _SlotState.newClient:
-        return const Color(0xFF12263D);
+        return const Color(0xFFB9D2F5); // azul claro (novo)
       case _SlotState.admin:
-        return const Color(0xFF2A1F45);
+        return const Color(0xFFCBA6F5); // roxo (encaixe)
       case _SlotState.blocked:
-        return const Color(0xFF3A1A1A);
+        return const Color(0xFFF2B5B5); // vermelho claro (bloqueado)
+    }
+  }
+
+  // Cor do texto sobre o card
+  Color _fgFor(_SlotState s) {
+    switch (s) {
+      case _SlotState.free:
+        return const Color(0xFFC8C8C8);
+      case _SlotState.client:
+        return const Color(0xFF161616);
+      case _SlotState.newClient:
+        return const Color(0xFF14233A);
+      case _SlotState.admin:
+        return const Color(0xFF2A1648);
+      case _SlotState.blocked:
+        return const Color(0xFF7A1F1F);
     }
   }
 
@@ -434,7 +678,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   }
 
   Widget _slotRow(_Slot slot) {
-    final accent = _accent(slot.state);
+    final fg = _fgFor(slot.state);
     final booked = slot.state == _SlotState.client ||
         slot.state == _SlotState.newClient ||
         slot.state == _SlotState.admin;
@@ -449,95 +693,72 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             decoration: BoxDecoration(
               color: _bgFor(slot.state),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _border),
             ),
-            child: IntrinsicHeight(
-              child: Row(
-                children: [
-                  // Barra de cor + hora
-                  Container(
-                    width: 4,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                        bottomLeft: Radius.circular(10),
-                      ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    slot.label,
+                    style: TextStyle(
+                      color: fg,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 14),
-                    child: Text(
-                      slot.label,
-                      style: const TextStyle(
-                        color: _gold,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: booked
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  slot.name.isEmpty ? 'Cliente' : slot.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: _text,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if (slot.service.isNotEmpty)
-                                  Text(
-                                    slot.service,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        color: _muted, fontSize: 12),
-                                  ),
-                              ],
-                            )
-                          : Text(
-                              slot.state == _SlotState.blocked
-                                  ? 'Bloqueado'
-                                  : 'Livre',
+                ),
+                Expanded(
+                  child: booked
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              slot.name.isEmpty ? 'Cliente' : slot.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w600,
+                                color: fg,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
+                            if (slot.service.isNotEmpty)
+                              Text(
+                                slot.service,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: fg.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        )
+                      : Text(
+                          slot.state == _SlotState.blocked
+                              ? 'Bloqueado'
+                              : 'Livre',
+                          style: TextStyle(
+                            color: fg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+                if (slot.state == _SlotState.newClient ||
+                    slot.state == _SlotState.admin)
+                  Text(
+                    slot.state == _SlotState.newClient ? 'NOVO' : 'ENCAIXE',
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  // Selo do tipo (cliente novo / encaixe)
-                  if (slot.state == _SlotState.newClient ||
-                      slot.state == _SlotState.admin)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Text(
-                        slot.state == _SlotState.newClient ? 'NOVO' : 'ENCAIXE',
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  if (slot.state == _SlotState.blocked)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 12),
-                      child: Icon(Icons.lock_outline,
-                          color: Color(0xFFF06666), size: 16),
-                    ),
-                ],
-              ),
+                if (slot.state == _SlotState.blocked)
+                  Icon(Icons.lock_outline, color: fg, size: 16),
+              ],
             ),
           ),
         ),
@@ -565,11 +786,11 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       spacing: 12,
       runSpacing: 6,
       children: [
-        item(const Color(0xFF3A3A3A), 'Vago'),
-        item(const Color(0xFFCBD5E1), 'Cliente'),
-        item(const Color(0xFF5AA2F0), 'Novo'),
-        item(const Color(0xFFA888F5), 'Encaixe'),
-        item(const Color(0xFFF06666), 'Bloqueado'),
+        item(_bgFor(_SlotState.free), 'Vago'),
+        item(_bgFor(_SlotState.client), 'Cliente'),
+        item(_bgFor(_SlotState.newClient), 'Novo'),
+        item(_bgFor(_SlotState.admin), 'Encaixe'),
+        item(_bgFor(_SlotState.blocked), 'Bloqueado'),
       ],
     );
   }

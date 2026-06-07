@@ -261,6 +261,20 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           if (time != null) taken.add(time);
         }
       }
+
+      // Horários bloqueados pelo admin também ficam indisponíveis
+      try {
+        final blockedRows = await Supabase.instance.client
+            .from('blocked_slots')
+            .select('time')
+            .eq('barber_id', barberId)
+            .eq('date', appointmentDate);
+        for (final r in blockedRows) {
+          final t = _timeForDb(r['time']);
+          if (t != null) taken.add(t);
+        }
+      } catch (_) {}
+
       setState(() {
         _availableSlots = slots;
         _takenSlots = taken;
@@ -295,6 +309,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       if (_takenSlots.contains(label)) return false;
     }
     return true;
+  }
+
+  /// Há ao menos um horário de início selecionável (livre e que comporta
+  /// todos os serviços consecutivos)?
+  bool _hasSelectableSlot() {
+    for (var i = 0; i < _availableSlots.length; i++) {
+      final t = _availableSlots[i];
+      final label =
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      if (!_takenSlots.contains(label) && _slotFits(i)) return true;
+    }
+    return false;
   }
 
   Future<void> _saveAppointment() async {
@@ -922,9 +948,36 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    if (_availableSlots.isEmpty)
-                      const Text('Sem horários disponíveis para este dia.',
-                          style: TextStyle(color: _BP.muted))
+                    if (_availableSlots.isEmpty || !_hasSelectableSlot())
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _BP.card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: _BP.gold.withValues(alpha: 0.4)),
+                        ),
+                        child: const Column(
+                          children: [
+                            Icon(Icons.event_busy, color: _BP.gold, size: 28),
+                            SizedBox(height: 8),
+                            Text(
+                              'Acabaram os horários com esse profissional para esta data!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: _BP.gold,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Escolha outro dia ou profissional.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: _BP.muted, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      )
                   else
                     Wrap(
                       spacing: 8,
