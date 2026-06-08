@@ -90,20 +90,27 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
 
     try {
       final sb = Supabase.instance.client;
-      // Apaga registros dependentes antes do barbeiro
       await sb.from('appointments').delete().eq('barber_id', id);
       await sb.from('barber_availability').delete().eq('barber_id', id);
       await sb.from('blocked_slots').delete().eq('barber_id', id);
-      try {
-        await sb.from('barber_blocked_days').delete().eq('barber_id', id);
-      } catch (_) {}
+      try { await sb.from('barber_blocked_days').delete().eq('barber_id', id); } catch (_) {}
       await sb.from('barbers').delete().eq('id', id);
       await _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro: $e')));
-      }
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Erro ao excluir'),
+          content: SelectableText(e.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -603,8 +610,8 @@ extension on _BarbersAdminScreenState {
                 FilledButton(
                   onPressed: () async {
                     try {
-                      await Supabase.instance.client
-                          .from('barber_availability')
+                      final sb = Supabase.instance.client;
+                      await sb.from('barber_availability')
                           .delete()
                           .eq('barber_id', barberId);
                       final payload = <Map<String, dynamic>>[];
@@ -621,23 +628,29 @@ extension on _BarbersAdminScreenState {
                           'break_end': val.hasBreak ? _fmt(val.breakEnd) : null,
                         });
                       }
-                      await Supabase.instance.client
-                          .from('barber_availability')
-                          .insert(payload);
-                      if (mounted) Navigator.pop(ctx);
+                      await sb.from('barber_availability').insert(payload);
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Disponibilidade salva'),
-                          ),
+                          const SnackBar(content: Text('Disponibilidade salva')),
                         );
                       }
                     } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
-                      }
+                      if (!ctx.mounted) return;
+                      showDialog(
+                        context: ctx,
+                        builder: (c) => AlertDialog(
+                          title: const Text('Erro ao salvar'),
+                          content: SelectableText(e.toString()),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(c),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
                     }
                   },
                   child: const Text('Salvar'),
