@@ -536,11 +536,22 @@ extension on _BarbersAdminScreenState {
       ),
     };
     try {
-      final rows = await Supabase.instance.client
-          .from('barber_availability')
-          .select('*')
-          .eq('barber_id', barberId);
-      for (final r in List<Map<String, dynamic>>.from(rows)) {
+      // Tenta carregar com as colunas de pausa; se não existirem, carrega sem elas
+      List<Map<String, dynamic>> rows;
+      try {
+        final raw = await Supabase.instance.client
+            .from('barber_availability')
+            .select('day_of_week,start_time,end_time,is_available,break_start,break_end')
+            .eq('barber_id', barberId);
+        rows = List<Map<String, dynamic>>.from(raw);
+      } catch (_) {
+        final raw = await Supabase.instance.client
+            .from('barber_availability')
+            .select('day_of_week,start_time,end_time,is_available')
+            .eq('barber_id', barberId);
+        rows = List<Map<String, dynamic>>.from(raw);
+      }
+      for (final r in rows) {
         final dow = int.tryParse('${r['day_of_week']}') ?? -1;
         if (dow < 0) continue;
         final start = _parseTime('${r['start_time']}');
@@ -611,14 +622,11 @@ extension on _BarbersAdminScreenState {
                   onPressed: () async {
                     try {
                       final sb = Supabase.instance.client;
-                      await sb.from('barber_availability')
-                          .delete()
-                          .eq('barber_id', barberId);
                       final payload = <Map<String, dynamic>>[];
                       for (final entry in days.entries) {
                         final dow = entry.key;
                         final val = entry.value;
-                        payload.add({
+                        final row = <String, dynamic>{
                           'barber_id': barberId,
                           'day_of_week': dow == 7 ? 0 : dow,
                           'start_time': _fmt(val.start),
@@ -626,9 +634,13 @@ extension on _BarbersAdminScreenState {
                           'is_available': val.enabled,
                           'break_start': val.hasBreak ? _fmt(val.breakStart) : null,
                           'break_end': val.hasBreak ? _fmt(val.breakEnd) : null,
-                        });
+                        };
+                        payload.add(row);
                       }
-                      await sb.from('barber_availability').insert(payload);
+                      await sb.from('barber_availability').upsert(
+                        payload,
+                        onConflict: 'barber_id,day_of_week',
+                      );
                       if (!ctx.mounted) return;
                       Navigator.pop(ctx);
                       if (mounted) {
