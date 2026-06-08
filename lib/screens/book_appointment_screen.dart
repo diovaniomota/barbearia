@@ -154,26 +154,41 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  /// Carrega quais barbeiros estão disponíveis no dia da semana da data selecionada.
-  /// Barbeiros sem registro em barber_availability são considerados disponíveis.
+  /// Carrega quais barbeiros estão disponíveis na data selecionada.
+  /// Verifica escala semanal (barber_availability) e bloqueios específicos (barber_blocked_days).
   Future<void> _loadBarberAvailability() async {
     if (_selectedDate == null || _barbers.isEmpty) return;
     setState(() => _loadingAvailability = true);
 
     final dow = _selectedDate!.weekday; // 1=Seg … 7=Dom
     final dayOfWeek = dow == 7 ? 0 : dow;
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
 
     try {
-      final rows = await Supabase.instance.client
+      // 1. Escala semanal recorrente
+      final avRows = await Supabase.instance.client
           .from('barber_availability')
           .select('barber_id, is_available')
           .eq('day_of_week', dayOfWeek);
 
       final avail = <String, bool>{};
-      for (final row in rows) {
+      for (final row in avRows) {
         avail[row['barber_id'].toString()] =
             (row['is_available'] ?? true) == true;
       }
+
+      // 2. Bloqueios de dia/período específicos
+      try {
+        final blocked = await Supabase.instance.client
+            .from('barber_blocked_days')
+            .select('barber_id')
+            .lte('date_from', dateStr)
+            .gte('date_to', dateStr);
+
+        for (final row in blocked) {
+          avail[row['barber_id'].toString()] = false;
+        }
+      } catch (_) {} // ignora se tabela ainda não existir
 
       if (!mounted) return;
       setState(() {

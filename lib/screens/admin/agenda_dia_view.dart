@@ -49,6 +49,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   bool _selectMode = false;
   final Set<String> _selectedLabels = {};
 
+  // id do registro em barber_blocked_days que cobre esta data (null = dia livre)
+  String? _dayBlockId;
+
   @override
   void initState() {
     super.initState();
@@ -152,7 +155,23 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         }
       }
 
-      // 5. Horários bloqueados
+      // 5. Dia inteiro bloqueado (barber_blocked_days)
+      try {
+        final dayBlocks = await sb
+            .from('barber_blocked_days')
+            .select('id')
+            .eq('barber_id', barberId)
+            .lte('date_from', _dateStr)
+            .gte('date_to', _dateStr)
+            .limit(1);
+        _dayBlockId = dayBlocks.isNotEmpty
+            ? dayBlocks.first['id'].toString()
+            : null;
+      } catch (_) {
+        _dayBlockId = null;
+      }
+
+      // 6. Horários bloqueados individualmente (blocked_slots)
       final blockedRows = await sb
           .from('blocked_slots')
           .select('id,time')
@@ -168,7 +187,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         }
       }
 
-      // 6. Preenche os slots com os agendamentos
+      // 7. Preenche os slots com os agendamentos
       for (final m in appts) {
         final label = _hhmm('${m['appointment_time']}');
         final slot = byLabel[label];
@@ -268,6 +287,122 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       await _load();
     } catch (e) {
       _toast('Erro ao desbloquear: $e');
+    }
+  }
+
+  /// Bloqueia o dia inteiro (ou um período) para o barbeiro.
+  Future<void> _blockDay(String dateFrom, String dateTo) async {
+    try {
+      await Supabase.instance.client.from('barber_blocked_days').insert({
+        'barber_id': widget.barberId,
+        'date_from': dateFrom,
+        'date_to': dateTo,
+      });
+      await _load();
+      _toast('Dia(s) bloqueado(s) com sucesso.');
+    } catch (e) {
+      _toast('Erro ao bloquear: $e');
+    }
+  }
+
+  /// Remove o bloqueio de dia inteiro desta data.
+  Future<void> _unblockDay() async {
+    if (_dayBlockId == null) return;
+    try {
+      await Supabase.instance.client
+          .from('barber_blocked_days')
+          .delete()
+          .eq('id', _dayBlockId!);
+      _dayBlockId = null;
+      await _load();
+      _toast('Bloqueio removido.');
+    } catch (e) {
+      _toast('Erro ao desbloquear: $e');
+    }
+  }
+
+  /// Dialog para o admin escolher bloquear só este dia ou um período.
+  Future<void> _openBlockDayDialog() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        title: const Text('Bloquear disponibilidade',
+            style: TextStyle(color: _text)),
+        content: const Text(
+          'O barbeiro não estará disponível para agendamentos no período selecionado.',
+          style: TextStyle(color: _muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: _muted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'day'),
+            child: const Text('Este dia', style: TextStyle(color: _red)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: _red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, 'period'),
+            child: const Text('Período'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
+    if (choice == 'day') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          backgroundColor: _card,
+          title: const Text('Confirmar bloqueio', style: TextStyle(color: _text)),
+          content: Text(
+            'Bloquear ${DateFormat("dd/MM/yyyy", 'pt_BR').format(widget.date)}?\n\nO barbeiro não aparecerá disponível para os clientes neste dia.',
+            style: const TextStyle(color: _muted),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Não', style: TextStyle(color: _muted)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: _red, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Bloquear'),
+            ),
+          ],
+        ),
+      );
+      if (confirm == true) await _blockDay(_dateStr, _dateStr);
+    } else {
+      // Seleção de período com date range picker
+      if (!mounted) return;
+      final range = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        initialDateRange: DateTimeRange(
+          start: widget.date,
+          end: widget.date,
+        ),
+        locale: const Locale('pt', 'BR'),
+        helpText: 'Selecione o período de bloqueio',
+        saveText: 'CONFIRMAR',
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(1.0)),
+          child: child!,
+        ),
+      );
+      if (range == null || !mounted) return;
+      final from = DateFormat('yyyy-MM-dd').format(range.start);
+      final to = DateFormat('yyyy-MM-dd').format(range.end);
+      await _blockDay(from, to);
     }
   }
 
@@ -735,22 +870,37 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   Widget _selectBar() {
     if (!_selectMode) {
-      return Align(
-        alignment: Alignment.centerRight,
-        child: TextButton.icon(
-          onPressed: () => setState(() {
-            _selectMode = true;
-            _selectedLabels.clear();
-          }),
-          icon: const Icon(Icons.checklist_rounded, color: _muted, size: 16),
-          label: const Text('Selecionar',
-              style: TextStyle(color: _muted, fontSize: 12)),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (_dayBlockId == null)
+            TextButton.icon(
+              onPressed: _openBlockDayDialog,
+              icon: const Icon(Icons.block, color: _red, size: 14),
+              label: const Text('Bloquear dia',
+                  style: TextStyle(color: _red, fontSize: 12)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          if (_dayBlockId == null) const SizedBox(width: 12),
+          TextButton.icon(
+            onPressed: () => setState(() {
+              _selectMode = true;
+              _selectedLabels.clear();
+            }),
+            icon: const Icon(Icons.checklist_rounded, color: _muted, size: 16),
+            label: const Text('Selecionar',
+                style: TextStyle(color: _muted, fontSize: 12)),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
-        ),
+        ],
       );
     }
 
@@ -902,6 +1052,69 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       children: [
         _legend(),
         const SizedBox(height: 8),
+        // ── Banner de dia bloqueado ──────────────────────────────────────
+        if (_dayBlockId != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A0A0A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _red.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.block, color: _red, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Barbeiro bloqueado neste dia — clientes não conseguem agendar.',
+                    style: TextStyle(color: _red, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (c) => AlertDialog(
+                        backgroundColor: _card,
+                        title: const Text('Remover bloqueio?',
+                            style: TextStyle(color: _text)),
+                        content: const Text(
+                          'O barbeiro voltará a aparecer disponível para os clientes neste dia.',
+                          style: TextStyle(color: _muted),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, false),
+                            child: const Text('Não',
+                                style: TextStyle(color: _muted)),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: _gold,
+                                foregroundColor: Colors.black),
+                            onPressed: () => Navigator.pop(c, true),
+                            child: const Text('Remover'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) await _unblockDay();
+                  },
+                  child: const Text(
+                    'Desbloquear',
+                    style: TextStyle(
+                      color: _gold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         _selectBar(),
         const SizedBox(height: 8),
         if (barberName.isNotEmpty)
