@@ -55,32 +55,40 @@ class BookAppointmentScreen extends StatefulWidget {
 }
 
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
+  // Fluxo: Serviço (0) → Data (1) → Barbeiro (2) → Horário (3) → Dados (4)
   int _currentStep = 0;
 
+  // Passo 0 – Serviços
   List<Service> _selectedServices = const [];
-  String? _selectedBarberId;
-  DateTime? _selectedDateTime;
+
+  // Passo 1 – Data
   DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
+  int _datePageOffset = 0;
+
+  // Passo 2 – Barbeiro
+  String? _selectedBarberId;
+  bool _loadingBarbers = true;
+  String? _barbersError;
+  List<BarberLite> _barbers = const [];
+  // barber_id → disponível no dia selecionado (null = não encontrado = disponível)
+  Map<String, bool> _barberDayAvailable = {};
+  bool _loadingAvailability = false;
+
+  // Passo 3 – Horário
   List<TimeOfDay> _availableSlots = const [];
   Set<String> _takenSlots = const {};
-  int _datePageOffset = 0; // offset em semanas (0 = próximos 7 dias)
+  TimeOfDay? _selectedTime;
+  DateTime? _selectedDateTime;
 
+  // Passo 4 – Dados pessoais
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-
-  // Criada UMA vez só — se for recriada no build, perde o estado e apaga o texto.
   final _phoneMask = MaskTextInputFormatter(
     mask: '(##) #####-####',
     filter: {'#': RegExp(r'[0-9]')},
   );
-
   bool _isPlanClient = false;
   bool _checkingPlan = false;
-
-  bool _loadingBarbers = true;
-  String? _barbersError;
-  List<BarberLite> _barbers = const [];
 
   @override
   void initState() {
@@ -146,6 +154,41 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  /// Carrega quais barbeiros estão disponíveis no dia da semana da data selecionada.
+  /// Barbeiros sem registro em barber_availability são considerados disponíveis.
+  Future<void> _loadBarberAvailability() async {
+    if (_selectedDate == null || _barbers.isEmpty) return;
+    setState(() => _loadingAvailability = true);
+
+    final dow = _selectedDate!.weekday; // 1=Seg … 7=Dom
+    final dayOfWeek = dow == 7 ? 0 : dow;
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('barber_availability')
+          .select('barber_id, is_available')
+          .eq('day_of_week', dayOfWeek);
+
+      final avail = <String, bool>{};
+      for (final row in rows) {
+        avail[row['barber_id'].toString()] =
+            (row['is_available'] ?? true) == true;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _barberDayAvailable = avail;
+        _loadingAvailability = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _barberDayAvailable = {};
+        _loadingAvailability = false;
+      });
+    }
+  }
+
   Future<void> _checkPlanClient(String phone) async {
     final normalized = phone.replaceAll(RegExp(r'[^0-9]'), '');
     if (normalized.length < 10) {
@@ -161,7 +204,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           .limit(1);
       if (!mounted) return;
       setState(() {
-        _isPlanClient = rows is List && rows.isNotEmpty;
+        _isPlanClient = rows.isNotEmpty;
         _checkingPlan = false;
       });
     } catch (_) {
@@ -186,7 +229,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       return;
     }
     try {
-      final dow = selDate.weekday; // 1..7 (Seg..Dom)
+      final dow = selDate.weekday;
       final avRows = await Supabase.instance.client
           .from('barber_availability')
           .select('*')
@@ -196,8 +239,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
       TimeOfDay end = const TimeOfDay(hour: 18, minute: 0);
       bool enabled = true;
-      if (avRows is List && avRows.isNotEmpty) {
-        final row = avRows.first as Map<String, dynamic>;
+      if (avRows.isNotEmpty) {
+        final row = avRows.first;
         enabled = (row['is_available'] ?? true) == true;
         final st = '${row['start_time'] ?? '09:00:00'}'.split(':');
         final et = '${row['end_time'] ?? '18:00:00'}'.split(':');
@@ -296,9 +339,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  /// Verifica se, começando no slot [startIndex], há N slots livres
-  /// consecutivos (N = quantidade de serviços selecionados), todos dentro
-  /// do expediente e nenhum já ocupado.
   bool _slotFits(int startIndex) {
     final n = _selectedServices.isEmpty ? 1 : _selectedServices.length;
     if (startIndex + n > _availableSlots.length) return false;
@@ -311,8 +351,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     return true;
   }
 
-  /// Há ao menos um horário de início selecionável (livre e que comporta
-  /// todos os serviços consecutivos)?
   bool _hasSelectableSlot() {
     for (var i = 0; i < _availableSlots.length; i++) {
       final t = _availableSlots[i];
@@ -342,7 +380,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     try {
       final n = _selectedServices.length;
       final appointmentDate = _dateOnlyForDb(dt);
-      // 1 slot de 30min por serviço → horários consecutivos.
       final slotTimes =
           List.generate(n, (i) => dt.add(Duration(minutes: 30 * i)));
       final wantedHHmm = slotTimes
@@ -350,7 +387,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}')
           .toList();
 
-      // Conflito: algum dos horários necessários já está ocupado?
       final existing = await Supabase.instance.client
           .from('appointments')
           .select('appointment_time,status')
@@ -396,11 +432,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         );
         return;
       }
-      // Marca quem está agendando: admin logado x cliente (anônimo).
       final authUser = Supabase.instance.client.auth.currentUser;
       final isAdmin = authUser != null && !authUser.isAnonymous;
 
-      // Cada serviço ocupa um slot consecutivo (9h, 9h30, ...).
       final payload = <Map<String, dynamic>>[];
       for (var i = 0; i < n; i++) {
         final s = _selectedServices[i];
@@ -477,7 +511,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         },
       );
 
-      // Enviar confirmação via WhatsApp (sem bloquear o fluxo)
       _sendWhatsappConfirmation();
 
       if (mounted) Navigator.pop(context, response);
@@ -534,48 +567,6 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         },
       );
     }
-  }
-
-  Future<void> _showConfirmationDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Agendamento confirmado!'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_selectedServices.isNotEmpty)
-                Text(
-                  'Serviços: ${_selectedServices.map((s) => s.name).join(', ')}',
-                ),
-              if (_selectedDateTime != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('Quando: ${_selectedDateTime!.toLocal()}'),
-                ),
-              if (_selectedBarberId != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Barbeiro: ${_barbers.firstWhere(
-                      (b) => b.id == _selectedBarberId,
-                      orElse: () => BarberLite(id: _selectedBarberId!, name: 'Selecionado', avatarUrl: '', rating: 0),
-                    ).name}',
-                  ),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   String _dateOnlyForDb(DateTime value) {
@@ -651,42 +642,89 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           ),
           checkboxTheme: CheckboxThemeData(
             fillColor: WidgetStateProperty.resolveWith((s) =>
-                s.contains(WidgetState.selected) ? _BP.gold : Colors.transparent),
+                s.contains(WidgetState.selected)
+                    ? _BP.gold
+                    : Colors.transparent),
             checkColor: WidgetStateProperty.all(_BP.bg),
             side: const BorderSide(color: _BP.border, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           ),
         ),
         child: Stepper(
           currentStep: _currentStep,
           onStepCancel: () {
-            if (_currentStep > 0) {
-              setState(() => _currentStep--);
-            } else {
+            if (_currentStep == 0) {
               Navigator.pop(context);
+              return;
             }
+            // Limpa estado ao voltar para não deixar seleção órfã
+            if (_currentStep == 2) {
+              setState(() {
+                _selectedBarberId = null;
+                _barberDayAvailable = {};
+              });
+            } else if (_currentStep == 3) {
+              setState(() {
+                _selectedTime = null;
+                _selectedDateTime = null;
+                _availableSlots = const [];
+                _takenSlots = const {};
+              });
+            }
+            setState(() => _currentStep--);
           },
           onStepContinue: () {
             if (_currentStep == 0) {
               if (_selectedServices.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Selecione ao menos um serviço.'),
-                  ),
+                      content: Text('Selecione ao menos um serviço.')),
                 );
                 return;
               }
               setState(() => _currentStep = 1);
               return;
             }
-            if (_currentStep < 3) {
-              setState(() => _currentStep++);
-            } else {
-              _saveAppointment();
+            if (_currentStep == 1) {
+              if (_selectedDate == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Selecione uma data.')),
+                );
+                return;
+              }
+              // Carrega disponibilidade dos barbeiros ao entrar no passo 2
+              _loadBarberAvailability();
+              setState(() => _currentStep = 2);
+              return;
             }
+            if (_currentStep == 2) {
+              if (_selectedBarberId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Selecione um barbeiro disponível.')),
+                );
+                return;
+              }
+              // Carrega horários ao entrar no passo 3
+              _refreshSlots();
+              setState(() => _currentStep = 3);
+              return;
+            }
+            if (_currentStep == 3) {
+              if (_selectedTime == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Selecione um horário.')),
+                );
+                return;
+              }
+              setState(() => _currentStep = 4);
+              return;
+            }
+            _saveAppointment();
           },
           controlsBuilder: (context, details) {
-            final isLast = _currentStep == 3;
+            final isLast = _currentStep == 4;
             return Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Row(
@@ -702,13 +740,15 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     ),
                     child: Text(
                       isLast ? 'Confirmar' : 'Continuar',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style:
+                          const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                   const SizedBox(width: 12),
                   TextButton(
                     onPressed: details.onStepCancel,
-                    style: TextButton.styleFrom(foregroundColor: _BP.muted),
+                    style:
+                        TextButton.styleFrom(foregroundColor: _BP.muted),
                     child: const Text('Voltar'),
                   ),
                 ],
@@ -716,6 +756,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             );
           },
           steps: [
+            // ── Passo 0: Serviços ─────────────────────────────────────────
             Step(
               isActive: _currentStep >= 0,
               title: const Text('Escolha o Serviço'),
@@ -725,13 +766,170 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   _MultiSelectServicesFromSupabase(
                     initialSelectedIds:
                         _selectedServices.map((s) => s.id).toSet(),
-                    onChange: (list) => setState(() => _selectedServices = list),
+                    onChange: (list) =>
+                        setState(() => _selectedServices = list),
                   ),
                 ],
               ),
             ),
+
+            // ── Passo 1: Data ─────────────────────────────────────────────
             Step(
               isActive: _currentStep >= 1,
+              title: const Text('Escolha a Data'),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Selecione o dia desejado:',
+                    style: TextStyle(color: _BP.muted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: _datePageOffset == 0
+                            ? null
+                            : () =>
+                                setState(() => _datePageOffset--),
+                        child: Icon(
+                          Icons.chevron_left_rounded,
+                          color: _datePageOffset == 0
+                              ? _BP.border
+                              : _BP.gold,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(7, (i) {
+                            final day = DateTime.now().add(
+                              Duration(
+                                  days: _datePageOffset * 7 + i),
+                            );
+                            final d = DateTime(
+                                day.year, day.month, day.day);
+                            final selected = _selectedDate == d;
+                            final raw =
+                                DateFormat('E', 'pt_BR')
+                                    .format(d)
+                                    .replaceFirst(
+                                        RegExp(r'\.$'), '');
+                            final dayName = raw.isEmpty
+                                ? ''
+                                : raw[0].toUpperCase() +
+                                    raw.substring(1);
+                            return GestureDetector(
+                              onTap: () => setState(() {
+                                _selectedDate = d;
+                                // Limpa seleções posteriores ao mudar a data
+                                _selectedBarberId = null;
+                                _barberDayAvailable = {};
+                                _selectedTime = null;
+                                _selectedDateTime = null;
+                                _availableSlots = const [];
+                                _takenSlots = const {};
+                              }),
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 150),
+                                width: 64,
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 4),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? _BP.gold
+                                          .withValues(alpha: 0.15)
+                                      : Colors.transparent,
+                                  borderRadius:
+                                      BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: selected
+                                        ? _BP.gold
+                                        : _BP.border,
+                                    width: selected ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: selected
+                                            ? _BP.gold
+                                            : _BP.muted,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      dayName,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: selected
+                                            ? _BP.gold
+                                            : _BP.muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: _datePageOffset >= 7
+                            ? null
+                            : () =>
+                                setState(() => _datePageOffset++),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: _datePageOffset >= 7
+                              ? _BP.border
+                              : _BP.gold,
+                          size: 28,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_selectedDate != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle,
+                            color: _BP.gold, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          DateFormat("EEEE, dd/MM/yyyy", 'pt_BR')
+                              .format(_selectedDate!),
+                          style: const TextStyle(
+                            color: _BP.gold,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // ── Passo 2: Barbeiro ─────────────────────────────────────────
+            Step(
+              isActive: _currentStep >= 2,
               title: const Text('Escolha o Barbeiro'),
               content: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,231 +963,127 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       child: Text('Nenhum barbeiro encontrado.',
                           style: TextStyle(color: _BP.muted)),
                     )
-                  else
-                    ..._barbers.map(
-                      (b) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _barberTile(
-                          id: b.id,
-                          name: b.name,
-                          avatarUrl: b.avatarUrl,
-                          rating: b.rating,
+                  else ...[
+                    if (_loadingAvailability)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: _BP.gold),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Verificando disponibilidade...',
+                                style: TextStyle(
+                                    color: _BP.muted, fontSize: 12)),
+                          ],
                         ),
                       ),
+                    ..._barbers.map(
+                      (b) {
+                        // null = não cadastrado em barber_availability → disponível
+                        final availInDb = _barberDayAvailable[b.id];
+                        final unavailable = availInDb == false;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _barberTile(
+                            id: b.id,
+                            name: b.name,
+                            avatarUrl: b.avatarUrl,
+                            rating: b.rating,
+                            unavailable: unavailable,
+                          ),
+                        );
+                      },
                     ),
+                  ],
                 ],
               ),
             ),
+
+            // ── Passo 3: Horário ──────────────────────────────────────────
             Step(
-              isActive: _currentStep >= 2,
-              title: const Text('Data e Horário'),
+              isActive: _currentStep >= 3,
+              title: const Text('Escolha o Horário'),
               content: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Modo: seleção de dia OU seleção de horário ───────────
-                  if (_selectedDate == null) ...[
-                    // — Grade de dias —
-                    const Text(
-                      'Selecione o dia da semana desejado:',
-                      style: TextStyle(color: _BP.muted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: _datePageOffset == 0
-                              ? null
-                              : () => setState(() => _datePageOffset--),
-                          child: Icon(
-                            Icons.chevron_left_rounded,
-                            color: _datePageOffset == 0 ? _BP.border : _BP.gold,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.center,
-                            children: List.generate(7, (i) {
-                              final day = DateTime.now().add(
-                                Duration(days: _datePageOffset * 7 + i),
-                              );
-                              final d = DateTime(day.year, day.month, day.day);
-                              final raw = DateFormat('E', 'pt_BR')
-                                  .format(d)
-                                  .replaceFirst(RegExp(r'\.$'), '');
-                              final dayName = raw.isEmpty
-                                  ? ''
-                                  : raw[0].toUpperCase() + raw.substring(1);
-                              return GestureDetector(
-                                onTap: _selectedBarberId == null
-                                    ? null
-                                    : () async {
-                                        setState(() => _selectedDate = d);
-                                        await _refreshSlots();
-                                      },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  width: 64,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 10, horizontal: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: _selectedBarberId == null
-                                          ? _BP.border
-                                          : _BP.gold,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: _selectedBarberId == null
-                                              ? _BP.muted
-                                              : _BP.gold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        dayName,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: _selectedBarberId == null
-                                              ? _BP.muted
-                                              : _BP.gold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: _datePageOffset >= 7
-                              ? null
-                              : () => setState(() => _datePageOffset++),
-                          child: Icon(
-                            Icons.chevron_right_rounded,
-                            color: _datePageOffset >= 7 ? _BP.border : _BP.gold,
-                            size: 28,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_selectedBarberId == null) ...[
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Selecione um barbeiro no passo anterior.',
-                        style: TextStyle(color: _BP.muted, fontSize: 12),
+                  if (_selectedDate != null)
+                    Text(
+                      DateFormat("EEEE, dd/MM", 'pt_BR')
+                          .format(_selectedDate!),
+                      style: const TextStyle(
+                        color: _BP.gold,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                       ),
-                    ],
-                  ] else ...[
-                    // — Horários disponíveis —
+                    ),
+                  const SizedBox(height: 12),
+                  if (_selectedServices.length > 1) ...[
                     Row(
                       children: [
+                        const Icon(Icons.info_outline,
+                            size: 13, color: _BP.gold),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            DateFormat("EEEE, dd/MM", 'pt_BR').format(_selectedDate!),
+                            '${_selectedServices.length} serviços ocupam ${_selectedServices.length} horários seguidos (${_selectedServices.length * 30}min).',
                             style: const TextStyle(
-                              color: _BP.gold,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                                color: _BP.muted, fontSize: 11),
                           ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => setState(() {
-                            _selectedDate = null;
-                            _selectedTime = null;
-                            _selectedDateTime = null;
-                            _availableSlots = const [];
-                          }),
-                          icon: const Icon(Icons.calendar_month_outlined,
-                              size: 14, color: _BP.muted),
-                          label: const Text('Trocar data',
-                              style: TextStyle(color: _BP.muted, fontSize: 12)),
-                          style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (_selectedServices.length > 1) ...[
-                      Row(
+                    const SizedBox(height: 10),
+                  ],
+                  if (_availableSlots.isEmpty || !_hasSelectableSlot())
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: _BP.card,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: _BP.gold.withValues(alpha: 0.4)),
+                      ),
+                      child: const Column(
                         children: [
-                          const Icon(Icons.info_outline,
-                              size: 13, color: _BP.gold),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              '${_selectedServices.length} serviços ocupam ${_selectedServices.length} horários seguidos (${_selectedServices.length * 30}min).',
-                              style: const TextStyle(
-                                  color: _BP.muted, fontSize: 11),
-                            ),
+                          Icon(Icons.event_busy,
+                              color: _BP.gold, size: 28),
+                          SizedBox(height: 8),
+                          Text(
+                            'Sem horários disponíveis nesta data!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: _BP.gold,
+                                fontWeight: FontWeight.w700),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Volte e escolha outro barbeiro ou data.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: _BP.muted, fontSize: 13),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                    ],
-                    if (_availableSlots.isEmpty || !_hasSelectableSlot())
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _BP.card,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: _BP.gold.withValues(alpha: 0.4)),
-                        ),
-                        child: const Column(
-                          children: [
-                            Icon(Icons.event_busy, color: _BP.gold, size: 28),
-                            SizedBox(height: 8),
-                            Text(
-                              'Acabaram os horários com esse profissional para esta data!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: _BP.gold,
-                                  fontWeight: FontWeight.w700),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Escolha outro dia ou profissional.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: _BP.muted, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      )
+                    )
                   else
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _availableSlots.asMap().entries.map((entry) {
+                      children: _availableSlots
+                          .asMap()
+                          .entries
+                          .map((entry) {
                         final i = entry.key;
                         final t = entry.value;
                         final label =
                             '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
                         final taken = _takenSlots.contains(label);
-                        // Para multi-serviço: só permite começar onde cabem
-                        // todos os slots consecutivos necessários.
                         final disabled = taken || !_slotFits(i);
                         final selected = _selectedTime == t;
                         return ChoiceChip(
@@ -997,7 +1091,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           selected: selected,
                           selectedColor: _BP.gold,
                           backgroundColor: _BP.card,
-                          disabledColor: _BP.card.withValues(alpha: 0.4),
+                          disabledColor:
+                              _BP.card.withValues(alpha: 0.4),
                           side: BorderSide(
                             color: selected ? _BP.gold : _BP.border,
                           ),
@@ -1029,19 +1124,21 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         );
                       }).toList(),
                     ),
-                  ],
                 ],
               ),
             ),
+
+            // ── Passo 4: Dados pessoais ───────────────────────────────────
             Step(
-              isActive: _currentStep >= 3,
+              isActive: _currentStep >= 4,
               title: const Text('Dados Pessoais'),
               content: Column(
                 children: [
                   TextField(
                     controller: _nameController,
                     style: const TextStyle(color: _BP.text),
-                    decoration: _inputDeco('Nome completo', Icons.person_outline),
+                    decoration:
+                        _inputDeco('Nome completo', Icons.person_outline),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -1050,8 +1147,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     style: const TextStyle(color: _BP.text),
                     inputFormatters: [_phoneMask],
                     onChanged: _checkPlanClient,
-                    decoration: _inputDeco('Telefone', Icons.phone_outlined)
-                        .copyWith(hintText: '(00) 00000-0000'),
+                    decoration:
+                        _inputDeco('Telefone', Icons.phone_outlined)
+                            .copyWith(hintText: '(00) 00000-0000'),
                   ),
                   if (_checkingPlan)
                     const Padding(
@@ -1061,11 +1159,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2),
                           ),
                           SizedBox(width: 8),
                           Text('Verificando plano...',
-                              style: TextStyle(color: _BP.muted, fontSize: 12)),
+                              style: TextStyle(
+                                  color: _BP.muted, fontSize: 12)),
                         ],
                       ),
                     )
@@ -1077,7 +1177,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.shade400),
+                        border:
+                            Border.all(color: Colors.green.shade400),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1106,21 +1207,24 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   void _sendWhatsappConfirmation() {
-    final dt       = _selectedDateTime;
-    final phone    = _phoneController.text.trim();
-    final cliente  = _nameController.text.trim(); // captura antes do dispose
+    final dt = _selectedDateTime;
+    final phone = _phoneController.text.trim();
+    final cliente = _nameController.text.trim();
     if (dt == null || phone.isEmpty || _selectedServices.isEmpty) return;
 
     final barber = _barbers.firstWhere(
       (b) => b.id == _selectedBarberId,
-      orElse: () => BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
+      orElse: () =>
+          BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
     );
 
-    final dateStr    = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
-    final timeStr    = DateFormat('HH:mm').format(dt);
-    final services   = _selectedServices.map((s) => s.name).join(', ');
-    final totalPrice = _selectedServices.fold<double>(0, (sum, s) => sum + s.price);
-    final valor      = 'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
+    final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+    final timeStr = DateFormat('HH:mm').format(dt);
+    final services = _selectedServices.map((s) => s.name).join(', ');
+    final totalPrice = _selectedServices.fold<double>(
+        0, (sum, s) => sum + s.price);
+    final valor =
+        'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
 
     WhatsappService.loadConfig().then((config) {
       if (!config.enabled || !config.isConfigured) return;
@@ -1133,9 +1237,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         barbeiro: barber.name,
         valor: valor,
       );
-      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
+      WhatsappService.sendMessage(
+          phone: phone, message: msg, config: config);
 
-      // Notifica o barbeiro escolhido (telefone cadastrado na tela de Barbeiros)
       final barberPhone = barber.phone.trim();
       if (barberPhone.isNotEmpty) {
         final msgBarbeiro = '📅 *Novo agendamento!*\n\n'
@@ -1158,65 +1262,82 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     required String name,
     required String avatarUrl,
     required double rating,
+    bool unavailable = false,
   }) {
     final selected = _selectedBarberId == id;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () async {
-        setState(() => _selectedBarberId = id);
-        await _refreshSlots();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected
-              ? _BP.gold.withValues(alpha: 0.08)
-              : _BP.card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? _BP.gold : _BP.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: _BP.border,
-              foregroundImage: avatarUrl.isNotEmpty
-                  ? NetworkImage(avatarUrl)
-                  : null,
-              child: avatarUrl.isEmpty
-                  ? const Icon(Icons.person, color: _BP.muted)
-                  : null,
+    return Opacity(
+      opacity: unavailable ? 0.45 : 1.0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: unavailable
+            ? null
+            : () async {
+                setState(() => _selectedBarberId = id);
+              },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected
+                ? _BP.gold.withValues(alpha: 0.08)
+                : _BP.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? _BP.gold : _BP.border,
+              width: selected ? 1.5 : 1,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  color: _BP.text,
-                  fontWeight: FontWeight.w600,
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: _BP.border,
+                foregroundImage: avatarUrl.isNotEmpty
+                    ? NetworkImage(avatarUrl)
+                    : null,
+                child: avatarUrl.isEmpty
+                    ? const Icon(Icons.person, color: _BP.muted)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: unavailable ? _BP.muted : _BP.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (unavailable) ...[
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Indisponível nesta data',
+                        style: TextStyle(
+                          color: Color(0xFFF06666),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
-            if (selected)
-              const Icon(Icons.check_circle_rounded, color: _BP.gold, size: 20),
-          ],
+              if (selected && !unavailable)
+                const Icon(Icons.check_circle_rounded,
+                    color: _BP.gold, size: 20),
+              if (unavailable)
+                const Icon(Icons.block,
+                    color: Color(0xFFF06666), size: 18),
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _SelectServiceFromSupabase extends StatefulWidget {
-  const _SelectServiceFromSupabase({required this.onSelect});
-  final void Function(Service) onSelect;
-
-  @override
-  State<_SelectServiceFromSupabase> createState() =>
-      __SelectServiceFromSupabaseState();
 }
 
 class _MultiSelectServicesFromSupabase extends StatefulWidget {
@@ -1363,71 +1484,15 @@ class _MultiSelectServicesFromSupabaseState
   }
 }
 
-class __SelectServiceFromSupabaseState
-    extends State<_SelectServiceFromSupabase> {
-  late final Future<List<Service>> _servicesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _servicesFuture = _fetchServices();
-  }
-
-  Future<List<Service>> _fetchServices() async {
-    final response = await Supabase.instance.client
-        .from('services')
-        .select()
-        .order('name');
-    return (response as List)
-        .map((serviceData) => Service.fromMap(serviceData))
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Service>>(
-      future: _servicesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Erro: ${snapshot.error}'));
-        }
-        final services = snapshot.data ?? [];
-        if (services.isEmpty) {
-          return const Center(child: Text('Nenhum serviço encontrado.'));
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Selecione um serviço abaixo:'),
-            const SizedBox(height: 8),
-            ...services.map(
-              (s) => ListTile(
-                leading: const Icon(Icons.content_cut),
-                title: Text(s.name),
-                subtitle: Text(s.formattedPrice),
-                onTap: () => widget.onSelect(s),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-// ── Paleta dark (igual ao home) ───────────────────────────────────────────────
+// ── Paleta dark ───────────────────────────────────────────────────────────────
 
 class _BP {
-  static const Color bg     = Color(0xFF0C0D10);
-  static const Color card   = Color(0xFF14161A);
+  static const Color bg = Color(0xFF0C0D10);
+  static const Color card = Color(0xFF14161A);
   static const Color border = Color(0xFF252830);
-  static const Color gold   = Color(0xFFF5C440);
-  static const Color text   = Color(0xFFF0EDE8);
-  static const Color muted  = Color(0xFF6B7280);
+  static const Color gold = Color(0xFFF5C440);
+  static const Color text = Color(0xFFF0EDE8);
+  static const Color muted = Color(0xFF6B7280);
 }
 
 String _formatDateTime(DateTime dt) {

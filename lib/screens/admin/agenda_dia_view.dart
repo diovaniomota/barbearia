@@ -271,34 +271,33 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     }
   }
 
-  /// Cancela agendamentos dos slots informados e bloqueia os horários.
-  /// Slots já bloqueados são ignorados; slots livres só são bloqueados.
+  /// Cancela os agendamentos dos slots informados.
+  /// O horário volta a ficar livre para novos agendamentos.
   Future<void> _cancelAndBlock(List<_Slot> slots) async {
     if (slots.isEmpty) return;
     final sb = Supabase.instance.client;
+    final booked = slots
+        .where((s) =>
+            s.state == _SlotState.client ||
+            s.state == _SlotState.newClient ||
+            s.state == _SlotState.admin)
+        .toList();
+    if (booked.isEmpty) {
+      _toast('Nenhum agendamento selecionado para cancelar.');
+      setState(() {
+        _selectMode = false;
+        _selectedLabels.clear();
+      });
+      return;
+    }
     try {
-      for (final slot in slots) {
-        // Cancela o agendamento se houver
-        if (slot.state == _SlotState.client ||
-            slot.state == _SlotState.newClient ||
-            slot.state == _SlotState.admin) {
-          await sb
-              .from('appointments')
-              .update({'status': 'cancelled'})
-              .eq('barber_id', widget.barberId!)
-              .eq('appointment_date', _dateStr)
-              .eq('appointment_time', '${slot.label}:00');
-        }
-        // Bloqueia o horário para novos agendamentos
-        if (slot.state != _SlotState.blocked) {
-          try {
-            await sb.from('blocked_slots').insert({
-              'barber_id': widget.barberId!,
-              'date': _dateStr,
-              'time': '${slot.label}:00',
-            });
-          } catch (_) {} // ignora se já existir
-        }
+      for (final slot in booked) {
+        await sb
+            .from('appointments')
+            .update({'status': 'cancelled'})
+            .eq('barber_id', widget.barberId!)
+            .eq('appointment_date', _dateStr)
+            .eq('appointment_time', '${slot.label}:00');
       }
       if (mounted) {
         setState(() {
@@ -307,7 +306,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         });
       }
       await _load();
-      _toast('${slots.length} horário(s) cancelado(s) e bloqueado(s).');
+      _toast('${booked.length} agendamento(s) cancelado(s).');
     } catch (e) {
       _toast('Erro ao cancelar: $e');
     }
@@ -637,7 +636,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                     title: const Text('Cancelar agendamento?',
                         style: TextStyle(color: _text)),
                     content: const Text(
-                      'O horário ficará bloqueado para novos agendamentos.',
+                      'O agendamento será cancelado e o horário ficará livre novamente.',
                       style: TextStyle(color: _muted),
                     ),
                     actions: [
@@ -817,9 +816,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                     title: const Text('Cancelar horários selecionados?',
                         style: TextStyle(color: _text)),
                     content: Text(
-                      booked > 0
-                          ? '$booked agendamento(s) serão cancelados e ${slots.length} horário(s) serão bloqueados.'
-                          : '${slots.length} horário(s) serão bloqueados.',
+                      '$booked agendamento(s) serão cancelados. Os horários ficam livres para novos agendamentos.',
                       style: const TextStyle(color: _muted),
                     ),
                     actions: [
