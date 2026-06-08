@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:barbearia/utils/admin_session.dart';
 
 class FinancialAdminScreen extends StatefulWidget {
   const FinancialAdminScreen({super.key});
@@ -24,6 +25,7 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
   @override
   void initState() {
     super.initState();
+    if (AdminSession.isBarber) _barberId = AdminSession.barberId;
     _loadBarbers();
     _loadFinance();
   }
@@ -378,32 +380,33 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButton<String?>(
-                                value: _barberId,
-                                isExpanded: true,
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                    value: null,
-                                    child: Text('Todos os barbeiros'),
-                                  ),
-                                  ..._barbers.map(
-                                    (b) => DropdownMenuItem<String?>(
-                                      value: b['id']?.toString(),
-                                      child: Text(b['name']?.toString() ?? ''),
+                        if (!AdminSession.isBarber)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButton<String?>(
+                                  value: _barberId,
+                                  isExpanded: true,
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('Todos os barbeiros'),
                                     ),
-                                  ),
-                                ],
-                                onChanged: (v) async {
-                                  setState(() => _barberId = v);
-                                  await _loadFinance();
-                                },
+                                    ..._barbers.map(
+                                      (b) => DropdownMenuItem<String?>(
+                                        value: b['id']?.toString(),
+                                        child: Text(b['name']?.toString() ?? ''),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (v) async {
+                                    setState(() => _barberId = v);
+                                    await _loadFinance();
+                                  },
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                       ],
                     ),
                   ),

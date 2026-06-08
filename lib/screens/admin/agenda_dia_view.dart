@@ -309,10 +309,15 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   Future<void> _unblockDay() async {
     if (_dayBlockId == null) return;
     try {
-      await Supabase.instance.client
+      final deleted = await Supabase.instance.client
           .from('barber_blocked_days')
           .delete()
-          .eq('id', _dayBlockId!);
+          .eq('id', _dayBlockId!)
+          .select();
+      if (deleted.isEmpty) {
+        _toast('Sem permissão para desbloquear. Verifique a política RLS da tabela barber_blocked_days.');
+        return;
+      }
       _dayBlockId = null;
       await _load();
       _toast('Bloqueio removido.');

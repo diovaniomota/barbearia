@@ -3,7 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/admin/admin_navigation.dart';
-import 'package:barbearia/utils/user_bootstrap.dart'; // <- ensureUserRow()
+import 'package:barbearia/utils/user_bootstrap.dart';
+import 'package:barbearia/utils/admin_session.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _checkingSession = true;
 
   @override
   void initState() {
@@ -35,14 +37,19 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Se já existe sessão, garante a linha em `users` e pula a tela de login
   Future<void> _redirectIfLogged() async {
     final session = Supabase.instance.client.auth.currentSession;
-    if (session == null) return;
+    if (session == null) {
+      if (mounted) setState(() => _checkingSession = false);
+      return;
+    }
 
     if (session.user.isAnonymous) {
       await Supabase.instance.client.auth.signOut();
+      if (mounted) setState(() => _checkingSession = false);
       return;
     }
 
     await _navigateAfterLogin();
+    if (mounted) setState(() => _checkingSession = false);
   }
 
   Future<void> _signIn() async {
@@ -99,6 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         return;
       }
+
+      await AdminSession.loadFromCurrentUser();
+      if (!mounted) return;
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const AdminNavigation()),
@@ -163,6 +173,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingSession) {
+      return const Scaffold(
+        backgroundColor: _bg,
+        body: Center(
+          child: CircularProgressIndicator(color: _gold),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(

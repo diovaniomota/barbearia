@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
+import 'package:barbearia/utils/admin_session.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -221,13 +222,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ) async {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
-    final rows = await supabase
+    var query = supabase
         .from('appointments')
         .select(
           'barber_id, barbers:barber_id(name), services:service_id(price)',
         )
         .gte('appointment_date', _dateOnly(start))
         .lt('appointment_date', _dateOnly(end));
+    if (AdminSession.isBarber) {
+      query = query.eq('barber_id', AdminSession.barberId!);
+    }
+    final rows = await query;
     return List<Map<String, dynamic>>.from(rows);
   }
 

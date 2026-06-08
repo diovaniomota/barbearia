@@ -5,6 +5,7 @@ import 'package:barbearia/services/whatsapp_service.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BarberLite {
   final String id;
@@ -100,7 +101,31 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       _selectedServices = [widget.service!];
     }
     _loadBarbers();
+    _loadSavedClientData();
     initializeDateFormatting('pt_BR');
+  }
+
+  Future<void> _loadSavedClientData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('client_name') ?? '';
+    final rawPhone = prefs.getString('client_phone_raw') ?? '';
+    if (name.isNotEmpty) _nameController.text = name;
+    if (rawPhone.isNotEmpty) {
+      final formatted = _phoneMask.formatEditUpdate(
+        TextEditingValue.empty,
+        TextEditingValue(text: rawPhone),
+      );
+      _phoneController.value = formatted;
+    }
+  }
+
+  Future<void> _saveClientData() async {
+    final name = _nameController.text.trim();
+    final rawPhone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.isEmpty && rawPhone.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('client_name', name);
+    await prefs.setString('client_phone_raw', rawPhone);
   }
 
   @override
@@ -483,6 +508,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           .insert(payload);
       dynamic response;
       response = await insertQuery.select();
+      await _saveClientData();
       await showDialog(
         context: context,
         builder: (ctx) {

@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/screens/admin/dashboard_screen.dart';
 import 'package:barbearia/screens/admin/services_admin_screen.dart';
 import 'package:barbearia/screens/admin/barbers_admin_screen.dart';
@@ -7,6 +8,8 @@ import 'package:barbearia/screens/admin/financial_admin_screen.dart';
 import 'package:barbearia/screens/admin/whatsapp_admin_screen.dart';
 import 'package:barbearia/screens/admin/plan_clients_admin_screen.dart';
 import 'package:barbearia/screens/admin/remarcar_admin_screen.dart';
+import 'package:barbearia/utils/admin_session.dart';
+import 'package:barbearia/screens/login_screen.dart';
 
 class _AP {
   static const Color bg     = Color(0xFF080808);
@@ -59,8 +62,10 @@ class _AdminNavigationState extends State<AdminNavigation> {
         body: IndexedStack(index: _currentIndex, children: _screens),
         bottomNavigationBar: _AdminFloatingNav(
           currentIndex: _currentIndex,
+          isBarber: AdminSession.isBarber,
           onTap: (i) {
-            if (i == 4) {
+            final menuIndex = AdminSession.isBarber ? 3 : 4;
+            if (i == menuIndex) {
               _scaffoldKey.currentState?.openDrawer();
               return;
             }
@@ -72,6 +77,11 @@ class _AdminNavigationState extends State<AdminNavigation> {
   }
 
   Widget _buildDrawer() {
+    final isBarber = AdminSession.isBarber;
+    final displayName = isBarber
+        ? (AdminSession.barberName ?? 'Barbeiro')
+        : 'Admin';
+
     return Theme(
       data: _adminTheme,
       child: Drawer(
@@ -95,12 +105,24 @@ class _AdminNavigationState extends State<AdminNavigation> {
                       errorBuilder: (_, __, ___) => const Icon(Icons.content_cut, color: _AP.gold, size: 28),
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      'Admin',
-                      style: TextStyle(
-                        color: _AP.text,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: const TextStyle(
+                              color: _AP.text,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (isBarber)
+                            const Text(
+                              'Barbeiro',
+                              style: TextStyle(color: _AP.muted, fontSize: 12),
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -111,13 +133,33 @@ class _AdminNavigationState extends State<AdminNavigation> {
               _DrawerItem(Icons.dashboard_outlined, 'Dashboard', () => _navTo(0), selected: _currentIndex == 0),
               _DrawerItem(Icons.calendar_today_outlined, 'Agenda', () => _navTo(1), selected: _currentIndex == 1),
               _DrawerItem(Icons.attach_money_outlined, 'Caixa', () => _navTo(2), selected: _currentIndex == 2),
-              _DrawerItem(Icons.chat_bubble_outline_rounded, 'WhatsApp', () => _navTo(3), selected: _currentIndex == 3),
+              if (!isBarber)
+                _DrawerItem(Icons.chat_bubble_outline_rounded, 'WhatsApp', () => _navTo(3), selected: _currentIndex == 3),
               const Divider(color: _AP.border, indent: 16, endIndent: 16),
               _DrawerSection('Gerenciar'),
-              _DrawerItem(Icons.content_cut_outlined, 'Serviços', () => _pushScreen(const ServicesAdminScreen())),
-              _DrawerItem(Icons.person_outline, 'Barbeiros', () => _pushScreen(const BarbersAdminScreen())),
-              _DrawerItem(Icons.card_membership_outlined, 'Clientes Plano', () => _pushScreen(const PlanClientsAdminScreen())),
+              if (!isBarber) ...[
+                _DrawerItem(Icons.content_cut_outlined, 'Serviços', () => _pushScreen(const ServicesAdminScreen())),
+                _DrawerItem(Icons.person_outline, 'Barbeiros', () => _pushScreen(const BarbersAdminScreen())),
+                _DrawerItem(Icons.card_membership_outlined, 'Clientes Plano', () => _pushScreen(const PlanClientsAdminScreen())),
+              ],
               _DrawerItem(Icons.person_off_outlined, 'Remarcar', () => _pushScreen(const RemarcarAdminScreen())),
+              const Spacer(),
+              const Divider(color: _AP.border),
+              _DrawerItem(
+                Icons.logout_rounded,
+                'Sair',
+                () async {
+                  Navigator.pop(context);
+                  AdminSession.clear();
+                  await Supabase.instance.client.auth.signOut();
+                  if (!mounted) return;
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (_) => false,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -129,12 +171,17 @@ class _AdminNavigationState extends State<AdminNavigation> {
 // ── Navbar flutuante (mesmo estilo do cliente) ────────────────────────────────
 
 class _AdminFloatingNav extends StatelessWidget {
-  const _AdminFloatingNav({required this.currentIndex, required this.onTap});
+  const _AdminFloatingNav({
+    required this.currentIndex,
+    required this.onTap,
+    this.isBarber = false,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final bool isBarber;
 
-  static const _items = [
+  static const _ownerItems = [
     _NavItem(Icons.dashboard_outlined,           Icons.dashboard,           'Dash'),
     _NavItem(Icons.calendar_today_outlined,      Icons.calendar_today,      'Agenda'),
     _NavItem(Icons.attach_money_outlined,        Icons.attach_money,        'Caixa'),
@@ -142,8 +189,16 @@ class _AdminFloatingNav extends StatelessWidget {
     _NavItem(Icons.menu_rounded,                 Icons.menu_rounded,        'Menu'),
   ];
 
+  static const _barberItems = [
+    _NavItem(Icons.dashboard_outlined,           Icons.dashboard,           'Dash'),
+    _NavItem(Icons.calendar_today_outlined,      Icons.calendar_today,      'Agenda'),
+    _NavItem(Icons.attach_money_outlined,        Icons.attach_money,        'Caixa'),
+    _NavItem(Icons.menu_rounded,                 Icons.menu_rounded,        'Menu'),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final items = isBarber ? _barberItems : _ownerItems;
     return SafeArea(
       top: false,
       child: Padding(
@@ -160,8 +215,8 @@ class _AdminFloatingNav extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             child: Row(
-              children: List.generate(_items.length, (i) {
-                final item = _items[i];
+              children: List.generate(items.length, (i) {
+                final item = items[i];
                 final selected = i == currentIndex;
                 return Expanded(
                   child: GestureDetector(

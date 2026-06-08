@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:barbearia/screens/admin/agenda_dia_view.dart';
+import 'package:barbearia/utils/admin_session.dart';
 
 enum _Period { day, month, year }
 
@@ -77,6 +78,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
   @override
   void initState() {
     super.initState();
+    if (AdminSession.isBarber) _barberId = AdminSession.barberId;
     _loadBarbers();
     _load();
   }
@@ -973,33 +975,35 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButton<String?>(
-                                value: _barberId,
-                                isExpanded: true,
-                                items: [
-                                  const DropdownMenuItem<String?>(
-                                    value: null,
-                                    child: Text('Todos os barbeiros'),
-                                  ),
-                                  ..._barbers.map(
-                                    (b) => DropdownMenuItem<String?>(
-                                      value: b['id']?.toString(),
-                                      child: Text(b['name']?.toString() ?? ''),
+                        if (!AdminSession.isBarber) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButton<String?>(
+                                  value: _barberId,
+                                  isExpanded: true,
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text('Todos os barbeiros'),
                                     ),
-                                  ),
-                                ],
-                                onChanged: (v) async {
-                                  setState(() => _barberId = v);
-                                  await _load();
-                                },
+                                    ..._barbers.map(
+                                      (b) => DropdownMenuItem<String?>(
+                                        value: b['id']?.toString(),
+                                        child: Text(b['name']?.toString() ?? ''),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (v) async {
+                                    setState(() => _barberId = v);
+                                    await _load();
+                                  },
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

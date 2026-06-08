@@ -81,6 +81,20 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
         TextEditingController(text: existing?['email']?.toString() ?? '');
     final phoneController =
         TextEditingController(text: existing?['phone']?.toString() ?? '');
+    // Email de login vinculado (buscado na tabela users pelo user_id atual)
+    String? linkedLoginEmail;
+    if (existing?['user_id'] != null) {
+      try {
+        final row = await Supabase.instance.client
+            .from('users')
+            .select('email')
+            .eq('id', existing!['user_id'].toString())
+            .maybeSingle();
+        linkedLoginEmail = row?['email']?.toString();
+      } catch (_) {}
+    }
+    final loginEmailController =
+        TextEditingController(text: linkedLoginEmail ?? '');
     XFile? pickedImage;
     final specialtiesController = TextEditingController();
     List<String> specialties = existing?['specialties'] is List
@@ -107,6 +121,16 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                 TextField(
                   controller: phoneController,
                   decoration: const InputDecoration(labelText: 'Telefone'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: loginEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email de login (para acesso admin)',
+                    hintText: 'email@exemplo.com',
+                    helperText: 'Deixe em branco se não tiver acesso',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 StatefulBuilder(
@@ -269,12 +293,35 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       }
                     }
                   }
+                  // Resolve user_id pelo email de login digitado
+                  final loginEmail = loginEmailController.text.trim();
+                  String? resolvedUserId = existing?['user_id']?.toString();
+                  if (loginEmail.isNotEmpty && loginEmail != linkedLoginEmail) {
+                    try {
+                      final userRow = await Supabase.instance.client
+                          .from('users')
+                          .select('id')
+                          .eq('email', loginEmail)
+                          .maybeSingle();
+                      if (userRow != null) {
+                        resolvedUserId = userRow['id'].toString();
+                      } else if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Email de login não encontrado. O barbeiro precisa fazer login uma vez antes de ser vinculado.'),
+                        ));
+                      }
+                    } catch (_) {}
+                  } else if (loginEmail.isEmpty) {
+                    resolvedUserId = null;
+                  }
+
                   final data = <String, dynamic>{
                     'name': nameController.text.trim(),
                     'email': emailController.text.trim(),
                     'phone': phoneController.text.trim(),
                     if (specialties.isNotEmpty) 'specialties': specialties,
                     if (imageUrl != null) 'image_url': imageUrl,
+                    'user_id': resolvedUserId,
                   };
                   if (existing != null) {
                     await Supabase.instance.client
