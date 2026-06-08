@@ -287,6 +287,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
       TimeOfDay end = const TimeOfDay(hour: 18, minute: 0);
       bool enabled = true;
+      DateTime? breakStartDt;
+      DateTime? breakEndDt;
       if (avRows.isNotEmpty) {
         final row = avRows.first;
         enabled = (row['is_available'] ?? true) == true;
@@ -300,6 +302,18 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           hour: int.tryParse(et[0]) ?? 18,
           minute: int.tryParse(et[1]) ?? 0,
         );
+        final bsRaw = row['break_start']?.toString();
+        final beRaw = row['break_end']?.toString();
+        if (bsRaw != null && bsRaw.isNotEmpty && bsRaw != 'null') {
+          final p = bsRaw.split(':');
+          breakStartDt = DateTime(selDate.year, selDate.month, selDate.day,
+              int.tryParse(p[0]) ?? 12, int.tryParse(p[1]) ?? 0);
+        }
+        if (beRaw != null && beRaw.isNotEmpty && beRaw != 'null') {
+          final p = beRaw.split(':');
+          breakEndDt = DateTime(selDate.year, selDate.month, selDate.day,
+              int.tryParse(p[0]) ?? 14, int.tryParse(p[1]) ?? 0);
+        }
       }
       final slots = <TimeOfDay>[];
       if (enabled) {
@@ -318,7 +332,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           end.minute,
         );
         while (cur.isBefore(endDt) || cur.isAtSameMomentAs(endDt)) {
-          slots.add(TimeOfDay(hour: cur.hour, minute: cur.minute));
+          final duringBreak = breakStartDt != null &&
+              breakEndDt != null &&
+              !cur.isBefore(breakStartDt) &&
+              cur.isBefore(breakEndDt);
+          if (!duringBreak) {
+            slots.add(TimeOfDay(hour: cur.hour, minute: cur.minute));
+          }
           cur = cur.add(const Duration(minutes: 30));
         }
       }

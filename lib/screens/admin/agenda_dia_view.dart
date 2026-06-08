@@ -95,27 +95,45 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       bool enabled = true;
       final avRows = await sb
           .from('barber_availability')
-          .select('start_time,end_time,is_available')
+          .select('start_time,end_time,is_available,break_start,break_end')
           .eq('barber_id', barberId)
           .eq('day_of_week', dow == 7 ? 0 : dow)
           .limit(1);
+      DateTime? breakStartDt;
+      DateTime? breakEndDt;
       if (avRows.isNotEmpty) {
         final row = avRows.first;
         enabled = (row['is_available'] ?? true) == true;
         start = _parse('${row['start_time'] ?? '09:00:00'}', 9, 0);
         end = _parse('${row['end_time'] ?? '18:00:00'}', 18, 0);
+        final bsRaw = row['break_start']?.toString();
+        final beRaw = row['break_end']?.toString();
+        if (bsRaw != null && bsRaw.isNotEmpty && bsRaw != 'null') {
+          final bs = _parse(bsRaw, 12, 0);
+          breakStartDt = DateTime(0, 1, 1, bs.hour, bs.minute);
+        }
+        if (beRaw != null && beRaw.isNotEmpty && beRaw != 'null') {
+          final be = _parse(beRaw, 14, 0);
+          breakEndDt = DateTime(0, 1, 1, be.hour, be.minute);
+        }
       }
 
-      // 2. Gera os slots de 30 min
+      // 2. Gera os slots de 30 min (pulando a pausa se configurada)
       final slots = <_Slot>[];
       if (enabled) {
         var cur = DateTime(0, 1, 1, start.hour, start.minute);
         final endDt = DateTime(0, 1, 1, end.hour, end.minute);
         while (!cur.isAfter(endDt)) {
-          slots.add(_Slot(
-            '${cur.hour.toString().padLeft(2, '0')}:'
-            '${cur.minute.toString().padLeft(2, '0')}',
-          ));
+          final duringBreak = breakStartDt != null &&
+              breakEndDt != null &&
+              !cur.isBefore(breakStartDt) &&
+              cur.isBefore(breakEndDt);
+          if (!duringBreak) {
+            slots.add(_Slot(
+              '${cur.hour.toString().padLeft(2, '0')}:'
+              '${cur.minute.toString().padLeft(2, '0')}',
+            ));
+          }
           cur = cur.add(const Duration(minutes: 30));
         }
       }

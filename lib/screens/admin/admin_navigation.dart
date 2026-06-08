@@ -51,6 +51,86 @@ class _AdminNavigationState extends State<AdminNavigation> {
     );
   }
 
+  void _showChangePasswordDialog() {
+    Navigator.pop(context);
+    final newPassCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Theme(
+        data: _adminTheme,
+        child: AlertDialog(
+          backgroundColor: _AP.card,
+          title: const Text('Alterar senha', style: TextStyle(color: _AP.text)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: newPassCtrl,
+                obscureText: true,
+                style: const TextStyle(color: _AP.text),
+                decoration: const InputDecoration(
+                  labelText: 'Nova senha',
+                  labelStyle: TextStyle(color: _AP.muted),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmCtrl,
+                obscureText: true,
+                style: const TextStyle(color: _AP.text),
+                decoration: const InputDecoration(
+                  labelText: 'Confirmar senha',
+                  labelStyle: TextStyle(color: _AP.muted),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: _AP.gold, foregroundColor: _AP.bg),
+              onPressed: () async {
+                if (newPassCtrl.text != confirmCtrl.text) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('As senhas não coincidem')),
+                  );
+                  return;
+                }
+                if (newPassCtrl.text.length < 6) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                        content: Text('Mínimo 6 caracteres')),
+                  );
+                  return;
+                }
+                try {
+                  await Supabase.instance.client.auth
+                      .updateUser(UserAttributes(password: newPassCtrl.text));
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Senha alterada com sucesso!')),
+                  );
+                } catch (e) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text('Erro: $e')));
+                }
+              },
+              child: const Text('Salvar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -143,6 +223,11 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 _DrawerItem(Icons.card_membership_outlined, 'Clientes Plano', () => _pushScreen(const PlanClientsAdminScreen())),
               ],
               _DrawerItem(Icons.person_off_outlined, 'Remarcar', () => _pushScreen(const RemarcarAdminScreen())),
+              if (isBarber) ...[
+                const Divider(color: _AP.border, indent: 16, endIndent: 16),
+                _DrawerSection('Minha conta'),
+                _DrawerItem(Icons.lock_outline_rounded, 'Alterar senha', _showChangePasswordDialog),
+              ],
               const Spacer(),
               const Divider(color: _AP.border),
               _DrawerItem(

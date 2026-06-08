@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:barbearia/supabase/supabase_config.dart';
 
 class BarbersAdminScreen extends StatefulWidget {
   const BarbersAdminScreen({super.key});
@@ -61,15 +64,91 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
     }
   }
 
-  Future<void> _deleteBarber(String id) async {
+  Future<void> _deleteBarber(String id, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir barbeiro'),
+        content: Text(
+          'Tem certeza que deseja excluir "$name"?\n\n'
+          'Todos os agendamentos, horários e bloqueios deste barbeiro serão apagados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
     try {
-      await Supabase.instance.client.from('barbers').delete().eq('id', id);
+      final sb = Supabase.instance.client;
+      // Apaga registros dependentes antes do barbeiro
+      await sb.from('appointments').delete().eq('barber_id', id);
+      await sb.from('barber_availability').delete().eq('barber_id', id);
+      await sb.from('blocked_slots').delete().eq('barber_id', id);
+      try {
+        await sb.from('barber_blocked_days').delete().eq('barber_id', id);
+      } catch (_) {}
+      await sb.from('barbers').delete().eq('id', id);
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro: $e')));
+      }
+    }
+  }
+
+  /// Cria um usuário no Supabase via REST, sem afetar a sessão atual do admin.
+  /// Retorna o user_id criado ou já existente.
+  Future<String?> _createSupabaseUser(String email, String password) async {
+    final res = await http.post(
+      Uri.parse('${SupabaseConfig.supabaseUrl}/auth/v1/signup'),
+      headers: {
+        'apikey': SupabaseConfig.supabaseAnonKey,
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      // Auto-confirm ON:  {"user": {"id": "..."}}
+      // Email confirm:    {"id": "..."}
+      if (body['user'] is Map) return body['user']['id']?.toString();
+      return body['id']?.toString();
+    }
+    // Usuário já existe → busca pelo email na tabela users
+    final msg = (body['msg'] ?? body['message'] ?? '').toString().toLowerCase();
+    if (msg.contains('already') || msg.contains('existe')) {
+      final row = await Supabase.instance.client
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+      return row?['id']?.toString();
+    }
+    throw Exception('Erro ao criar login: ${body['msg'] ?? res.body}');
+  }
+
+  Future<void> _sendPasswordReset(String email) async {
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email de redefinição de senha enviado!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
       }
     }
   }
@@ -81,20 +160,8 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
         TextEditingController(text: existing?['email']?.toString() ?? '');
     final phoneController =
         TextEditingController(text: existing?['phone']?.toString() ?? '');
-    // Email de login vinculado (buscado na tabela users pelo user_id atual)
-    String? linkedLoginEmail;
-    if (existing?['user_id'] != null) {
-      try {
-        final row = await Supabase.instance.client
-            .from('users')
-            .select('email')
-            .eq('id', existing!['user_id'].toString())
-            .maybeSingle();
-        linkedLoginEmail = row?['email']?.toString();
-      } catch (_) {}
-    }
-    final loginEmailController =
-        TextEditingController(text: linkedLoginEmail ?? '');
+    final passwordController = TextEditingController();
+    final hasLogin = existing?['user_id'] != null;
     XFile? pickedImage;
     final specialtiesController = TextEditingController();
     List<String> specialties = existing?['specialties'] is List
@@ -123,16 +190,36 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                   decoration: const InputDecoration(labelText: 'Telefone'),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: loginEmailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email de login (para acesso admin)',
-                    hintText: 'email@exemplo.com',
-                    helperText: 'Deixe em branco se não tiver acesso',
+                if (!hasLogin) ...[
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Senha de acesso',
+                      helperText: 'Deixe em branco se não tiver acesso ao painel',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 4),
+                ] else ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Acesso configurado',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            _sendPasswordReset(emailController.text.trim()),
+                        child: const Text('Redefinir senha',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                const SizedBox(height: 8),
                 StatefulBuilder(
                   builder: (context, setStateDialog) {
                     return Column(
@@ -293,26 +380,12 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       }
                     }
                   }
-                  // Resolve user_id pelo email de login digitado
-                  final loginEmail = loginEmailController.text.trim();
+                  // Cria o login do barbeiro se email + senha foram preenchidos
                   String? resolvedUserId = existing?['user_id']?.toString();
-                  if (loginEmail.isNotEmpty && loginEmail != linkedLoginEmail) {
-                    try {
-                      final userRow = await Supabase.instance.client
-                          .from('users')
-                          .select('id')
-                          .eq('email', loginEmail)
-                          .maybeSingle();
-                      if (userRow != null) {
-                        resolvedUserId = userRow['id'].toString();
-                      } else if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Email de login não encontrado. O barbeiro precisa fazer login uma vez antes de ser vinculado.'),
-                        ));
-                      }
-                    } catch (_) {}
-                  } else if (loginEmail.isEmpty) {
-                    resolvedUserId = null;
+                  final email = emailController.text.trim();
+                  final password = passwordController.text.trim();
+                  if (resolvedUserId == null && email.isNotEmpty && password.isNotEmpty) {
+                    resolvedUserId = await _createSupabaseUser(email, password);
                   }
 
                   final data = <String, dynamic>{
@@ -401,7 +474,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                         IconButton(
                           tooltip: 'Excluir',
                           visualDensity: VisualDensity.compact,
-                          onPressed: () => _deleteBarber(b['id'].toString()),
+                          onPressed: () => _deleteBarber(b['id'].toString(), b['name']?.toString() ?? ''),
                           icon: const Icon(Icons.delete_outline),
                         ),
                       ],
@@ -466,7 +539,15 @@ extension on _BarbersAdminScreenState {
         final start = _parseTime('${r['start_time']}');
         final end = _parseTime('${r['end_time']}');
         final avail = (r['is_available'] ?? true) == true;
-        days[dow == 0 ? 7 : dow] = _DayAvailability(avail, start, end);
+        final bsRaw = r['break_start']?.toString();
+        final beRaw = r['break_end']?.toString();
+        final hasBreak = bsRaw != null && bsRaw.isNotEmpty && bsRaw != 'null';
+        days[dow == 0 ? 7 : dow] = _DayAvailability(
+          avail, start, end,
+          hasBreak: hasBreak,
+          breakStart: hasBreak ? _parseTime(bsRaw) : const TimeOfDay(hour: 12, minute: 0),
+          breakEnd: hasBreak && beRaw != null && beRaw != 'null' ? _parseTime(beRaw) : const TimeOfDay(hour: 14, minute: 0),
+        );
       }
     } catch (_) {}
 
@@ -536,6 +617,8 @@ extension on _BarbersAdminScreenState {
                           'start_time': _fmt(val.start),
                           'end_time': _fmt(val.end),
                           'is_available': val.enabled,
+                          'break_start': val.hasBreak ? _fmt(val.breakStart) : null,
+                          'break_end': val.hasBreak ? _fmt(val.breakEnd) : null,
                         });
                       }
                       await Supabase.instance.client
@@ -639,6 +722,59 @@ extension on _BarbersAdminScreenState {
                     },
                     child: Text('Fim ${_label(data.end)}'),
                   ),
+                  // ── Pausa / intervalo ──────────────────────────
+                  FilterChip(
+                    label: Text(data.hasBreak ? 'Pausa ativa' : 'Sem pausa'),
+                    selected: data.hasBreak,
+                    onSelected: (v) => setStateDialog(
+                      () => days[dow] = data.copyWith(hasBreak: v),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  if (data.hasBreak) ...[
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        side: const BorderSide(color: Colors.orange),
+                      ),
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: data.breakStart,
+                        );
+                        if (picked != null) {
+                          setStateDialog(
+                            () => days[dow] = data.copyWith(breakStart: picked),
+                          );
+                        }
+                      },
+                      child: Text('Pausa ${_label(data.breakStart)}',
+                          style: const TextStyle(color: Colors.orange)),
+                    ),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        side: const BorderSide(color: Colors.orange),
+                      ),
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: data.breakEnd,
+                        );
+                        if (picked != null) {
+                          setStateDialog(
+                            () => days[dow] = data.copyWith(breakEnd: picked),
+                          );
+                        }
+                      },
+                      child: Text('Retorno ${_label(data.breakEnd)}',
+                          style: const TextStyle(color: Colors.orange)),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -669,14 +805,30 @@ class _DayAvailability {
   final bool enabled;
   final TimeOfDay start;
   final TimeOfDay end;
-  const _DayAvailability(this.enabled, this.start, this.end);
+  final bool hasBreak;
+  final TimeOfDay breakStart;
+  final TimeOfDay breakEnd;
+  const _DayAvailability(
+    this.enabled,
+    this.start,
+    this.end, {
+    this.hasBreak = false,
+    this.breakStart = const TimeOfDay(hour: 12, minute: 0),
+    this.breakEnd = const TimeOfDay(hour: 14, minute: 0),
+  });
   _DayAvailability copyWith({
     bool? enabled,
     TimeOfDay? start,
     TimeOfDay? end,
+    bool? hasBreak,
+    TimeOfDay? breakStart,
+    TimeOfDay? breakEnd,
   }) => _DayAvailability(
     enabled ?? this.enabled,
     start ?? this.start,
     end ?? this.end,
+    hasBreak: hasBreak ?? this.hasBreak,
+    breakStart: breakStart ?? this.breakStart,
+    breakEnd: breakEnd ?? this.breakEnd,
   );
 }
