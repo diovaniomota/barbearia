@@ -12,6 +12,7 @@ class BarberLite {
   final String avatarUrl;
   final double rating;
   final String phone;
+  final bool isAvailable;
 
   BarberLite({
     required this.id,
@@ -19,6 +20,7 @@ class BarberLite {
     required this.avatarUrl,
     required this.rating,
     this.phone = '',
+    this.isAvailable = true,
   });
 
   factory BarberLite.fromMap(Map<String, dynamic> map) {
@@ -41,6 +43,7 @@ class BarberLite {
       avatarUrl: avatar,
       rating: doubleRating,
       phone: (map['phone'] ?? map['telefone'] ?? '').toString(),
+      isAvailable: (map['is_available'] ?? true) == true,
     );
   }
 }
@@ -189,6 +192,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           avail[row['barber_id'].toString()] = false;
         }
       } catch (_) {} // ignora se tabela ainda não existir
+
+      // 3. Barbeiro desativado globalmente (is_available = false)
+      for (final b in _barbers) {
+        if (!b.isAvailable) avail[b.id] = false;
+      }
 
       if (!mounted) return;
       setState(() {
