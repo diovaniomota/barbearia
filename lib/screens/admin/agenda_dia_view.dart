@@ -40,10 +40,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   static const _gold = Color(0xFFF5C200);
   static const _text = Color(0xFFF0EDE8);
   static const _muted = Color(0xFF6B7280);
+  static const _red = Color(0xFFF06666);
 
   bool _loading = true;
   String? _error;
   List<_Slot> _slots = [];
+
+  bool _selectMode = false;
+  final Set<String> _selectedLabels = {};
 
   @override
   void initState() {
@@ -55,6 +59,8 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   void didUpdateWidget(covariant AgendaDiaView old) {
     super.didUpdateWidget(old);
     if (old.date != widget.date || old.barberId != widget.barberId) {
+      _selectMode = false;
+      _selectedLabels.clear();
       _load();
     }
   }
@@ -221,6 +227,18 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     return '';
   }
 
+  // ── Seleção múltipla ────────────────────────────────────────────────────────
+
+  void _toggleSelect(_Slot slot) {
+    setState(() {
+      if (_selectedLabels.contains(slot.label)) {
+        _selectedLabels.remove(slot.label);
+      } else {
+        _selectedLabels.add(slot.label);
+      }
+    });
+  }
+
   // ── Ações ───────────────────────────────────────────────────────────────────
 
   Future<void> _block(_Slot slot) async {
@@ -250,6 +268,48 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       await _load();
     } catch (e) {
       _toast('Erro ao desbloquear: $e');
+    }
+  }
+
+  /// Cancela agendamentos dos slots informados e bloqueia os horários.
+  /// Slots já bloqueados são ignorados; slots livres só são bloqueados.
+  Future<void> _cancelAndBlock(List<_Slot> slots) async {
+    if (slots.isEmpty) return;
+    final sb = Supabase.instance.client;
+    try {
+      for (final slot in slots) {
+        // Cancela o agendamento se houver
+        if (slot.state == _SlotState.client ||
+            slot.state == _SlotState.newClient ||
+            slot.state == _SlotState.admin) {
+          await sb
+              .from('appointments')
+              .update({'status': 'cancelled'})
+              .eq('barber_id', widget.barberId!)
+              .eq('appointment_date', _dateStr)
+              .eq('appointment_time', '${slot.label}:00');
+        }
+        // Bloqueia o horário para novos agendamentos
+        if (slot.state != _SlotState.blocked) {
+          try {
+            await sb.from('blocked_slots').insert({
+              'barber_id': widget.barberId!,
+              'date': _dateStr,
+              'time': '${slot.label}:00',
+            });
+          } catch (_) {} // ignora se já existir
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _selectMode = false;
+          _selectedLabels.clear();
+        });
+      }
+      await _load();
+      _toast('${slots.length} horário(s) cancelado(s) e bloqueado(s).');
+    } catch (e) {
+      _toast('Erro ao cancelar: $e');
     }
   }
 
@@ -353,8 +413,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
                     child: Text(err!,
-                        style: const TextStyle(
-                            color: Color(0xFFF06666), fontSize: 12)),
+                        style: const TextStyle(color: _red, fontSize: 12)),
                   ),
               ],
             ),
@@ -496,8 +555,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                 Navigator.pop(ctx);
                 _block(slot);
               },
-              child: const Text('Bloquear',
-                  style: TextStyle(color: Color(0xFFF06666))),
+              child: const Text('Bloquear', style: TextStyle(color: _red)),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -526,7 +584,8 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
               child: const Text('Cancelar', style: TextStyle(color: _muted)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _gold, foregroundColor: Colors.black),
+              style: FilledButton.styleFrom(
+                  backgroundColor: _gold, foregroundColor: Colors.black),
               onPressed: () {
                 Navigator.pop(ctx);
                 _unblock(slot);
@@ -537,7 +596,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         ),
       );
     } else {
-      // agendado → mostra detalhes
+      // agendado → mostra detalhes + opção de cancelar
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -548,20 +607,62 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Horário: ${slot.label}', style: const TextStyle(color: _muted)),
+              Text('Horário: ${slot.label}',
+                  style: const TextStyle(color: _muted)),
               if (slot.service.isNotEmpty)
-                Text('Serviço: ${slot.service}', style: const TextStyle(color: _muted)),
+                Text('Serviço: ${slot.service}',
+                    style: const TextStyle(color: _muted)),
               if (slot.phone.isNotEmpty)
-                Text('Telefone: ${slot.phone}', style: const TextStyle(color: _muted)),
+                Text('Telefone: ${slot.phone}',
+                    style: const TextStyle(color: _muted)),
               const SizedBox(height: 6),
               Text(_stateLabel(slot.state),
-                  style: TextStyle(color: _accent(slot.state), fontWeight: FontWeight.w700)),
+                  style: TextStyle(
+                      color: _accent(slot.state),
+                      fontWeight: FontWeight.w700)),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Fechar', style: TextStyle(color: _gold)),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    backgroundColor: _card,
+                    title: const Text('Cancelar agendamento?',
+                        style: TextStyle(color: _text)),
+                    content: const Text(
+                      'O horário ficará bloqueado para novos agendamentos.',
+                      style: TextStyle(color: _muted),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child: const Text('Não',
+                            style: TextStyle(color: _muted)),
+                      ),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _red,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(c, true),
+                        child: const Text('Cancelar'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await _cancelAndBlock([slot]);
+                }
+              },
+              child: const Text('Cancelar agendamento',
+                  style: TextStyle(color: _red)),
             ),
           ],
         ),
@@ -571,23 +672,21 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   // ── Cores por estado ────────────────────────────────────────────────────────
 
-  // Cor sólida do card (estilo da referência)
   Color _bgFor(_SlotState s) {
     switch (s) {
       case _SlotState.free:
-        return const Color(0xFF3C3C3C); // cinza escuro (vago)
+        return const Color(0xFF3C3C3C);
       case _SlotState.client:
-        return const Color(0xFFDCDCDC); // cinza claro (cliente)
+        return const Color(0xFFDCDCDC);
       case _SlotState.newClient:
-        return const Color(0xFFB9D2F5); // azul claro (novo)
+        return const Color(0xFFB9D2F5);
       case _SlotState.admin:
-        return const Color(0xFFCBA6F5); // roxo (encaixe)
+        return const Color(0xFFCBA6F5);
       case _SlotState.blocked:
-        return const Color(0xFFF2B5B5); // vermelho claro (bloqueado)
+        return const Color(0xFFF2B5B5);
     }
   }
 
-  // Cor do texto sobre o card
   Color _fgFor(_SlotState s) {
     switch (s) {
       case _SlotState.free:
@@ -614,7 +713,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       case _SlotState.admin:
         return const Color(0xFFA888F5);
       case _SlotState.blocked:
-        return const Color(0xFFF06666);
+        return _red;
     }
   }
 
@@ -631,6 +730,149 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       case _SlotState.blocked:
         return 'Bloqueado';
     }
+  }
+
+  // ── Barra de seleção múltipla ───────────────────────────────────────────────
+
+  Widget _selectBar() {
+    if (!_selectMode) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () => setState(() {
+            _selectMode = true;
+            _selectedLabels.clear();
+          }),
+          icon: const Icon(Icons.checklist_rounded, color: _muted, size: 16),
+          label: const Text('Selecionar',
+              style: TextStyle(color: _muted, fontSize: 12)),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      );
+    }
+
+    final allSelected = _selectedLabels.length == _slots.length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0808),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _red.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          // Selecionar tudo
+          GestureDetector(
+            onTap: () => setState(() {
+              if (allSelected) {
+                _selectedLabels.clear();
+              } else {
+                _selectedLabels.addAll(_slots.map((s) => s.label));
+              }
+            }),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  allSelected
+                      ? Icons.check_box_rounded
+                      : Icons.check_box_outline_blank_rounded,
+                  color: _gold,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  allSelected ? 'Desmarcar tudo' : 'Selecionar tudo',
+                  style: const TextStyle(color: _gold, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Cancelar selecionados
+          if (_selectedLabels.isNotEmpty)
+            GestureDetector(
+              onTap: () async {
+                final slots = _selectedLabels
+                    .map((l) => _slots.firstWhere(
+                          (s) => s.label == l,
+                          orElse: () => _Slot(l),
+                        ))
+                    .toList();
+                final booked = slots
+                    .where((s) =>
+                        s.state == _SlotState.client ||
+                        s.state == _SlotState.newClient ||
+                        s.state == _SlotState.admin)
+                    .length;
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    backgroundColor: _card,
+                    title: const Text('Cancelar horários selecionados?',
+                        style: TextStyle(color: _text)),
+                    content: Text(
+                      booked > 0
+                          ? '$booked agendamento(s) serão cancelados e ${slots.length} horário(s) serão bloqueados.'
+                          : '${slots.length} horário(s) serão bloqueados.',
+                      style: const TextStyle(color: _muted),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child:
+                            const Text('Não', style: TextStyle(color: _muted)),
+                      ),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _red,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(c, true),
+                        child: const Text('Confirmar'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await _cancelAndBlock(slots);
+                }
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _red,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Cancelar (${_selectedLabels.length})',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+          // Sair do modo seleção
+          GestureDetector(
+            onTap: () => setState(() {
+              _selectMode = false;
+              _selectedLabels.clear();
+            }),
+            child: const Text('Sair',
+                style: TextStyle(color: _muted, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────────
@@ -662,7 +904,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _legend(),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
+        _selectBar(),
+        const SizedBox(height: 8),
         if (barberName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8, left: 4),
@@ -682,21 +926,39 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     final booked = slot.state == _SlotState.client ||
         slot.state == _SlotState.newClient ||
         slot.state == _SlotState.admin;
+    final isSelected = _selectMode && _selectedLabels.contains(slot.label);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () => _onTapSlot(slot),
+          onTap: _selectMode
+              ? () => _toggleSelect(slot)
+              : () => _onTapSlot(slot),
           child: Container(
             decoration: BoxDecoration(
               color: _bgFor(slot.state),
               borderRadius: BorderRadius.circular(10),
+              border: isSelected
+                  ? Border.all(color: _red, width: 2.5)
+                  : null,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Row(
               children: [
+                // Checkbox no modo seleção
+                if (_selectMode) ...[
+                  Icon(
+                    isSelected
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    color: isSelected ? _red : fg.withValues(alpha: 0.5),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 SizedBox(
                   width: 52,
                   child: Text(
@@ -745,19 +1007,21 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                           ),
                         ),
                 ),
-                if (slot.state == _SlotState.newClient ||
-                    slot.state == _SlotState.admin)
-                  Text(
-                    slot.state == _SlotState.newClient ? 'NOVO' : 'ENCAIXE',
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                if (!_selectMode) ...[
+                  if (slot.state == _SlotState.newClient ||
+                      slot.state == _SlotState.admin)
+                    Text(
+                      slot.state == _SlotState.newClient ? 'NOVO' : 'ENCAIXE',
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                if (slot.state == _SlotState.blocked)
-                  Icon(Icons.lock_outline, color: fg, size: 16),
+                  if (slot.state == _SlotState.blocked)
+                    Icon(Icons.lock_outline, color: fg, size: 16),
+                ],
               ],
             ),
           ),
