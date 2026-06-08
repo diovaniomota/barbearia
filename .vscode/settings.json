@@ -1,13 +1,3 @@
 {
-  "cmake.sourceDirectory": "C:/Users/Usuario/Desktop/barbearia/windows/flutter",
-  "files.readonlyInclude": {
-    "**": true
-  },
-  "files.readonlyExclude": {
-    "lib/custom_code/**": true,
-    "lib/flutter_flow/custom_functions.dart": true,
-    "pubspec.yaml": true,
-    "lib/flutter_flow/function_changes.json": true,
-    ".vscode/settings.json": true
-  }
+  "cmake.sourceDirectory": "C:/Users/Usuario/Desktop/barbearia/windows/flutter"
 }
