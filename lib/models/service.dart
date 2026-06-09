@@ -94,9 +94,7 @@ class Service {
   static void sortByOrder(List<Service> list) {
     list.sort((a, b) {
       final c = a.sortOrder.compareTo(b.sortOrder);
-      return c != 0
-          ? c
-          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return c != 0 ? c : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
   }
 

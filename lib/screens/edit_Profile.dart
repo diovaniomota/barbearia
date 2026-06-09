@@ -146,7 +146,7 @@ class _EditProfileState extends State<EditProfile> {
       prefixIcon: prefixIcon,
       filled: true,
       isDense: true,
-      fillColor: theme.colorScheme.surface.withOpacity(0.9),
+      fillColor: theme.colorScheme.surface.withValues(alpha: 0.9),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(borderRadius: borderRadius),
       enabledBorder: OutlineInputBorder(
@@ -293,8 +293,9 @@ class _EditProfileState extends State<EditProfile> {
                             prefixIcon: const Icon(Icons.alternate_email),
                           ),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return null; // opcional
+                            }
                             final emailRe = RegExp(
                               r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
                             );

@@ -93,7 +93,9 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
       await sb.from('appointments').delete().eq('barber_id', id);
       await sb.from('barber_availability').delete().eq('barber_id', id);
       await sb.from('blocked_slots').delete().eq('barber_id', id);
-      try { await sb.from('barber_blocked_days').delete().eq('barber_id', id); } catch (_) {}
+      try {
+        await sb.from('barber_blocked_days').delete().eq('barber_id', id);
+      } catch (_) {}
       await sb.from('barbers').delete().eq('id', id);
       await _load();
     } catch (e) {
@@ -233,7 +235,8 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
           ),
         );
       } else {
-        final err = (data is Map ? data['error'] : null) ?? 'Erro ao atualizar senha.';
+        final err =
+            (data is Map ? data['error'] : null) ?? 'Erro ao atualizar senha.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro: $err'), backgroundColor: Colors.red),
         );
@@ -253,12 +256,15 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
   }
 
   Future<void> _createBarber({Map<String, dynamic>? existing}) async {
-    final nameController =
-        TextEditingController(text: existing?['name']?.toString() ?? '');
-    final emailController =
-        TextEditingController(text: existing?['email']?.toString() ?? '');
-    final phoneController =
-        TextEditingController(text: existing?['phone']?.toString() ?? '');
+    final nameController = TextEditingController(
+      text: existing?['name']?.toString() ?? '',
+    );
+    final emailController = TextEditingController(
+      text: existing?['email']?.toString() ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: existing?['phone']?.toString() ?? '',
+    );
     final passwordController = TextEditingController();
     final hasLogin = existing?['user_id'] != null;
     XFile? pickedImage;
@@ -296,24 +302,34 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                     obscureText: true,
                     decoration: const InputDecoration(
                       labelText: 'Senha de acesso',
-                      helperText: 'Deixe em branco se não tiver acesso ao painel',
+                      helperText:
+                          'Deixe em branco se não tiver acesso ao painel',
                     ),
                   ),
                   const SizedBox(height: 4),
                 ] else ...[
                   Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       const Expanded(
-                        child: Text('Acesso configurado',
-                            style: TextStyle(fontSize: 13)),
+                        child: Text(
+                          'Acesso configurado',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                       TextButton(
-                        onPressed: () =>
-                            _setBarberPassword(existing?['user_id']?.toString()),
-                        child: const Text('Redefinir senha',
-                            style: TextStyle(fontSize: 12)),
+                        onPressed: () => _setBarberPassword(
+                          existing?['user_id']?.toString(),
+                        ),
+                        child: const Text(
+                          'Redefinir senha',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
@@ -330,10 +346,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: pickedBytes != null
-                                ? Image.memory(
-                                    pickedBytes!,
-                                    fit: BoxFit.cover,
-                                  )
+                                ? Image.memory(pickedBytes!, fit: BoxFit.cover)
                                 : (existing?['image_url'] != null &&
                                       existing!['image_url']
                                           .toString()
@@ -345,7 +358,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                                 : Container(
                                     color: Theme.of(
                                       context,
-                                    ).colorScheme.surfaceVariant,
+                                    ).colorScheme.surfaceContainerHighest,
                                     child: Icon(
                                       Icons.person,
                                       color: Theme.of(
@@ -468,16 +481,20 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       final mime = (ext == 'jpg' || ext == 'jpeg')
                           ? 'image/jpeg'
                           : ext == 'png'
-                              ? 'image/png'
-                              : ext == 'webp'
-                                  ? 'image/webp'
-                                  : 'image/jpeg';
+                          ? 'image/png'
+                          : ext == 'webp'
+                          ? 'image/webp'
+                          : 'image/jpeg';
                       await Supabase.instance.client.storage
                           .from('fotos')
-                          .uploadBinary(filePath, pickedBytes!,
-                              fileOptions: FileOptions(
-                                  contentType: mime,
-                                  upsert: true));
+                          .uploadBinary(
+                            filePath,
+                            pickedBytes!,
+                            fileOptions: FileOptions(
+                              contentType: mime,
+                              upsert: true,
+                            ),
+                          );
                       imageUrl = Supabase.instance.client.storage
                           .from('fotos')
                           .getPublicUrl(filePath);
@@ -497,7 +514,9 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                   String? resolvedUserId = existing?['user_id']?.toString();
                   final email = emailController.text.trim();
                   final password = passwordController.text.trim();
-                  if (resolvedUserId == null && email.isNotEmpty && password.isNotEmpty) {
+                  if (resolvedUserId == null &&
+                      email.isNotEmpty &&
+                      password.isNotEmpty) {
                     resolvedUserId = await _createSupabaseUser(email, password);
                   }
 
@@ -516,11 +535,9 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                         .eq('id', existing['id'].toString());
                   } else {
                     data['is_available'] = true;
-                    await Supabase.instance.client
-                        .from('barbers')
-                        .insert(data);
+                    await Supabase.instance.client.from('barbers').insert(data);
                   }
-                  if (mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                   await _load();
                 } catch (e) {
                   if (mounted) {
@@ -569,7 +586,11 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                           ? NetworkImage(imageUrl)
                           : null,
                       child: imageUrl.isEmpty
-                          ? const Icon(Icons.person, color: Colors.white54, size: 20)
+                          ? const Icon(
+                              Icons.person,
+                              color: Colors.white54,
+                              size: 20,
+                            )
                           : null,
                     ),
                     title: Text(b['name']?.toString() ?? ''),
@@ -597,7 +618,10 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                         IconButton(
                           tooltip: 'Excluir',
                           visualDensity: VisualDensity.compact,
-                          onPressed: () => _deleteBarber(b['id'].toString(), b['name']?.toString() ?? ''),
+                          onPressed: () => _deleteBarber(
+                            b['id'].toString(),
+                            b['name']?.toString() ?? '',
+                          ),
                           icon: const Icon(Icons.delete_outline),
                         ),
                       ],
@@ -657,7 +681,9 @@ extension on _BarbersAdminScreenState {
       try {
         final raw = await Supabase.instance.client
             .from('barber_availability')
-            .select('day_of_week,start_time,end_time,is_available,break_start,break_end')
+            .select(
+              'day_of_week,start_time,end_time,is_available,break_start,break_end',
+            )
             .eq('barber_id', barberId);
         rows = List<Map<String, dynamic>>.from(raw);
       } catch (_) {
@@ -677,15 +703,22 @@ extension on _BarbersAdminScreenState {
         final beRaw = r['break_end']?.toString();
         final hasBreak = bsRaw != null && bsRaw.isNotEmpty && bsRaw != 'null';
         days[dow == 0 ? 7 : dow] = _DayAvailability(
-          avail, start, end,
+          avail,
+          start,
+          end,
           hasBreak: hasBreak,
-          breakStart: hasBreak ? _parseTime(bsRaw) : const TimeOfDay(hour: 12, minute: 0),
-          breakEnd: hasBreak && beRaw != null && beRaw != 'null' ? _parseTime(beRaw) : const TimeOfDay(hour: 14, minute: 0),
+          breakStart: hasBreak
+              ? _parseTime(bsRaw)
+              : const TimeOfDay(hour: 12, minute: 0),
+          breakEnd: hasBreak && beRaw != null && beRaw != 'null'
+              ? _parseTime(beRaw)
+              : const TimeOfDay(hour: 14, minute: 0),
         );
       }
     } catch (_) {}
 
     bool applyAll = false;
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -748,20 +781,23 @@ extension on _BarbersAdminScreenState {
                           'start_time': _fmt(val.start),
                           'end_time': _fmt(val.end),
                           'is_available': val.enabled,
-                          'break_start': val.hasBreak ? _fmt(val.breakStart) : null,
+                          'break_start': val.hasBreak
+                              ? _fmt(val.breakStart)
+                              : null,
                           'break_end': val.hasBreak ? _fmt(val.breakEnd) : null,
                         };
                         payload.add(row);
                       }
-                      await sb.from('barber_availability').upsert(
-                        payload,
-                        onConflict: 'barber_id,day_of_week',
-                      );
+                      await sb
+                          .from('barber_availability')
+                          .upsert(payload, onConflict: 'barber_id,day_of_week');
                       if (!ctx.mounted) return;
                       Navigator.pop(ctx);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Disponibilidade salva')),
+                          const SnackBar(
+                            content: Text('Disponibilidade salva'),
+                          ),
                         );
                       }
                     } catch (e) {
@@ -891,8 +927,10 @@ extension on _BarbersAdminScreenState {
                           );
                         }
                       },
-                      child: Text('Pausa ${_label(data.breakStart)}',
-                          style: const TextStyle(color: Colors.orange)),
+                      child: Text(
+                        'Pausa ${_label(data.breakStart)}',
+                        style: const TextStyle(color: Colors.orange),
+                      ),
                     ),
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
@@ -912,8 +950,10 @@ extension on _BarbersAdminScreenState {
                           );
                         }
                       },
-                      child: Text('Retorno ${_label(data.breakEnd)}',
-                          style: const TextStyle(color: Colors.orange)),
+                      child: Text(
+                        'Retorno ${_label(data.breakEnd)}',
+                        style: const TextStyle(color: Colors.orange),
+                      ),
                     ),
                   ],
                 ],

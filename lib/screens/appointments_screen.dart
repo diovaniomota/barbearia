@@ -449,8 +449,8 @@ class _AppointmentCard extends StatelessWidget {
         if (config.enabled && config.isConfigured) {
           final clientName =
               (appt['customer_name']?.toString() ?? '').isNotEmpty
-                  ? appt['customer_name'].toString()
-                  : appt['users']?['name']?.toString() ?? 'Cliente';
+              ? appt['customer_name'].toString()
+              : appt['users']?['name']?.toString() ?? 'Cliente';
           final dt = _appointmentDateTime(appt);
           final data =
               '${dt.day.toString().padLeft(2, '0')}/'
@@ -459,8 +459,7 @@ class _AppointmentCard extends StatelessWidget {
           final hora =
               '${dt.hour.toString().padLeft(2, '0')}:'
               '${dt.minute.toString().padLeft(2, '0')}';
-          final servico =
-              appt['services']?['name']?.toString() ?? 'Serviço';
+          final servico = appt['services']?['name']?.toString() ?? 'Serviço';
           final msg =
               '❌ Agendamento cancelado\n\n'
               '👤 Cliente: $clientName\n'

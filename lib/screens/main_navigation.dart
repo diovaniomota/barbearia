@@ -125,7 +125,9 @@ class _FloatingNavBar extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: selected
-                                ? const Color(0xFFF5C200).withValues(alpha: 0.15)
+                                ? const Color(
+                                    0xFFF5C200,
+                                  ).withValues(alpha: 0.15)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),

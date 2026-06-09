@@ -66,6 +66,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
       final ok = await launchUrl(last, mode: LaunchMode.platformDefault);
       if (ok) return;
     } catch (_) {}
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -156,31 +157,35 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
       _error = null;
     });
     try {
+      // Filtro DB-level: barbeiro vê só os próprios agendamentos
+      final sessionBarberId = AdminSession.isBarber ? AdminSession.barberId : null;
       dynamic rows;
       try {
-        rows = await Supabase.instance.client
+        var q = Supabase.instance.client
             .from('appointments')
             .select('''
               *,
               users:user_id(name, email, phone),
               barbers:barber_id(name),
               services:service_id(id, name)
-            ''')
-            .order('created_at', ascending: false);
+            ''');
+        if (sessionBarberId != null) q = q.eq('barber_id', sessionBarberId);
+        rows = await q.order('created_at', ascending: false);
       } catch (e) {
         final msg = e.toString().toLowerCase();
         if (msg.contains('oauth_client_id')) {
           try {
             await Supabase.instance.client.auth.signOut();
-            rows = await Supabase.instance.client
+            var q2 = Supabase.instance.client
                 .from('appointments')
                 .select('''
                   *,
                   users:user_id(name, email, phone),
                   barbers:barber_id(name),
                   services:service_id(id, name)
-                ''')
-                .order('created_at', ascending: false);
+                ''');
+            if (sessionBarberId != null) q2 = q2.eq('barber_id', sessionBarberId);
+            rows = await q2.order('created_at', ascending: false);
           } catch (_) {
             rethrow;
           }
@@ -244,7 +249,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
             }
           }
         }
-        final key = '${userName}|${barberId}|${scheduledAt}';
+        final key = '$userName|$barberId|$scheduledAt';
         final existing = groups[key];
         if (existing == null) {
           groups[key] = {
@@ -371,6 +376,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
     String? customerId,
     List<String>? serviceIds,
   }) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       var query = Supabase.instance.client
           .from('appointments')
@@ -393,9 +399,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
       }
       await query;
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Salvo')));
+        messenger.showSnackBar(const SnackBar(content: Text('Salvo')));
       }
       return true;
     } catch (e) {
@@ -447,9 +451,11 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                 q2 = q2.or(ors);
               }
               await q2;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Salvo (parcial)')));
+              if (mounted) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Salvo (parcial)')),
+                );
+              }
               return true;
             } catch (_) {}
           }
@@ -490,22 +496,22 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                   q3 = q3.or(ors);
                 }
                 await q3;
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Salvo')));
+                if (mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Salvo')),
+                  );
+                }
                 return true;
               } catch (_) {}
             }
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               const SnackBar(
                 content: Text('Erro: status inválido para tabela'),
               ),
             );
             return false;
           }
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+          messenger.showSnackBar(SnackBar(content: Text('Erro: $e')));
         }
       }
       return false;
@@ -634,6 +640,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
         .where((id) => id.isNotEmpty)
         .toSet();
     final current = ValueNotifier<Set<String>>(initialSel);
+    if (!mounted) return false;
     final selected = await showDialog<List<String>>(
       context: context,
       builder: (ctx) {
@@ -771,6 +778,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                                 },
                               );
                               if (ok == true) {
+                                if (!ctx.mounted) return;
                                 Navigator.pop(ctx);
                                 await _markAttended(
                                   barberId: barberId,
@@ -819,6 +827,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                           },
                         );
                         if (choice == 'cancel' || choice == 'no_show') {
+                          if (!ctx.mounted) return;
                           Navigator.pop(ctx);
                           if (choice == 'cancel') {
                             await _cancelAppointment(
@@ -879,8 +888,9 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
           : DatePickerMode.day,
       // Fixa a escala de texto p/ os números do calendário não quebrarem linha
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(1.0)),
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: const TextScaler.linear(1.0)),
         child: child!,
       ),
     );
@@ -930,7 +940,7 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline.withOpacity(0.2),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
                     child: Column(
@@ -991,7 +1001,9 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                                     ..._barbers.map(
                                       (b) => DropdownMenuItem<String?>(
                                         value: b['id']?.toString(),
-                                        child: Text(b['name']?.toString() ?? ''),
+                                        child: Text(
+                                          b['name']?.toString() ?? '',
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1032,240 +1044,239 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                     ),
                   if (_period != _Period.day)
                     ...List.generate(_appointments.length, (index) {
-                    final a = _appointments[index];
-                    final theme = Theme.of(context);
-                    final userName = (a['user_name']?.toString() ?? '').trim();
-                    final userPhone = (a['user_phone']?.toString() ?? '')
-                        .trim();
-                    final barberName = (a['barber_name']?.toString() ?? '')
-                        .trim();
-                    final servicesText = (a['services_text']?.toString() ?? '')
-                        .trim();
-                    final userEmail = (a['user_email']?.toString() ?? '')
-                        .trim();
-                    final servicesListDynamic = a['services_list'];
-                    final servicesList = servicesListDynamic is List
-                        ? servicesListDynamic.map((e) => e.toString()).toList()
-                        : <String>[];
-                    final scheduledRaw = (a['date_time']?.toString() ?? '')
-                        .trim();
-                    final scheduledDt = DateTime.tryParse(scheduledRaw);
-                    final scheduledLabel = scheduledDt == null
-                        ? ''
-                        : DateFormat(
-                            'dd/MM/yyyy HH:mm',
-                            'pt_BR',
-                          ).format(scheduledDt);
-                    return Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: theme.colorScheme.outline.withAlpha(40),
+                      final a = _appointments[index];
+                      final theme = Theme.of(context);
+                      final userName = (a['user_name']?.toString() ?? '')
+                          .trim();
+                      final userPhone = (a['user_phone']?.toString() ?? '')
+                          .trim();
+                      final barberName = (a['barber_name']?.toString() ?? '')
+                          .trim();
+                      final servicesText =
+                          (a['services_text']?.toString() ?? '').trim();
+                      final userEmail = (a['user_email']?.toString() ?? '')
+                          .trim();
+                      final scheduledRaw = (a['date_time']?.toString() ?? '')
+                          .trim();
+                      final scheduledDt = DateTime.tryParse(scheduledRaw);
+                      final scheduledLabel = scheduledDt == null
+                          ? ''
+                          : DateFormat(
+                              'dd/MM/yyyy HH:mm',
+                              'pt_BR',
+                            ).format(scheduledDt);
+                      return Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: theme.colorScheme.outline.withAlpha(40),
+                          ),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  userName.isEmpty ? 'Cliente' : userName,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if (userEmail.isNotEmpty)
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   Text(
-                                    userEmail,
-                                    style: theme.textTheme.bodySmall,
+                                    userName.isEmpty ? 'Cliente' : userName,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
-                                if (scheduledLabel.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.schedule, size: 16),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          scheduledLabel,
-                                          style: theme.textTheme.bodySmall,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.person, size: 16),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'agendou com $barberName',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.content_cut, size: 16),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'Serviços: $servicesText',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.call, size: 16),
-                                const SizedBox(width: 6),
-                                if (userPhone.isEmpty)
-                                  Text(
-                                    'Sem telefone',
-                                    style: theme.textTheme.bodyMedium,
-                                  )
-                                else
-                                  InkWell(
-                                    onTap: () => _openWhatsApp(
-                                      userPhone,
-                                      barberName,
-                                      scheduledLabel,
+                                  if (userEmail.isNotEmpty)
+                                    Text(
+                                      userEmail,
+                                      style: theme.textTheme.bodySmall,
                                     ),
-                                    child: Text(
-                                      userPhone,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: theme.colorScheme.primary,
-                                            decoration:
-                                                TextDecoration.underline,
-                                          ),
-                                    ),
-                                  ),
-                                if (userPhone.isNotEmpty)
-                                  const SizedBox(width: 12),
-                                if (userPhone.isNotEmpty)
-                                  InkWell(
-                                    onTap: () => _openWhatsApp(
-                                      userPhone,
-                                      barberName,
-                                      scheduledLabel,
-                                    ),
-                                    child: Row(
+                                  if (scheduledLabel.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
                                       children: [
-                                        FaIcon(
-                                          FontAwesomeIcons.whatsapp,
-                                          size: 16,
-                                          color: const Color(0xFF25D366),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'WhatsApp',
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color:
-                                                    theme.colorScheme.primary,
-                                              ),
+                                        const Icon(Icons.schedule, size: 16),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            scheduledLabel,
+                                            style: theme.textTheme.bodySmall,
+                                          ),
                                         ),
                                       ],
                                     ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.person, size: 16),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'agendou com $barberName',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Builder(
-                              builder: (context) {
-                                final statusRaw =
-                                    (a['status']?.toString() ?? '')
-                                        .trim()
-                                        .toLowerCase();
-                                final attendedRaw =
-                                    (a['attended_at']?.toString() ?? '').trim();
-                                final isAttended = attendedRaw.isNotEmpty;
-                                final isNoShow = statusRaw == 'no_show';
-                                final isCancelled =
-                                    statusRaw == 'cancelled' ||
-                                    statusRaw == 'canceled' ||
-                                    statusRaw == 'cancel' ||
-                                    statusRaw.contains('cancel');
-                                final isNoShowAlt =
-                                    statusRaw == 'noshow' ||
-                                    statusRaw == 'no-show' ||
-                                    statusRaw.replaceAll(' ', '_') == 'no_show';
-                                if (isAttended) {
-                                  return Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Chip(
-                                      label: const Text('Compareceu'),
-                                      backgroundColor:
-                                          theme.colorScheme.primaryContainer,
-                                      labelStyle: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onPrimaryContainer,
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.content_cut, size: 16),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Serviços: $servicesText',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.call, size: 16),
+                                  const SizedBox(width: 6),
+                                  if (userPhone.isEmpty)
+                                    Text(
+                                      'Sem telefone',
+                                      style: theme.textTheme.bodyMedium,
+                                    )
+                                  else
+                                    InkWell(
+                                      onTap: () => _openWhatsApp(
+                                        userPhone,
+                                        barberName,
+                                        scheduledLabel,
+                                      ),
+                                      child: Text(
+                                        userPhone,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: theme.colorScheme.primary,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                      ),
+                                    ),
+                                  if (userPhone.isNotEmpty)
+                                    const SizedBox(width: 12),
+                                  if (userPhone.isNotEmpty)
+                                    InkWell(
+                                      onTap: () => _openWhatsApp(
+                                        userPhone,
+                                        barberName,
+                                        scheduledLabel,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          FaIcon(
+                                            FontAwesomeIcons.whatsapp,
+                                            size: 16,
+                                            color: const Color(0xFF25D366),
                                           ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'WhatsApp',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  );
-                                } else if (isNoShow || isNoShowAlt) {
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Builder(
+                                builder: (context) {
+                                  final statusRaw =
+                                      (a['status']?.toString() ?? '')
+                                          .trim()
+                                          .toLowerCase();
+                                  final attendedRaw =
+                                      (a['attended_at']?.toString() ?? '')
+                                          .trim();
+                                  final isAttended = attendedRaw.isNotEmpty;
+                                  final isNoShow = statusRaw == 'no_show';
+                                  final isCancelled =
+                                      statusRaw == 'cancelled' ||
+                                      statusRaw == 'canceled' ||
+                                      statusRaw == 'cancel' ||
+                                      statusRaw.contains('cancel');
+                                  final isNoShowAlt =
+                                      statusRaw == 'noshow' ||
+                                      statusRaw == 'no-show' ||
+                                      statusRaw.replaceAll(' ', '_') ==
+                                          'no_show';
+                                  if (isAttended) {
+                                    return Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Chip(
+                                        label: const Text('Compareceu'),
+                                        backgroundColor:
+                                            theme.colorScheme.primaryContainer,
+                                        labelStyle: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onPrimaryContainer,
+                                            ),
+                                      ),
+                                    );
+                                  } else if (isNoShow || isNoShowAlt) {
+                                    return Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Chip(
+                                        label: const Text('Não compareceu'),
+                                        backgroundColor:
+                                            theme.colorScheme.surfaceContainerHighest,
+                                      ),
+                                    );
+                                  } else if (isCancelled) {
+                                    return Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Chip(
+                                        label: const Text(
+                                          'Agendamento cancelado',
+                                        ),
+                                        backgroundColor:
+                                            theme.colorScheme.surfaceContainerHighest,
+                                      ),
+                                    );
+                                  }
                                   return Align(
                                     alignment: Alignment.centerLeft,
-                                    child: Chip(
-                                      label: const Text('Não compareceu'),
-                                      backgroundColor:
-                                          theme.colorScheme.surfaceVariant,
+                                    child: FilledButton.icon(
+                                      onPressed: () => _openAppointmentActions(
+                                        barberId:
+                                            (a['barber_id']?.toString() ?? ''),
+                                        scheduledAt: scheduledRaw,
+                                        items: List<Map<String, dynamic>>.from(
+                                          a['services_items'] ?? const [],
+                                        ),
+                                        customerName: userName,
+                                        customerPhone: userPhone,
+                                        customerId:
+                                            (a['customer_id']?.toString() ??
+                                            ''),
+                                      ),
+                                      icon: const Icon(Icons.more_horiz),
+                                      label: const Text('Ações'),
                                     ),
                                   );
-                                } else if (isCancelled) {
-                                  return Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Chip(
-                                      label: const Text(
-                                        'Agendamento cancelado',
-                                      ),
-                                      backgroundColor:
-                                          theme.colorScheme.surfaceVariant,
-                                    ),
-                                  );
-                                }
-                                return Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: FilledButton.icon(
-                                    onPressed: () => _openAppointmentActions(
-                                      barberId:
-                                          (a['barber_id']?.toString() ?? ''),
-                                      scheduledAt: scheduledRaw,
-                                      items: List<Map<String, dynamic>>.from(
-                                        a['services_items'] ?? const [],
-                                      ),
-                                      customerName: userName,
-                                      customerPhone: userPhone,
-                                      customerId:
-                                          (a['customer_id']?.toString() ?? ''),
-                                    ),
-                                    icon: const Icon(Icons.more_horiz),
-                                    label: const Text('Ações'),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    }),
                 ],
               ),
             ),

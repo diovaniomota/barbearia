@@ -19,7 +19,7 @@ class Barber {
 
   // --------- DB ---------
   factory Barber.fromMap(Map<String, dynamic> map) {
-    List<String> _toStrList(dynamic v) {
+    List<String> toStrList(dynamic v) {
       if (v == null) return const [];
       if (v is List) return v.map((e) => e.toString()).toList();
       if (v is String) return v.split(',').map((s) => s.trim()).toList();
@@ -30,10 +30,10 @@ class Barber {
       id: (map['id'] ?? '').toString(),
       name: (map['name'] ?? '').toString(),
       imageUrl: (map['image_url'] ?? map['imageUrl'] ?? '').toString(),
-      specialties: _toStrList(map['specialties']),
-      availableDays: _toStrList(map['available_days'] ?? map['availableDays']),
-      workingHours:
-          (map['working_hours'] ?? map['workingHours'] ?? '').toString(),
+      specialties: toStrList(map['specialties']),
+      availableDays: toStrList(map['available_days'] ?? map['availableDays']),
+      workingHours: (map['working_hours'] ?? map['workingHours'] ?? '')
+          .toString(),
       rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
     );
   }

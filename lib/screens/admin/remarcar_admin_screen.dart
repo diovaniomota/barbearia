@@ -40,8 +40,13 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
       // 1. Busca todos os agendamentos passados não cancelados
       var pastQuery = supabase
           .from('appointments')
-          .select('customer_phone, customer_name, appointment_date, user_id, users:user_id(name, phone)')
-          .lte('appointment_date', DateFormat('yyyy-MM-dd').format(DateTime.now()))
+          .select(
+            'customer_phone, customer_name, appointment_date, user_id, users:user_id(name, phone)',
+          )
+          .lte(
+            'appointment_date',
+            DateFormat('yyyy-MM-dd').format(DateTime.now()),
+          )
           .not('status', 'in', '("cancelled","canceled","no_show")');
       if (barberId != null) pastQuery = pastQuery.eq('barber_id', barberId);
       final rows = await pastQuery.order('appointment_date', ascending: false);
@@ -50,7 +55,10 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
       var futureQuery = supabase
           .from('appointments')
           .select('customer_phone')
-          .gt('appointment_date', DateFormat('yyyy-MM-dd').format(DateTime.now()))
+          .gt(
+            'appointment_date',
+            DateFormat('yyyy-MM-dd').format(DateTime.now()),
+          )
           .not('status', 'in', '("cancelled","canceled","no_show")');
       if (barberId != null) futureQuery = futureQuery.eq('barber_id', barberId);
       final futureRows = await futureQuery;
@@ -64,14 +72,18 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
       final byPhone = <String, _ClienteInativo>{};
       for (final r in (rows as List)) {
         String phone = _norm(r['customer_phone']?.toString() ?? '');
-        String name  = (r['customer_name']?.toString() ?? '').trim();
+        String name = (r['customer_name']?.toString() ?? '').trim();
 
         // Fallback para dados do user autenticado
         if (phone.isEmpty || name.isEmpty) {
           final usr = r['users'];
           if (usr is Map) {
-            phone = phone.isNotEmpty ? phone : _norm(usr['phone']?.toString() ?? '');
-            name  = name.isNotEmpty  ? name  : (usr['name']?.toString() ?? '').trim();
+            phone = phone.isNotEmpty
+                ? phone
+                : _norm(usr['phone']?.toString() ?? '');
+            name = name.isNotEmpty
+                ? name
+                : (usr['name']?.toString() ?? '').trim();
           }
         }
         if (phone.isEmpty) continue;
@@ -93,12 +105,15 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
 
       // 4. Filtra: só os que a última visita foi há mais de 30 dias
       //    e que não têm agendamento futuro
-      final inativos = byPhone.values
-          .where((c) =>
-              c.ultimaVisita.isBefore(cutoff) &&
-              !futurePhones.contains(c.phone))
-          .toList()
-        ..sort((a, b) => a.ultimaVisita.compareTo(b.ultimaVisita));
+      final inativos =
+          byPhone.values
+              .where(
+                (c) =>
+                    c.ultimaVisita.isBefore(cutoff) &&
+                    !futurePhones.contains(c.phone),
+              )
+              .toList()
+            ..sort((a, b) => a.ultimaVisita.compareTo(b.ultimaVisita));
 
       if (!mounted) return;
       setState(() {
@@ -136,7 +151,9 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
     if (!_config.enabled || !_config.isConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('WhatsApp não configurado. Acesse as configurações de WhatsApp.'),
+          content: Text(
+            'WhatsApp não configurado. Acesse as configurações de WhatsApp.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -163,16 +180,20 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.ok
-            ? 'Mensagem enviada para ${c.nome}!'
-            : 'Erro: ${result.error}'),
+        content: Text(
+          result.ok
+              ? 'Mensagem enviada para ${c.nome}!'
+              : 'Erro: ${result.error}',
+        ),
         backgroundColor: result.ok ? Colors.green : Colors.red,
       ),
     );
   }
 
   Future<void> _enviarTodos() async {
-    final pendentes = _clientes.where((c) => !_sending.contains(c.phone)).toList();
+    final pendentes = _clientes
+        .where((c) => !_sending.contains(c.phone))
+        .toList();
     if (pendentes.isEmpty) return;
 
     final confirm = await showDialog<bool>(
@@ -225,167 +246,173 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline,
-                            size: 48, color: theme.colorScheme.error),
-                        const SizedBox(height: 12),
-                        Text('Erro ao carregar: $_error',
-                            textAlign: TextAlign.center),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: _load,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Tentar novamente'),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: theme.colorScheme.error,
                     ),
-                  ),
-                )
-              : _clientes.isEmpty
-                  ? _EmptyState()
-                  : Column(
-                      children: [
-                        _Banner(
-                          count: _clientes.length,
-                          wppOk: _config.enabled && _config.isConfigured,
-                          theme: theme,
-                        ),
-                        Expanded(
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                            itemCount: _clientes.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (_, i) {
-                              final c = _clientes[i];
-                              final isSending = _sending.contains(c.phone);
-                              final dias = DateTime.now()
-                                  .difference(c.ultimaVisita)
-                                  .inDays;
-                              final urgente = dias >= 60;
-                              return Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                                  child: Row(
-                                    children: [
-                                      // Avatar
-                                      CircleAvatar(
-                                        radius: 22,
-                                        backgroundColor: urgente
-                                            ? theme.colorScheme.error
-                                                .withValues(alpha: 0.15)
-                                            : theme.colorScheme.primary
-                                                .withValues(alpha: 0.12),
-                                        child: Text(
-                                          c.nome.isNotEmpty
-                                              ? c.nome[0].toUpperCase()
-                                              : '?',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            color: urgente
-                                                ? theme.colorScheme.error
-                                                : theme.colorScheme.primary,
-                                          ),
-                                        ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erro ao carregar: $_error',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _clientes.isEmpty
+          ? _EmptyState()
+          : Column(
+              children: [
+                _Banner(
+                  count: _clientes.length,
+                  wppOk: _config.enabled && _config.isConfigured,
+                  theme: theme,
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                    itemCount: _clientes.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final c = _clientes[i];
+                      final isSending = _sending.contains(c.phone);
+                      final dias = DateTime.now()
+                          .difference(c.ultimaVisita)
+                          .inDays;
+                      final urgente = dias >= 60;
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              // Avatar
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: urgente
+                                    ? theme.colorScheme.error.withValues(
+                                        alpha: 0.15,
+                                      )
+                                    : theme.colorScheme.primary.withValues(
+                                        alpha: 0.12,
                                       ),
-                                      const SizedBox(width: 12),
-                                      // Info
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              c.nome,
-                                              style: theme.textTheme.titleSmall
-                                                  ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              _displayPhone(c.phone),
-                                              style: theme.textTheme.bodySmall,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.schedule_rounded,
-                                                  size: 12,
-                                                  color: urgente
-                                                      ? theme.colorScheme.error
-                                                      : theme
-                                                          .colorScheme.outline,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Ausente há ${_diasAusente(c.ultimaVisita)}',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: urgente
-                                                        ? theme
-                                                            .colorScheme.error
-                                                        : theme
-                                                            .colorScheme.outline,
-                                                    fontWeight: urgente
-                                                        ? FontWeight.w700
-                                                        : FontWeight.w500,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  'Última: ${DateFormat('dd/MM/yy').format(c.ultimaVisita)}',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: theme
-                                                        .colorScheme.outline,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Botão enviar
-                                      isSending
-                                          ? const SizedBox(
-                                              width: 36,
-                                              height: 36,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            )
-                                          : FilledButton.icon(
-                                              onPressed: () => _enviar(c),
-                                              style: FilledButton.styleFrom(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 8),
-                                                textStyle: const TextStyle(
-                                                    fontSize: 12),
-                                              ),
-                                              icon: const Icon(
-                                                  Icons.send_rounded,
-                                                  size: 14),
-                                              label: const Text('Enviar'),
-                                            ),
-                                    ],
+                                child: Text(
+                                  c.nome.isNotEmpty
+                                      ? c.nome[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: urgente
+                                        ? theme.colorScheme.error
+                                        : theme.colorScheme.primary,
                                   ),
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(width: 12),
+                              // Info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      c.nome,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _displayPhone(c.phone),
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.schedule_rounded,
+                                          size: 12,
+                                          color: urgente
+                                              ? theme.colorScheme.error
+                                              : theme.colorScheme.outline,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Ausente há ${_diasAusente(c.ultimaVisita)}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: urgente
+                                                ? theme.colorScheme.error
+                                                : theme.colorScheme.outline,
+                                            fontWeight: urgente
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Última: ${DateFormat('dd/MM/yy').format(c.ultimaVisita)}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: theme.colorScheme.outline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Botão enviar
+                              isSending
+                                  ? const SizedBox(
+                                      width: 36,
+                                      height: 36,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : FilledButton.icon(
+                                      onPressed: () => _enviar(c),
+                                      style: FilledButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        textStyle: const TextStyle(
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.send_rounded,
+                                        size: 14,
+                                      ),
+                                      label: const Text('Enviar'),
+                                    ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
@@ -431,8 +458,11 @@ class _Banner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.person_off_outlined,
-              color: theme.colorScheme.primary, size: 20),
+          Icon(
+            Icons.person_off_outlined,
+            color: theme.colorScheme.primary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -447,8 +477,11 @@ class _Banner extends StatelessWidget {
           if (!wppOk)
             Tooltip(
               message: 'WhatsApp não configurado',
-              child: Icon(Icons.warning_amber_rounded,
-                  color: Colors.orange, size: 18),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange,
+                size: 18,
+              ),
             ),
         ],
       ),
@@ -464,14 +497,18 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle_outline_rounded,
-              size: 72, color: theme.colorScheme.primary),
+          Icon(
+            Icons.check_circle_outline_rounded,
+            size: 72,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(height: 16),
           Text(
             'Todos os clientes visitaram\nnos últimos 30 dias!',
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 8),
           Text(

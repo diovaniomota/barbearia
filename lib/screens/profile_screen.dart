@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('user_id', user.id);
 
       double? rating;
-      if (reviews != null && reviews is List && reviews.isNotEmpty) {
+      if ((reviews as List).isNotEmpty) {
         final nums = reviews
             .map((e) => (e['rating'] as num?)?.toDouble())
             .where((e) => e != null)

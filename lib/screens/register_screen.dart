@@ -127,15 +127,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              theme.colorScheme.shadow.withValues(alpha: 0.1),
+                          color: theme.colorScheme.shadow.withValues(
+                            alpha: 0.1,
+                          ),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: Icon(Icons.person_add,
-                        size: 50, color: theme.colorScheme.onPrimary),
+                    child: Icon(
+                      Icons.person_add,
+                      size: 50,
+                      color: theme.colorScheme.onPrimary,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -166,13 +170,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _nameController,
                       textInputAction: TextInputAction.next,
-                      decoration: _dec(theme, 'Nome completo',
-                          'Digite seu nome completo', Icons.person_outline),
+                      decoration: _dec(
+                        theme,
+                        'Nome completo',
+                        'Digite seu nome completo',
+                        Icons.person_outline,
+                      ),
                       validator: (v) {
                         final value = v?.trim() ?? '';
                         if (value.isEmpty) return 'Digite seu nome completo';
-                        if (value.length < 2)
+                        if (value.length < 2) {
                           return 'Nome deve ter pelo menos 2 caracteres';
+                        }
                         return null;
                       },
                     ),
@@ -183,13 +192,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      decoration: _dec(theme, 'Email', 'Digite seu email',
-                          Icons.email_outlined),
+                      decoration: _dec(
+                        theme,
+                        'Email',
+                        'Digite seu email',
+                        Icons.email_outlined,
+                      ),
                       validator: (value) {
-                        if (value == null || value.isEmpty)
+                        if (value == null || value.isEmpty) {
                           return 'Digite seu email';
-                        final ok = RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$')
-                            .hasMatch(value);
+                        }
+                        final ok = RegExp(
+                          r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        ).hasMatch(value);
                         if (!ok) return 'Digite um email válido';
                         return null;
                       },
@@ -201,22 +216,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.next,
-                      decoration: _dec(theme, 'Senha', 'Digite sua senha',
-                              Icons.lock_outline)
-                          .copyWith(
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
-                        ),
-                      ),
+                      decoration:
+                          _dec(
+                            theme,
+                            'Senha',
+                            'Digite sua senha',
+                            Icons.lock_outline,
+                          ).copyWith(
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                          ),
                       validator: (value) {
-                        if (value == null || value.isEmpty)
+                        if (value == null || value.isEmpty) {
                           return 'Digite sua senha';
-                        if (value.length < 6)
+                        }
+                        if (value.length < 6) {
                           return 'A senha deve ter pelo menos 6 caracteres';
+                        }
                         return null;
                       },
                     ),
@@ -228,23 +252,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: _obscureConfirmPassword,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _signUp(),
-                      decoration: _dec(theme, 'Confirmar senha',
-                              'Digite sua senha novamente', Icons.lock_outline)
-                          .copyWith(
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscureConfirmPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() =>
-                              _obscureConfirmPassword =
-                                  !_obscureConfirmPassword),
-                        ),
-                      ),
+                      decoration:
+                          _dec(
+                            theme,
+                            'Confirmar senha',
+                            'Digite sua senha novamente',
+                            Icons.lock_outline,
+                          ).copyWith(
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              onPressed: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              ),
+                            ),
+                          ),
                       validator: (value) {
-                        if (value == null || value.isEmpty)
+                        if (value == null || value.isEmpty) {
                           return 'Confirme sua senha';
-                        if (value != _passwordController.text)
+                        }
+                        if (value != _passwordController.text) {
                           return 'As senhas não coincidem';
+                        }
                         return null;
                       },
                     ),
@@ -263,7 +296,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     elevation: 2,
                   ),
                   child: _isLoading
@@ -272,9 +306,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           height: 24,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Criar conta',
+                      : const Text(
+                          'Criar conta',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
 
@@ -287,17 +325,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text(
                     'Já tem uma conta? ',
                     style: TextStyle(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                   TextButton(
-                    onPressed:
-                        _isLoading ? null : () => Navigator.of(context).pop(),
+                    onPressed: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     child: Text(
                       'Fazer login',
                       style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600),
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -312,7 +352,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   InputDecoration _dec(
-      ThemeData theme, String label, String hint, IconData icon) {
+    ThemeData theme,
+    String label,
+    String hint,
+    IconData icon,
+  ) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
@@ -320,8 +364,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide:
-            BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outline.withValues(alpha: 0.3),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),

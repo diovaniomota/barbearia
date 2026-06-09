@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -161,12 +161,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return 'Erro ao fazer login. Verifique suas credenciais.';
   }
 
-  static const _bg     = Color(0xFF080808);
-  static const _card   = Color(0xFF111111);
+  static const _bg = Color(0xFF080808);
+  static const _card = Color(0xFF111111);
   static const _border = Color(0xFF222222);
-  static const _gold   = Color(0xFFF5C200);
-  static const _text   = Color(0xFFF0EDE8);
-  static const _muted  = Color(0xFF6B7280);
+  static const _gold = Color(0xFFF5C200);
+  static const _text = Color(0xFFF0EDE8);
+  static const _muted = Color(0xFF6B7280);
 
   InputDecoration _field(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
@@ -200,9 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_checkingSession) {
       return const Scaffold(
         backgroundColor: _bg,
-        body: Center(
-          child: CircularProgressIndicator(color: _gold),
-        ),
+        body: Center(child: CircularProgressIndicator(color: _gold)),
       );
     }
 
@@ -229,8 +227,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       shape: BoxShape.circle,
                       border: Border.all(color: _gold, width: 2),
                     ),
-                    child: const Icon(Icons.content_cut_rounded,
-                        color: _gold, size: 48),
+                    child: const Icon(
+                      Icons.content_cut_rounded,
+                      color: _gold,
+                      size: 48,
+                    ),
                   ),
                 ),
               ),
@@ -285,7 +286,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             size: 20,
                           ),
                           onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
                       validator: (v) {
@@ -304,12 +306,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Checkbox(
                     value: _rememberEmail,
-                    onChanged: (v) => setState(() => _rememberEmail = v ?? false),
+                    onChanged: (v) =>
+                        setState(() => _rememberEmail = v ?? false),
                     activeColor: _gold,
                     side: const BorderSide(color: _muted),
                   ),
                   GestureDetector(
-                    onTap: () => setState(() => _rememberEmail = !_rememberEmail),
+                    onTap: () =>
+                        setState(() => _rememberEmail = !_rememberEmail),
                     child: const Text(
                       'Lembrar e-mail',
                       style: TextStyle(color: _muted, fontSize: 14),
@@ -398,11 +402,14 @@ class _LoginScreenState extends State<LoginScreen> {
           ElevatedButton(
             onPressed: () async {
               if (emailController.text.isNotEmpty) {
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final errorColor = Theme.of(context).colorScheme.error;
                 try {
                   await AuthService.resetPassword(emailController.text.trim());
                   if (!mounted) return;
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  navigator.pop();
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Email de recuperação enviado!'),
                       backgroundColor: Colors.green,
@@ -410,10 +417,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   );
                 } catch (e) {
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Erro: $e'),
-                      backgroundColor: Theme.of(context).colorScheme.error,
+                      backgroundColor: errorColor,
                     ),
                   );
                 }

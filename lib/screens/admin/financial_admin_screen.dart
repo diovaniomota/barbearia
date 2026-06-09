@@ -76,7 +76,9 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
     }
     try {
       final supabase = Supabase.instance.client;
-      final startDate = DateFormat('yyyy-MM-dd').format(_startOfPeriod(_selected));
+      final startDate = DateFormat(
+        'yyyy-MM-dd',
+      ).format(_startOfPeriod(_selected));
       final endDate = DateFormat('yyyy-MM-dd').format(_endOfPeriod(_selected));
 
       var query = supabase
@@ -100,7 +102,11 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       for (final r in list) {
         final status = (r['status']?.toString() ?? '').toLowerCase();
         // Exclui cancelados e não compareceu
-        if (status == 'no_show' || status == 'cancelled' || status == 'canceled') continue;
+        if (status == 'no_show' ||
+            status == 'cancelled' ||
+            status == 'canceled') {
+          continue;
+        }
         // Exclui clientes plano
         if (r['is_plan_client'] == true) continue;
         // Só contabiliza se o horário já passou
@@ -110,7 +116,9 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
         try {
           final dp = ds.split('-');
           final apptDt = DateTime(
-            int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
+            int.parse(dp[0]),
+            int.parse(dp[1]),
+            int.parse(dp[2]),
             ts.isNotEmpty ? int.tryParse(ts[0]) ?? 0 : 0,
             ts.length > 1 ? int.tryParse(ts[1]) ?? 0 : 0,
           );
@@ -192,11 +200,17 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       if (missing == 'performed_service_ids' || missing == 'is_plan_client') {
         try {
           final supabase = Supabase.instance.client;
-          final startDate = DateFormat('yyyy-MM-dd').format(_startOfPeriod(_selected));
-          final endDate = DateFormat('yyyy-MM-dd').format(_endOfPeriod(_selected));
+          final startDate = DateFormat(
+            'yyyy-MM-dd',
+          ).format(_startOfPeriod(_selected));
+          final endDate = DateFormat(
+            'yyyy-MM-dd',
+          ).format(_endOfPeriod(_selected));
           var q = supabase
               .from('appointments')
-              .select('appointment_date, appointment_time, status, barber_id, barbers:barber_id(name), services:service_id(id, name, price)')
+              .select(
+                'appointment_date, appointment_time, status, barber_id, barbers:barber_id(name), services:service_id(id, name, price)',
+              )
               .gte('appointment_date', startDate)
               .lt('appointment_date', endDate);
           if (_barberId != null && _barberId!.isNotEmpty) {
@@ -209,14 +223,20 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
           final now = DateTime.now();
           for (final r in list) {
             final status = (r['status']?.toString() ?? '').toLowerCase();
-            if (status == 'no_show' || status == 'cancelled' || status == 'canceled') continue;
+            if (status == 'no_show' ||
+                status == 'cancelled' ||
+                status == 'canceled') {
+              continue;
+            }
             final ds = r['appointment_date']?.toString() ?? '';
             final ts = (r['appointment_time']?.toString() ?? '').split(':');
             if (ds.isEmpty) continue;
             try {
               final dp = ds.split('-');
               final apptDt = DateTime(
-                int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
+                int.parse(dp[0]),
+                int.parse(dp[1]),
+                int.parse(dp[2]),
                 ts.isNotEmpty ? int.tryParse(ts[0]) ?? 0 : 0,
                 ts.length > 1 ? int.tryParse(ts[1]) ?? 0 : 0,
               );
@@ -249,14 +269,23 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
             total += price;
             final current = byBarber[barberId];
             if (current == null) {
-              byBarber[barberId] = _FinanceRow(barberId: barberId, barberName: barberName, total: price);
+              byBarber[barberId] = _FinanceRow(
+                barberId: barberId,
+                barberName: barberName,
+                total: price,
+              );
             } else {
-              byBarber[barberId] = _FinanceRow(barberId: barberId, barberName: current.barberName, total: current.total + price);
+              byBarber[barberId] = _FinanceRow(
+                barberId: barberId,
+                barberName: current.barberName,
+                total: current.total + price,
+              );
             }
           }
           if (mounted) {
             setState(() {
-              _rows = byBarber.values.toList()..sort((a, b) => b.total.compareTo(a.total));
+              _rows = byBarber.values.toList()
+                ..sort((a, b) => b.total.compareTo(a.total));
               _total = total;
               _loading = false;
             });
@@ -285,8 +314,9 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
           ? DatePickerMode.year
           : DatePickerMode.day,
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(1.0)),
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: const TextScaler.linear(1.0)),
         child: child!,
       ),
     );
@@ -334,7 +364,7 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline.withOpacity(0.2),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
                     child: Column(
@@ -395,7 +425,9 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
                                     ..._barbers.map(
                                       (b) => DropdownMenuItem<String?>(
                                         value: b['id']?.toString(),
-                                        child: Text(b['name']?.toString() ?? ''),
+                                        child: Text(
+                                          b['name']?.toString() ?? '',
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -419,7 +451,7 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
                         color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.2),
+                          color: theme.colorScheme.outline.withValues(alpha: 0.2),
                         ),
                       ),
                       child: Row(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:barbearia/screens/login_screen.dart';
 import 'package:barbearia/screens/main_navigation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class RoleChoiceScreen extends StatelessWidget {
   const RoleChoiceScreen({super.key});
 
-  static const _bg   = Color(0xFF080808);
+  static const _bg = Color(0xFF080808);
   static const _gold = Color(0xFFF5C200);
   static const _text = Color(0xFFF0EDE8);
 
@@ -33,8 +33,11 @@ class RoleChoiceScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: _gold, width: 2),
                     ),
-                    child: const Icon(Icons.content_cut_rounded,
-                        color: _gold, size: 40),
+                    child: const Icon(
+                      Icons.content_cut_rounded,
+                      color: _gold,
+                      size: 40,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/screens/admin/dashboard_screen.dart';
 import 'package:barbearia/screens/admin/services_admin_screen.dart';
@@ -12,12 +12,12 @@ import 'package:barbearia/utils/admin_session.dart';
 import 'package:barbearia/screens/login_screen.dart';
 
 class _AP {
-  static const Color bg     = Color(0xFF080808);
-  static const Color card   = Color(0xFF111111);
+  static const Color bg = Color(0xFF080808);
+  static const Color card = Color(0xFF111111);
   static const Color border = Color(0xFF222222);
-  static const Color gold   = Color(0xFFF5C200);
-  static const Color text   = Color(0xFFF0EDE8);
-  static const Color muted  = Color(0xFF6B7280);
+  static const Color gold = Color(0xFFF5C200);
+  static const Color text = Color(0xFFF0EDE8);
+  static const Color muted = Color(0xFF6B7280);
 }
 
 class AdminNavigation extends StatefulWidget {
@@ -30,6 +30,24 @@ class AdminNavigation extends StatefulWidget {
 class _AdminNavigationState extends State<AdminNavigation> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   int _currentIndex = 0;
+
+  // Bloqueia a renderização das telas até que o papel do admin esteja carregado.
+  // Evita que barbeiros vejam dados de outros quando o app reabre com sessão ativa.
+  bool _sessionReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureSession();
+  }
+
+  /// Carrega o papel (super-admin vs barbeiro) antes de mostrar as telas.
+  Future<void> _ensureSession() async {
+    if (Supabase.instance.client.auth.currentUser != null) {
+      await AdminSession.loadFromCurrentUser();
+    }
+    if (mounted) setState(() => _sessionReady = true);
+  }
 
   static const _screens = [
     DashboardScreen(),
@@ -47,7 +65,9 @@ class _AdminNavigationState extends State<AdminNavigation> {
     Navigator.pop(context);
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => Theme(data: _adminTheme, child: screen)),
+      MaterialPageRoute(
+        builder: (_) => Theme(data: _adminTheme, child: screen),
+      ),
     );
   }
 
@@ -94,7 +114,9 @@ class _AdminNavigationState extends State<AdminNavigation> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: _AP.gold, foregroundColor: _AP.bg),
+                backgroundColor: _AP.gold,
+                foregroundColor: _AP.bg,
+              ),
               onPressed: () async {
                 if (newPassCtrl.text != confirmCtrl.text) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -104,23 +126,27 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 }
                 if (newPassCtrl.text.length < 6) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                        content: Text('Mínimo 6 caracteres')),
+                    const SnackBar(content: Text('Mínimo 6 caracteres')),
                   );
                   return;
                 }
                 try {
-                  await Supabase.instance.client.auth
-                      .updateUser(UserAttributes(password: newPassCtrl.text));
+                  await Supabase.instance.client.auth.updateUser(
+                    UserAttributes(password: newPassCtrl.text),
+                  );
                   if (!ctx.mounted) return;
                   Navigator.pop(ctx);
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Senha alterada com sucesso!')),
+                    const SnackBar(
+                      content: Text('Senha alterada com sucesso!'),
+                    ),
                   );
                 } catch (e) {
                   if (!ctx.mounted) return;
-                  ScaffoldMessenger.of(ctx)
-                      .showSnackBar(SnackBar(content: Text('Erro: $e')));
+                  ScaffoldMessenger.of(
+                    ctx,
+                  ).showSnackBar(SnackBar(content: Text('Erro: $e')));
                 }
               },
               child: const Text('Salvar'),
@@ -133,6 +159,16 @@ class _AdminNavigationState extends State<AdminNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    // Aguarda o papel ser carregado antes de montar as telas (evita vazamento de dados)
+    if (!_sessionReady) {
+      return Theme(
+        data: _adminTheme,
+        child: const Scaffold(
+          backgroundColor: _AP.bg,
+          body: Center(child: CircularProgressIndicator(color: _AP.gold)),
+        ),
+      );
+    }
     return Theme(
       data: _adminTheme,
       child: Scaffold(
@@ -171,7 +207,10 @@ class _AdminNavigationState extends State<AdminNavigation> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
                 decoration: const BoxDecoration(
                   color: _AP.bg,
                   border: Border(bottom: BorderSide(color: _AP.border)),
@@ -182,7 +221,11 @@ class _AdminNavigationState extends State<AdminNavigation> {
                       'assets/images/logo.png',
                       width: 44,
                       height: 44,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.content_cut, color: _AP.gold, size: 28),
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.content_cut,
+                        color: _AP.gold,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -210,40 +253,76 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ),
               const SizedBox(height: 8),
               _DrawerSection('Principal'),
-              _DrawerItem(Icons.dashboard_outlined, 'Dashboard', () => _navTo(0), selected: _currentIndex == 0),
-              _DrawerItem(Icons.calendar_today_outlined, 'Agenda', () => _navTo(1), selected: _currentIndex == 1),
-              _DrawerItem(Icons.attach_money_outlined, 'Caixa', () => _navTo(2), selected: _currentIndex == 2),
+              _DrawerItem(
+                Icons.dashboard_outlined,
+                'Dashboard',
+                () => _navTo(0),
+                selected: _currentIndex == 0,
+              ),
+              _DrawerItem(
+                Icons.calendar_today_outlined,
+                'Agenda',
+                () => _navTo(1),
+                selected: _currentIndex == 1,
+              ),
+              _DrawerItem(
+                Icons.attach_money_outlined,
+                'Caixa',
+                () => _navTo(2),
+                selected: _currentIndex == 2,
+              ),
               if (!isBarber)
-                _DrawerItem(Icons.chat_bubble_outline_rounded, 'WhatsApp', () => _navTo(3), selected: _currentIndex == 3),
+                _DrawerItem(
+                  Icons.chat_bubble_outline_rounded,
+                  'WhatsApp',
+                  () => _navTo(3),
+                  selected: _currentIndex == 3,
+                ),
               const Divider(color: _AP.border, indent: 16, endIndent: 16),
               _DrawerSection('Gerenciar'),
               if (!isBarber) ...[
-                _DrawerItem(Icons.content_cut_outlined, 'Serviços', () => _pushScreen(const ServicesAdminScreen())),
-                _DrawerItem(Icons.person_outline, 'Barbeiros', () => _pushScreen(const BarbersAdminScreen())),
-                _DrawerItem(Icons.card_membership_outlined, 'Clientes Plano', () => _pushScreen(const PlanClientsAdminScreen())),
+                _DrawerItem(
+                  Icons.content_cut_outlined,
+                  'Serviços',
+                  () => _pushScreen(const ServicesAdminScreen()),
+                ),
+                _DrawerItem(
+                  Icons.person_outline,
+                  'Barbeiros',
+                  () => _pushScreen(const BarbersAdminScreen()),
+                ),
+                _DrawerItem(
+                  Icons.card_membership_outlined,
+                  'Clientes Plano',
+                  () => _pushScreen(const PlanClientsAdminScreen()),
+                ),
               ],
-              _DrawerItem(Icons.person_off_outlined, 'Remarcar', () => _pushScreen(const RemarcarAdminScreen())),
+              _DrawerItem(
+                Icons.person_off_outlined,
+                'Remarcar',
+                () => _pushScreen(const RemarcarAdminScreen()),
+              ),
               if (isBarber) ...[
                 const Divider(color: _AP.border, indent: 16, endIndent: 16),
                 _DrawerSection('Minha conta'),
-                _DrawerItem(Icons.lock_outline_rounded, 'Alterar senha', _showChangePasswordDialog),
+                _DrawerItem(
+                  Icons.lock_outline_rounded,
+                  'Alterar senha',
+                  _showChangePasswordDialog,
+                ),
               ],
               const Spacer(),
               const Divider(color: _AP.border),
-              _DrawerItem(
-                Icons.logout_rounded,
-                'Sair',
-                () async {
-                  Navigator.pop(context);
-                  AdminSession.clear();
-                  await Supabase.instance.client.auth.signOut();
-                  if (!mounted) return;
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (_) => false,
-                  );
-                },
-              ),
+              _DrawerItem(Icons.logout_rounded, 'Sair', () async {
+                Navigator.pop(context);
+                AdminSession.clear();
+                await Supabase.instance.client.auth.signOut();
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (_) => false,
+                );
+              }),
               const SizedBox(height: 8),
             ],
           ),
@@ -267,18 +346,22 @@ class _AdminFloatingNav extends StatelessWidget {
   final bool isBarber;
 
   static const _ownerItems = [
-    _NavItem(Icons.dashboard_outlined,           Icons.dashboard,           'Dash'),
-    _NavItem(Icons.calendar_today_outlined,      Icons.calendar_today,      'Agenda'),
-    _NavItem(Icons.attach_money_outlined,        Icons.attach_money,        'Caixa'),
-    _NavItem(Icons.chat_bubble_outline_rounded,  Icons.chat_bubble_rounded, 'WhatsApp'),
-    _NavItem(Icons.menu_rounded,                 Icons.menu_rounded,        'Menu'),
+    _NavItem(Icons.dashboard_outlined, Icons.dashboard, 'Dash'),
+    _NavItem(Icons.calendar_today_outlined, Icons.calendar_today, 'Agenda'),
+    _NavItem(Icons.attach_money_outlined, Icons.attach_money, 'Caixa'),
+    _NavItem(
+      Icons.chat_bubble_outline_rounded,
+      Icons.chat_bubble_rounded,
+      'WhatsApp',
+    ),
+    _NavItem(Icons.menu_rounded, Icons.menu_rounded, 'Menu'),
   ];
 
   static const _barberItems = [
-    _NavItem(Icons.dashboard_outlined,           Icons.dashboard,           'Dash'),
-    _NavItem(Icons.calendar_today_outlined,      Icons.calendar_today,      'Agenda'),
-    _NavItem(Icons.attach_money_outlined,        Icons.attach_money,        'Caixa'),
-    _NavItem(Icons.menu_rounded,                 Icons.menu_rounded,        'Menu'),
+    _NavItem(Icons.dashboard_outlined, Icons.dashboard, 'Dash'),
+    _NavItem(Icons.calendar_today_outlined, Icons.calendar_today, 'Agenda'),
+    _NavItem(Icons.attach_money_outlined, Icons.attach_money, 'Caixa'),
+    _NavItem(Icons.menu_rounded, Icons.menu_rounded, 'Menu'),
   ];
 
   @override
@@ -294,7 +377,11 @@ class _AdminFloatingNav extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             border: Border.all(color: _AP.border),
             boxShadow: const [
-              BoxShadow(color: Color(0x70000000), blurRadius: 24, offset: Offset(0, 8)),
+              BoxShadow(
+                color: Color(0x70000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
             ],
           ),
           child: Padding(
@@ -330,7 +417,9 @@ class _AdminFloatingNav extends StatelessWidget {
                           item.label,
                           style: TextStyle(
                             color: selected ? _AP.gold : _AP.muted,
-                            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                            fontWeight: selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
                             fontSize: 11,
                             letterSpacing: 0.3,
                           ),
@@ -394,9 +483,13 @@ class _DrawerItem extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? _AP.gold.withValues(alpha: 0.1) : Colors.transparent,
+          color: selected
+              ? _AP.gold.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: selected ? Border.all(color: _AP.gold.withValues(alpha: 0.3)) : null,
+          border: selected
+              ? Border.all(color: _AP.gold.withValues(alpha: 0.3))
+              : null,
         ),
         child: Row(
           children: [
@@ -492,19 +585,17 @@ final _adminTheme = ThemeData(
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
   ),
   dropdownMenuTheme: const DropdownMenuThemeData(
-    menuStyle: MenuStyle(
-      backgroundColor: WidgetStatePropertyAll(_AP.card),
-    ),
+    menuStyle: MenuStyle(backgroundColor: WidgetStatePropertyAll(_AP.card)),
   ),
   iconTheme: const IconThemeData(color: _AP.muted),
   textTheme: const TextTheme(
-    bodyLarge:   TextStyle(color: _AP.text),
-    bodyMedium:  TextStyle(color: _AP.text),
-    bodySmall:   TextStyle(color: _AP.muted),
-    titleLarge:  TextStyle(color: _AP.text),
+    bodyLarge: TextStyle(color: _AP.text),
+    bodyMedium: TextStyle(color: _AP.text),
+    bodySmall: TextStyle(color: _AP.muted),
+    titleLarge: TextStyle(color: _AP.text),
     titleMedium: TextStyle(color: _AP.text),
-    titleSmall:  TextStyle(color: _AP.text),
-    labelSmall:  TextStyle(color: _AP.muted),
+    titleSmall: TextStyle(color: _AP.text),
+    labelSmall: TextStyle(color: _AP.muted),
     labelMedium: TextStyle(color: _AP.muted),
   ),
 );

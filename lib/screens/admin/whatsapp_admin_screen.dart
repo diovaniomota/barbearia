@@ -13,15 +13,15 @@ class WhatsappAdminScreen extends StatefulWidget {
 }
 
 class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
-  final _urlCtr    = TextEditingController();
-  final _keyCtr    = TextEditingController();
-  final _tmplCtr   = TextEditingController();
-  final _testCtr   = TextEditingController();
+  final _urlCtr = TextEditingController();
+  final _keyCtr = TextEditingController();
+  final _tmplCtr = TextEditingController();
+  final _testCtr = TextEditingController();
 
-  bool _enabled  = false;
-  bool _loading  = true;
-  bool _saving   = false;
-  bool _testing  = false;
+  bool _enabled = false;
+  bool _loading = true;
+  bool _saving = false;
+  bool _testing = false;
 
   ServerStatus? _status;
   String? _qrBase64;
@@ -47,21 +47,21 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     final config = await WhatsappService.loadConfig();
     if (!mounted) return;
     setState(() {
-      _urlCtr.text  = config.serverUrl;
-      _keyCtr.text  = config.apiKey;
+      _urlCtr.text = config.serverUrl;
+      _keyCtr.text = config.apiKey;
       _tmplCtr.text = config.template;
-      _enabled      = config.enabled;
-      _loading      = false;
+      _enabled = config.enabled;
+      _loading = false;
     });
     if (config.isConfigured) _startPolling();
   }
 
   WhatsappConfig get _currentConfig => WhatsappConfig(
-        serverUrl: _urlCtr.text.trim(),
-        apiKey: _keyCtr.text.trim(),
-        enabled: _enabled,
-        template: _tmplCtr.text.trim(),
-      );
+    serverUrl: _urlCtr.text.trim(),
+    apiKey: _keyCtr.text.trim(),
+    enabled: _enabled,
+    template: _tmplCtr.text.trim(),
+  );
 
   // Verifica status + QR a cada 4 segundos enquanto não conectado
   void _startPolling() {
@@ -104,7 +104,9 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     if (_status?.online != true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Servidor está offline. Não é possível resetar a sessão agora.'),
+          content: Text(
+            'Servidor está offline. Não é possível resetar a sessão agora.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -135,15 +137,22 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     try {
       final result = await WhatsappService.resetSession(config);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.ok ? 'Sessão resetada! Aguarde o QR.' : 'Erro: ${result.error}'),
-        backgroundColor: result.ok ? Colors.green : Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.ok
+                ? 'Sessão resetada! Aguarde o QR.'
+                : 'Erro: ${result.error}',
+          ),
+          backgroundColor: result.ok ? Colors.green : Colors.red,
+        ),
+      );
       if (result.ok) _startPolling();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
     }
   }
 
@@ -152,14 +161,15 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     try {
       await WhatsappService.saveConfig(_currentConfig);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configuração salva!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Configuração salva!')));
       _startPolling();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -168,8 +178,9 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
   Future<void> _sendTest() async {
     final phone = _testCtr.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Digite um número.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Digite um número.')));
       return;
     }
     setState(() => _testing = true);
@@ -189,10 +200,12 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     );
     if (!mounted) return;
     setState(() => _testing = false);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(result.ok ? '✓ Enviado!' : 'Erro: ${result.error}'),
-      backgroundColor: result.ok ? Colors.green : Colors.red,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.ok ? '✓ Enviado!' : 'Erro: ${result.error}'),
+        backgroundColor: result.ok ? Colors.green : Colors.red,
+      ),
+    );
   }
 
   @override
@@ -211,7 +224,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
             const Padding(
               padding: EdgeInsets.all(14),
               child: SizedBox(
-                width: 20, height: 20,
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             )
@@ -227,9 +241,13 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // ── Status ───────────────────────────────────────
-          _StatusCard(status: _status, enabled: _enabled, onToggle: (v) {
-            setState(() => _enabled = v);
-          }),
+          _StatusCard(
+            status: _status,
+            enabled: _enabled,
+            onToggle: (v) {
+              setState(() => _enabled = v);
+            },
+          ),
           const SizedBox(height: 20),
 
           // ── QR Code ──────────────────────────────────────
@@ -239,14 +257,18 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
             const SizedBox(height: 20),
 
           // ── Servidor ─────────────────────────────────────
-          Text('Servidor WhatsApp',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Servidor WhatsApp',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(
             'Suba o servidor em Railway, Render ou qualquer VPS e cole a URL abaixo.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -288,9 +310,12 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
           const SizedBox(height: 16),
 
           // ── Template ─────────────────────────────────────
-          Text('Mensagem automática',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Mensagem automática',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 6),
           _VariableChips(controller: _tmplCtr),
           const SizedBox(height: 8),
@@ -305,9 +330,12 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
           const SizedBox(height: 24),
 
           // ── Teste ────────────────────────────────────────
-          Text('Testar envio',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Testar envio',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -334,9 +362,12 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
                 onPressed: _testing ? null : _sendTest,
                 icon: _testing
                     ? const SizedBox(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.send, size: 18),
                 label: const Text('Enviar'),
@@ -383,23 +414,23 @@ class _StatusCard extends StatelessWidget {
     if (s == null) {
       color = Colors.grey;
       label = 'Não configurado';
-      icon  = Icons.chat_bubble_outline_rounded;
+      icon = Icons.chat_bubble_outline_rounded;
     } else if (!s.online) {
       color = Colors.red;
       label = 'Servidor offline';
-      icon  = Icons.cloud_off_rounded;
+      icon = Icons.cloud_off_rounded;
     } else if (s.wrongKey) {
       color = Colors.red;
       label = 'API Key inválida — verifique a chave';
-      icon  = Icons.key_off_outlined;
+      icon = Icons.key_off_outlined;
     } else if (!s.connected) {
       color = Colors.orange;
       label = 'Online — escaneie o QR code';
-      icon  = Icons.qr_code_rounded;
+      icon = Icons.qr_code_rounded;
     } else {
       color = Colors.green;
       label = s.phone != null ? 'Conectado: +${s.phone}' : 'Conectado';
-      icon  = Icons.chat_bubble_rounded;
+      icon = Icons.chat_bubble_rounded;
     }
 
     return Card(
@@ -408,7 +439,8 @@ class _StatusCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 44, height: 44,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
@@ -420,16 +452,18 @@ class _StatusCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Mensagens automáticas',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  Text(label,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: color)),
+                  Text(
+                    'Mensagens automáticas',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: color),
+                  ),
                 ],
               ),
             ),
@@ -463,8 +497,9 @@ class _QrCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Escaneie com o WhatsApp do número da barbearia',
-                    style: Theme.of(context).textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -493,8 +528,9 @@ class _QrCard extends StatelessWidget {
             Text(
               'Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -510,10 +546,10 @@ class _VariableChips extends StatelessWidget {
   final TextEditingController controller;
 
   void _insert(String variable) {
-    final sel  = controller.selection;
+    final sel = controller.selection;
     final text = controller.text;
-    final pos  = sel.start < 0 ? text.length : sel.start;
-    final end  = sel.end < 0 ? pos : sel.end;
+    final pos = sel.start < 0 ? text.length : sel.start;
+    final end = sel.end < 0 ? pos : sel.end;
     final newText = text.replaceRange(pos, end, variable);
     controller.value = TextEditingValue(
       text: newText,
@@ -526,15 +562,22 @@ class _VariableChips extends StatelessWidget {
     return Wrap(
       spacing: 6,
       runSpacing: 4,
-      children: [
-        '{{cliente}}', '{{data}}', '{{hora}}',
-        '{{servico}}', '{{barbeiro}}', '{{valor}}',
-      ]
-          .map((v) => ActionChip(
-                label: Text(v, style: const TextStyle(fontSize: 11)),
-                onPressed: () => _insert(v),
-              ))
-          .toList(),
+      children:
+          [
+                '{{cliente}}',
+                '{{data}}',
+                '{{hora}}',
+                '{{servico}}',
+                '{{barbeiro}}',
+                '{{valor}}',
+              ]
+              .map(
+                (v) => ActionChip(
+                  label: Text(v, style: const TextStyle(fontSize: 11)),
+                  onPressed: () => _insert(v),
+                ),
+              )
+              .toList(),
     );
   }
 }

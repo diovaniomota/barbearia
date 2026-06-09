@@ -18,10 +18,9 @@ class BarberCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isSelected
-            ? Theme.of(context)
-                .colorScheme
-                .primaryContainer
-                .withValues(alpha: 0.3)
+            ? Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.3)
             : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
@@ -52,10 +51,9 @@ class BarberCard extends StatelessWidget {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -77,15 +75,14 @@ class BarberCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               barber.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold),
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -99,7 +96,9 @@ class BarberCard extends StatelessWidget {
                         children: barber.specialties.take(3).map((specialty) {
                           return Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Theme.of(context)
                                   .colorScheme
@@ -109,13 +108,11 @@ class BarberCard extends StatelessWidget {
                             ),
                             child: Text(
                               specialty,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimaryContainer,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
                                     fontWeight: FontWeight.w500,
                                   ),
                             ),
@@ -128,9 +125,7 @@ class BarberCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               barber.availableDays.join(', '),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Theme.of(context)
                                         .colorScheme

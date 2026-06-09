@@ -125,15 +125,18 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         var cur = DateTime(0, 1, 1, start.hour, start.minute);
         final endDt = DateTime(0, 1, 1, end.hour, end.minute);
         while (!cur.isAfter(endDt)) {
-          final duringBreak = breakStartDt != null &&
+          final duringBreak =
+              breakStartDt != null &&
               breakEndDt != null &&
               !cur.isBefore(breakStartDt) &&
               cur.isBefore(breakEndDt);
           if (!duringBreak) {
-            slots.add(_Slot(
-              '${cur.hour.toString().padLeft(2, '0')}:'
-              '${cur.minute.toString().padLeft(2, '0')}',
-            ));
+            slots.add(
+              _Slot(
+                '${cur.hour.toString().padLeft(2, '0')}:'
+                '${cur.minute.toString().padLeft(2, '0')}',
+              ),
+            );
           }
           cur = cur.add(const Duration(minutes: 30));
         }
@@ -220,7 +223,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           byLabel[label] = slot;
           slots.add(slot);
         }
-        if (slot.state == _SlotState.blocked) continue; // bloqueio tem prioridade
+        if (slot.state == _SlotState.blocked) {
+          continue; // bloqueio tem prioridade
+        }
         final source = (m['source'] ?? 'client').toString();
         final ph = (m['customer_phone'] ?? '').toString().trim();
         slot.name = (m['customer_name'] ?? '').toString().trim();
@@ -347,7 +352,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           .eq('id', _dayBlockId!)
           .select();
       if (deleted.isEmpty) {
-        _toast('Sem permissão para desbloquear. Verifique a política RLS da tabela barber_blocked_days.');
+        _toast(
+          'Sem permissão para desbloquear. Verifique a política RLS da tabela barber_blocked_days.',
+        );
         return;
       }
       _dayBlockId = null;
@@ -364,8 +371,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _card,
-        title: const Text('Bloquear disponibilidade',
-            style: TextStyle(color: _text)),
+        title: const Text(
+          'Bloquear disponibilidade',
+          style: TextStyle(color: _text),
+        ),
         content: const Text(
           'O barbeiro não estará disponível para agendamentos no período selecionado.',
           style: TextStyle(color: _muted),
@@ -381,7 +390,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: _red, foregroundColor: Colors.white),
+              backgroundColor: _red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, 'period'),
             child: const Text('Período'),
           ),
@@ -396,7 +407,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         context: context,
         builder: (c) => AlertDialog(
           backgroundColor: _card,
-          title: const Text('Confirmar bloqueio', style: TextStyle(color: _text)),
+          title: const Text(
+            'Confirmar bloqueio',
+            style: TextStyle(color: _text),
+          ),
           content: Text(
             'Bloquear ${DateFormat("dd/MM/yyyy", 'pt_BR').format(widget.date)}?\n\nO barbeiro não aparecerá disponível para os clientes neste dia.',
             style: const TextStyle(color: _muted),
@@ -408,7 +422,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: _red, foregroundColor: Colors.white),
+                backgroundColor: _red,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () => Navigator.pop(c, true),
               child: const Text('Bloquear'),
             ),
@@ -423,16 +439,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         context: context,
         firstDate: DateTime.now(),
         lastDate: DateTime.now().add(const Duration(days: 365)),
-        initialDateRange: DateTimeRange(
-          start: widget.date,
-          end: widget.date,
-        ),
+        initialDateRange: DateTimeRange(start: widget.date, end: widget.date),
         locale: const Locale('pt', 'BR'),
         helpText: 'Selecione o período de bloqueio',
         saveText: 'CONFIRMAR',
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(1.0)),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.0)),
           child: child!,
         ),
       );
@@ -449,10 +463,12 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     if (slots.isEmpty) return;
     final sb = Supabase.instance.client;
     final booked = slots
-        .where((s) =>
-            s.state == _SlotState.client ||
-            s.state == _SlotState.newClient ||
-            s.state == _SlotState.admin)
+        .where(
+          (s) =>
+              s.state == _SlotState.client ||
+              s.state == _SlotState.newClient ||
+              s.state == _SlotState.admin,
+        )
         .toList();
     if (booked.isEmpty) {
       _toast('Nenhum agendamento selecionado para cancelar.');
@@ -535,17 +551,17 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   }
 
   InputDecoration _dlgDeco(String label) => InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: _muted),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _gold, width: 1.5),
-        ),
-      );
+    labelText: label,
+    labelStyle: const TextStyle(color: _muted),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _gold, width: 1.5),
+    ),
+  );
 
   /// Agendamento manual feito pelo admin a partir de um slot livre.
   /// Grava como `source = 'admin'` (fica roxo) e ocupa o horário.
@@ -558,11 +574,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           .order('name');
       services = List<Map<String, dynamic>>.from(rows)
         ..sort((a, b) {
-          final c = Service.parseInt(a['sort_order'])
-              .compareTo(Service.parseInt(b['sort_order']));
+          final c = Service.parseInt(
+            a['sort_order'],
+          ).compareTo(Service.parseInt(b['sort_order']));
           return c != 0
               ? c
-              : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
+              : '${a['name']}'.toLowerCase().compareTo(
+                  '${b['name']}'.toLowerCase(),
+                );
         });
     } catch (e) {
       _toast('Erro ao carregar serviços: $e');
@@ -584,15 +603,19 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
           backgroundColor: _card,
-          title: Text('Agendar • ${startSlot.label}',
-              style: const TextStyle(color: _text)),
+          title: Text(
+            'Agendar • ${startSlot.label}',
+            style: const TextStyle(color: _text),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Serviços:',
-                    style: TextStyle(color: _muted, fontSize: 12)),
+                const Text(
+                  'Serviços:',
+                  style: TextStyle(color: _muted, fontSize: 12),
+                ),
                 ...services.map((s) {
                   final id = s['id'].toString();
                   final price = (s['price'] as num? ?? 0).toDouble();
@@ -605,11 +628,15 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                         selectedIds.remove(id);
                       }
                     }),
-                    title: Text(s['name']?.toString() ?? '',
-                        style: const TextStyle(color: _text)),
+                    title: Text(
+                      s['name']?.toString() ?? '',
+                      style: const TextStyle(color: _text),
+                    ),
                     subtitle: Text(
-                      NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$')
-                          .format(price),
+                      NumberFormat.currency(
+                        locale: 'pt_BR',
+                        symbol: 'R\$',
+                      ).format(price),
                       style: const TextStyle(color: _muted),
                     ),
                     activeColor: _gold,
@@ -635,8 +662,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                 if (err != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
-                    child: Text(err!,
-                        style: const TextStyle(color: _red, fontSize: 12)),
+                    child: Text(
+                      err!,
+                      style: const TextStyle(color: _red, fontSize: 12),
+                    ),
                   ),
               ],
             ),
@@ -648,8 +677,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFA888F5),
-                  foregroundColor: Colors.black),
+                backgroundColor: const Color(0xFFA888F5),
+                foregroundColor: Colors.black,
+              ),
               onPressed: saving
                   ? null
                   : () async {
@@ -666,7 +696,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                         err = null;
                       });
                       final chosen = services
-                          .where((s) => selectedIds.contains(s['id'].toString()))
+                          .where(
+                            (s) => selectedIds.contains(s['id'].toString()),
+                          )
                           .toList();
                       final res = await _saveManual(
                         startSlot,
@@ -688,7 +720,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.black),
+                        strokeWidth: 2,
+                        color: Colors.black,
+                      ),
                     )
                   : const Text('Agendar'),
             ),
@@ -764,10 +798,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: _card,
-          title: Text('Horário ${slot.label}',
-              style: const TextStyle(color: _text)),
-          content: const Text('Horário livre. O que deseja fazer?',
-              style: TextStyle(color: _muted)),
+          title: Text(
+            'Horário ${slot.label}',
+            style: const TextStyle(color: _text),
+          ),
+          content: const Text(
+            'Horário livre. O que deseja fazer?',
+            style: TextStyle(color: _muted),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -782,7 +820,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: _gold, foregroundColor: Colors.black),
+                backgroundColor: _gold,
+                foregroundColor: Colors.black,
+              ),
               onPressed: () {
                 Navigator.pop(ctx);
                 _openManualBooking(slot);
@@ -797,10 +837,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: _card,
-          title: Text('Horário ${slot.label}',
-              style: const TextStyle(color: _text)),
-          content: const Text('Desbloquear este horário?',
-              style: TextStyle(color: _muted)),
+          title: Text(
+            'Horário ${slot.label}',
+            style: const TextStyle(color: _text),
+          ),
+          content: const Text(
+            'Desbloquear este horário?',
+            style: TextStyle(color: _muted),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -808,7 +852,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: _gold, foregroundColor: Colors.black),
+                backgroundColor: _gold,
+                foregroundColor: Colors.black,
+              ),
               onPressed: () {
                 Navigator.pop(ctx);
                 _unblock(slot);
@@ -824,25 +870,36 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: _card,
-          title: Text(slot.name.isEmpty ? 'Agendamento' : slot.name,
-              style: const TextStyle(color: _text)),
+          title: Text(
+            slot.name.isEmpty ? 'Agendamento' : slot.name,
+            style: const TextStyle(color: _text),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Horário: ${slot.label}',
-                  style: const TextStyle(color: _muted)),
+              Text(
+                'Horário: ${slot.label}',
+                style: const TextStyle(color: _muted),
+              ),
               if (slot.service.isNotEmpty)
-                Text('Serviço: ${slot.service}',
-                    style: const TextStyle(color: _muted)),
+                Text(
+                  'Serviço: ${slot.service}',
+                  style: const TextStyle(color: _muted),
+                ),
               if (slot.phone.isNotEmpty)
-                Text('Telefone: ${slot.phone}',
-                    style: const TextStyle(color: _muted)),
+                Text(
+                  'Telefone: ${slot.phone}',
+                  style: const TextStyle(color: _muted),
+                ),
               const SizedBox(height: 6),
-              Text(_stateLabel(slot.state),
-                  style: TextStyle(
-                      color: _accent(slot.state),
-                      fontWeight: FontWeight.w700)),
+              Text(
+                _stateLabel(slot.state),
+                style: TextStyle(
+                  color: _accent(slot.state),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
           actions: [
@@ -857,8 +914,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                   context: context,
                   builder: (c) => AlertDialog(
                     backgroundColor: _card,
-                    title: const Text('Cancelar agendamento?',
-                        style: TextStyle(color: _text)),
+                    title: const Text(
+                      'Cancelar agendamento?',
+                      style: TextStyle(color: _text),
+                    ),
                     content: const Text(
                       'O agendamento será cancelado e o horário ficará livre novamente.',
                       style: TextStyle(color: _muted),
@@ -866,8 +925,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(c, false),
-                        child: const Text('Não',
-                            style: TextStyle(color: _muted)),
+                        child: const Text(
+                          'Não',
+                          style: TextStyle(color: _muted),
+                        ),
                       ),
                       FilledButton(
                         style: FilledButton.styleFrom(
@@ -884,8 +945,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                   await _cancelAndBlock([slot]);
                 }
               },
-              child: const Text('Cancelar agendamento',
-                  style: TextStyle(color: _red)),
+              child: const Text(
+                'Cancelar agendamento',
+                style: TextStyle(color: _red),
+              ),
             ),
           ],
         ),
@@ -972,16 +1035,20 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           TextButton.icon(
             onPressed: _addExtraSlot,
             icon: const Icon(Icons.more_time_rounded, color: _gold, size: 16),
-            label: const Text('Adicionar horário',
-                style: TextStyle(color: _gold, fontSize: 12)),
+            label: const Text(
+              'Adicionar horário',
+              style: TextStyle(color: _gold, fontSize: 12),
+            ),
             style: compact,
           ),
           if (_dayBlockId == null)
             TextButton.icon(
               onPressed: _openBlockDayDialog,
               icon: const Icon(Icons.block, color: _red, size: 14),
-              label: const Text('Bloquear dia',
-                  style: TextStyle(color: _red, fontSize: 12)),
+              label: const Text(
+                'Bloquear dia',
+                style: TextStyle(color: _red, fontSize: 12),
+              ),
               style: compact,
             ),
           TextButton.icon(
@@ -990,8 +1057,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
               _selectedLabels.clear();
             }),
             icon: const Icon(Icons.checklist_rounded, color: _muted, size: 16),
-            label: const Text('Selecionar',
-                style: TextStyle(color: _muted, fontSize: 12)),
+            label: const Text(
+              'Selecionar',
+              style: TextStyle(color: _muted, fontSize: 12),
+            ),
             style: compact,
           ),
         ],
@@ -1042,23 +1111,29 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             GestureDetector(
               onTap: () async {
                 final slots = _selectedLabels
-                    .map((l) => _slots.firstWhere(
-                          (s) => s.label == l,
-                          orElse: () => _Slot(l),
-                        ))
+                    .map(
+                      (l) => _slots.firstWhere(
+                        (s) => s.label == l,
+                        orElse: () => _Slot(l),
+                      ),
+                    )
                     .toList();
                 final booked = slots
-                    .where((s) =>
-                        s.state == _SlotState.client ||
-                        s.state == _SlotState.newClient ||
-                        s.state == _SlotState.admin)
+                    .where(
+                      (s) =>
+                          s.state == _SlotState.client ||
+                          s.state == _SlotState.newClient ||
+                          s.state == _SlotState.admin,
+                    )
                     .length;
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (c) => AlertDialog(
                     backgroundColor: _card,
-                    title: const Text('Cancelar horários selecionados?',
-                        style: TextStyle(color: _text)),
+                    title: const Text(
+                      'Cancelar horários selecionados?',
+                      style: TextStyle(color: _text),
+                    ),
                     content: Text(
                       '$booked agendamento(s) serão cancelados. Os horários ficam livres para novos agendamentos.',
                       style: const TextStyle(color: _muted),
@@ -1066,8 +1141,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(c, false),
-                        child:
-                            const Text('Não', style: TextStyle(color: _muted)),
+                        child: const Text(
+                          'Não',
+                          style: TextStyle(color: _muted),
+                        ),
                       ),
                       FilledButton(
                         style: FilledButton.styleFrom(
@@ -1085,8 +1162,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                 }
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: _red,
                   borderRadius: BorderRadius.circular(8),
@@ -1108,8 +1187,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
               _selectMode = false;
               _selectedLabels.clear();
             }),
-            child: const Text('Sair',
-                style: TextStyle(color: _muted, fontSize: 12)),
+            child: const Text(
+              'Sair',
+              style: TextStyle(color: _muted, fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -1133,10 +1214,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       return _box('Erro: $_error');
     }
 
-    final barberName = widget.barbers.firstWhere(
-      (b) => b['id']?.toString() == widget.barberId,
-      orElse: () => const {'name': ''},
-    )['name']?.toString() ?? '';
+    final barberName =
+        widget.barbers
+            .firstWhere(
+              (b) => b['id']?.toString() == widget.barberId,
+              orElse: () => const {'name': ''},
+            )['name']
+            ?.toString() ??
+        '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1170,8 +1255,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                       context: context,
                       builder: (c) => AlertDialog(
                         backgroundColor: _card,
-                        title: const Text('Remover bloqueio?',
-                            style: TextStyle(color: _text)),
+                        title: const Text(
+                          'Remover bloqueio?',
+                          style: TextStyle(color: _text),
+                        ),
                         content: const Text(
                           'O barbeiro voltará a aparecer disponível para os clientes neste dia.',
                           style: TextStyle(color: _muted),
@@ -1179,13 +1266,16 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(c, false),
-                            child: const Text('Não',
-                                style: TextStyle(color: _muted)),
+                            child: const Text(
+                              'Não',
+                              style: TextStyle(color: _muted),
+                            ),
                           ),
                           FilledButton(
                             style: FilledButton.styleFrom(
-                                backgroundColor: _gold,
-                                foregroundColor: Colors.black),
+                              backgroundColor: _gold,
+                              foregroundColor: Colors.black,
+                            ),
                             onPressed: () => Navigator.pop(c, true),
                             child: const Text('Remover'),
                           ),
@@ -1214,12 +1304,17 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             child: Text(
               '$barberName • ${DateFormat("EEEE, dd/MM", 'pt_BR').format(widget.date)}',
               style: const TextStyle(
-                  color: _gold, fontWeight: FontWeight.w700, fontSize: 13),
+                color: _gold,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
           ),
         if (_slots.isEmpty)
-          _box('Sem expediente para este dia. Use "Adicionar horário" '
-              'para encaixar um atendimento.')
+          _box(
+            'Sem expediente para este dia. Use "Adicionar horário" '
+            'para encaixar um atendimento.',
+          )
         else
           ..._slots.map(_slotRow),
       ],
@@ -1228,7 +1323,8 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   Widget _slotRow(_Slot slot) {
     final fg = _fgFor(slot.state);
-    final booked = slot.state == _SlotState.client ||
+    final booked =
+        slot.state == _SlotState.client ||
         slot.state == _SlotState.newClient ||
         slot.state == _SlotState.admin;
     final isSelected = _selectMode && _selectedLabels.contains(slot.label);
@@ -1246,9 +1342,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             decoration: BoxDecoration(
               color: _bgFor(slot.state),
               borderRadius: BorderRadius.circular(10),
-              border: isSelected
-                  ? Border.all(color: _red, width: 2.5)
-                  : null,
+              border: isSelected ? Border.all(color: _red, width: 2.5) : null,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Row(
@@ -1337,20 +1431,20 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   Widget _legend() {
     Widget item(Color c, String t) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: c,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(t, style: const TextStyle(color: _muted, fontSize: 11)),
-          ],
-        );
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: c,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(t, style: const TextStyle(color: _muted, fontSize: 11)),
+      ],
+    );
     return Wrap(
       spacing: 12,
       runSpacing: 6,
@@ -1365,13 +1459,13 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   }
 
   Widget _box(String msg) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _border),
-        ),
-        child: Text(msg, style: const TextStyle(color: _muted)),
-      );
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _card,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: _border),
+    ),
+    child: Text(msg, style: const TextStyle(color: _muted)),
+  );
 }

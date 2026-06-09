@@ -7,10 +7,7 @@ import 'package:barbearia/screens/admin/admin_navigation.dart';
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const RoleChoiceScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const RoleChoiceScreen()),
     GoRoute(
       path: '/agendamentocliente',
       builder: (context, state) => const MainNavigation(
@@ -19,10 +16,7 @@ final appRouter = GoRouter(
         showProfile: false,
       ),
     ),
-    GoRoute(
-      path: '/admin',
-      builder: (context, state) => const LoginScreen(),
-    ),
+    GoRoute(path: '/admin', builder: (context, state) => const LoginScreen()),
     GoRoute(
       path: '/admin/dashboard',
       builder: (context, state) => const AdminNavigation(),

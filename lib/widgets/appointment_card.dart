@@ -13,9 +13,7 @@ class AppointmentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _getStatusColor(context).withOpacity(0.3),
-        ),
+        border: Border.all(color: _getStatusColor(context).withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -42,7 +40,7 @@ class AppointmentCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(context).withOpacity(0.2),
+                    color: _getStatusColor(context).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -73,7 +71,7 @@ class AppointmentCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Theme.of(
                             context,
-                          ).colorScheme.primaryContainer.withOpacity(0.3),
+                          ).colorScheme.primaryContainer.withValues(alpha:0.3),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -118,7 +116,7 @@ class AppointmentCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Theme.of(
                   context,
-                ).colorScheme.primaryContainer.withOpacity(0.2),
+                ).colorScheme.primaryContainer.withValues(alpha:0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -161,7 +159,7 @@ class AppointmentCard extends StatelessWidget {
                   border: Border.all(
                     color: Theme.of(
                       context,
-                    ).colorScheme.outline.withOpacity(0.2),
+                    ).colorScheme.outline.withValues(alpha:0.2),
                   ),
                 ),
                 child: Column(

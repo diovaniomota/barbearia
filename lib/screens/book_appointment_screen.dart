@@ -306,13 +306,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         final beRaw = row['break_end']?.toString();
         if (bsRaw != null && bsRaw.isNotEmpty && bsRaw != 'null') {
           final p = bsRaw.split(':');
-          breakStartDt = DateTime(selDate.year, selDate.month, selDate.day,
-              int.tryParse(p[0]) ?? 12, int.tryParse(p[1]) ?? 0);
+          breakStartDt = DateTime(
+            selDate.year,
+            selDate.month,
+            selDate.day,
+            int.tryParse(p[0]) ?? 12,
+            int.tryParse(p[1]) ?? 0,
+          );
         }
         if (beRaw != null && beRaw.isNotEmpty && beRaw != 'null') {
           final p = beRaw.split(':');
-          breakEndDt = DateTime(selDate.year, selDate.month, selDate.day,
-              int.tryParse(p[0]) ?? 14, int.tryParse(p[1]) ?? 0);
+          breakEndDt = DateTime(
+            selDate.year,
+            selDate.month,
+            selDate.day,
+            int.tryParse(p[0]) ?? 14,
+            int.tryParse(p[1]) ?? 0,
+          );
         }
       }
       final slots = <TimeOfDay>[];
@@ -332,7 +342,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           end.minute,
         );
         while (cur.isBefore(endDt) || cur.isAtSameMomentAs(endDt)) {
-          final duringBreak = breakStartDt != null &&
+          final duringBreak =
+              breakStartDt != null &&
               breakEndDt != null &&
               !cur.isBefore(breakStartDt) &&
               cur.isBefore(breakEndDt);
@@ -344,13 +355,19 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
         // Remove horários já passados quando o dia selecionado é hoje
         final now = DateTime.now();
-        final isToday = selDate.year == now.year &&
+        final isToday =
+            selDate.year == now.year &&
             selDate.month == now.month &&
             selDate.day == now.day;
         if (isToday) {
           slots.removeWhere((t) {
             final slotDt = DateTime(
-                selDate.year, selDate.month, selDate.day, t.hour, t.minute);
+              selDate.year,
+              selDate.month,
+              selDate.day,
+              t.hour,
+              t.minute,
+            );
             return slotDt.isBefore(now);
           });
         }
@@ -467,10 +484,14 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       final totalBlocks = _totalBlocks();
       final appointmentDate = _dateOnlyForDb(dt);
       final slotTimes = List.generate(
-          totalBlocks, (i) => dt.add(Duration(minutes: 30 * i)));
+        totalBlocks,
+        (i) => dt.add(Duration(minutes: 30 * i)),
+      );
       final wantedHHmm = slotTimes
-          .map((d) =>
-              '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}')
+          .map(
+            (d) =>
+                '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}',
+          )
           .toList();
 
       final existing = await Supabase.instance.client
@@ -487,6 +508,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       }
       final hasConflict = wantedHHmm.any(occupied.contains);
       if (hasConflict) {
+        if (!mounted) return;
         await showDialog(
           context: context,
           builder: (ctx) {
@@ -504,7 +526,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               ),
               content: Text(
                 totalBlocks > 1
-                    ? 'Um dos ${totalBlocks} horários necessários já está ocupado. Escolha outro horário.'
+                    ? 'Um dos $totalBlocks horários necessários já está ocupado. Escolha outro horário.'
                     : 'Este barbeiro já possui agendamento neste horário.',
               ),
               actions: [
@@ -551,6 +573,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       dynamic response;
       response = await insertQuery.select();
       await _saveClientData();
+      if (!mounted) return;
       await showDialog(
         context: context,
         builder: (ctx) {
@@ -606,6 +629,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
       if (mounted) Navigator.pop(context, response);
     } on PostgrestException catch (e) {
+      if (!mounted) return;
       await showDialog(
         context: context,
         builder: (ctx) {
@@ -632,6 +656,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         },
       );
     } catch (e) {
+      if (!mounted) return;
       await showDialog(
         context: context,
         builder: (ctx) {
@@ -732,14 +757,16 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             outline: _BP.border,
           ),
           checkboxTheme: CheckboxThemeData(
-            fillColor: WidgetStateProperty.resolveWith((s) =>
-                s.contains(WidgetState.selected)
-                    ? _BP.gold
-                    : Colors.transparent),
+            fillColor: WidgetStateProperty.resolveWith(
+              (s) => s.contains(WidgetState.selected)
+                  ? _BP.gold
+                  : Colors.transparent,
+            ),
             checkColor: WidgetStateProperty.all(_BP.bg),
             side: const BorderSide(color: _BP.border, width: 1.5),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ),
         child: Stepper(
@@ -770,7 +797,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               if (_selectedServices.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Selecione ao menos um serviço.')),
+                    content: Text('Selecione ao menos um serviço.'),
+                  ),
                 );
                 return;
               }
@@ -793,7 +821,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               if (_selectedBarberId == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Selecione um barbeiro disponível.')),
+                    content: Text('Selecione um barbeiro disponível.'),
+                  ),
                 );
                 return;
               }
@@ -831,15 +860,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     ),
                     child: Text(
                       isLast ? 'Confirmar' : 'Continuar',
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w700),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                   const SizedBox(width: 12),
                   TextButton(
                     onPressed: details.onStepCancel,
-                    style:
-                        TextButton.styleFrom(foregroundColor: _BP.muted),
+                    style: TextButton.styleFrom(foregroundColor: _BP.muted),
                     child: const Text('Voltar'),
                   ),
                 ],
@@ -855,8 +882,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _MultiSelectServicesFromSupabase(
-                    initialSelectedIds:
-                        _selectedServices.map((s) => s.id).toSet(),
+                    initialSelectedIds: _selectedServices
+                        .map((s) => s.id)
+                        .toSet(),
                     onChange: (list) =>
                         setState(() => _selectedServices = list),
                   ),
@@ -882,13 +910,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       GestureDetector(
                         onTap: _datePageOffset == 0
                             ? null
-                            : () =>
-                                setState(() => _datePageOffset--),
+                            : () => setState(() => _datePageOffset--),
                         child: Icon(
                           Icons.chevron_left_rounded,
-                          color: _datePageOffset == 0
-                              ? _BP.border
-                              : _BP.gold,
+                          color: _datePageOffset == 0 ? _BP.border : _BP.gold,
                           size: 28,
                         ),
                       ),
@@ -900,21 +925,17 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           alignment: WrapAlignment.center,
                           children: List.generate(7, (i) {
                             final day = DateTime.now().add(
-                              Duration(
-                                  days: _datePageOffset * 7 + i),
+                              Duration(days: _datePageOffset * 7 + i),
                             );
-                            final d = DateTime(
-                                day.year, day.month, day.day);
+                            final d = DateTime(day.year, day.month, day.day);
                             final selected = _selectedDate == d;
-                            final raw =
-                                DateFormat('E', 'pt_BR')
-                                    .format(d)
-                                    .replaceFirst(
-                                        RegExp(r'\.$'), '');
+                            final raw = DateFormat(
+                              'E',
+                              'pt_BR',
+                            ).format(d).replaceFirst(RegExp(r'\.$'), '');
                             final dayName = raw.isEmpty
                                 ? ''
-                                : raw[0].toUpperCase() +
-                                    raw.substring(1);
+                                : raw[0].toUpperCase() + raw.substring(1);
                             return GestureDetector(
                               onTap: () => setState(() {
                                 _selectedDate = d;
@@ -927,23 +948,19 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                                 _takenSlots = const {};
                               }),
                               child: AnimatedContainer(
-                                duration:
-                                    const Duration(milliseconds: 150),
+                                duration: const Duration(milliseconds: 150),
                                 width: 64,
-                                padding:
-                                    const EdgeInsets.symmetric(
-                                        vertical: 10, horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: selected
-                                      ? _BP.gold
-                                          .withValues(alpha: 0.15)
+                                      ? _BP.gold.withValues(alpha: 0.15)
                                       : Colors.transparent,
-                                  borderRadius:
-                                      BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: selected
-                                        ? _BP.gold
-                                        : _BP.border,
+                                    color: selected ? _BP.gold : _BP.border,
                                     width: selected ? 1.5 : 1,
                                   ),
                                 ),
@@ -956,9 +973,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
-                                        color: selected
-                                            ? _BP.gold
-                                            : _BP.muted,
+                                        color: selected ? _BP.gold : _BP.muted,
                                       ),
                                     ),
                                     const SizedBox(height: 3),
@@ -967,9 +982,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: selected
-                                            ? _BP.gold
-                                            : _BP.muted,
+                                        color: selected ? _BP.gold : _BP.muted,
                                       ),
                                     ),
                                   ],
@@ -983,13 +996,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       GestureDetector(
                         onTap: _datePageOffset >= 7
                             ? null
-                            : () =>
-                                setState(() => _datePageOffset++),
+                            : () => setState(() => _datePageOffset++),
                         child: Icon(
                           Icons.chevron_right_rounded,
-                          color: _datePageOffset >= 7
-                              ? _BP.border
-                              : _BP.gold,
+                          color: _datePageOffset >= 7 ? _BP.border : _BP.gold,
                           size: 28,
                         ),
                       ),
@@ -999,12 +1009,17 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(Icons.check_circle,
-                            color: _BP.gold, size: 16),
+                        const Icon(
+                          Icons.check_circle,
+                          color: _BP.gold,
+                          size: 16,
+                        ),
                         const SizedBox(width: 6),
                         Text(
-                          DateFormat("EEEE, dd/MM/yyyy", 'pt_BR')
-                              .format(_selectedDate!),
+                          DateFormat(
+                            "EEEE, dd/MM/yyyy",
+                            'pt_BR',
+                          ).format(_selectedDate!),
                           style: const TextStyle(
                             color: _BP.gold,
                             fontWeight: FontWeight.w600,
@@ -1036,9 +1051,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_barbersError!,
-                              style:
-                                  const TextStyle(color: _BP.muted)),
+                          Text(
+                            _barbersError!,
+                            style: const TextStyle(color: _BP.muted),
+                          ),
                           const SizedBox(height: 8),
                           ElevatedButton.icon(
                             onPressed: _loadBarbers,
@@ -1051,8 +1067,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   else if (_barbers.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(12),
-                      child: Text('Nenhum barbeiro encontrado.',
-                          style: TextStyle(color: _BP.muted)),
+                      child: Text(
+                        'Nenhum barbeiro encontrado.',
+                        style: TextStyle(color: _BP.muted),
+                      ),
                     )
                   else ...[
                     if (_loadingAvailability)
@@ -1064,32 +1082,33 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: _BP.gold),
+                                strokeWidth: 2,
+                                color: _BP.gold,
+                              ),
                             ),
                             SizedBox(width: 8),
-                            Text('Verificando disponibilidade...',
-                                style: TextStyle(
-                                    color: _BP.muted, fontSize: 12)),
+                            Text(
+                              'Verificando disponibilidade...',
+                              style: TextStyle(color: _BP.muted, fontSize: 12),
+                            ),
                           ],
                         ),
                       ),
-                    ..._barbers.map(
-                      (b) {
-                        // null = não cadastrado em barber_availability → disponível
-                        final availInDb = _barberDayAvailable[b.id];
-                        final unavailable = availInDb == false;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _barberTile(
-                            id: b.id,
-                            name: b.name,
-                            avatarUrl: b.avatarUrl,
-                            rating: b.rating,
-                            unavailable: unavailable,
-                          ),
-                        );
-                      },
-                    ),
+                    ..._barbers.map((b) {
+                      // null = não cadastrado em barber_availability → disponível
+                      final availInDb = _barberDayAvailable[b.id];
+                      final unavailable = availInDb == false;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _barberTile(
+                          id: b.id,
+                          name: b.name,
+                          avatarUrl: b.avatarUrl,
+                          rating: b.rating,
+                          unavailable: unavailable,
+                        ),
+                      );
+                    }),
                   ],
                 ],
               ),
@@ -1104,8 +1123,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 children: [
                   if (_selectedDate != null)
                     Text(
-                      DateFormat("EEEE, dd/MM", 'pt_BR')
-                          .format(_selectedDate!),
+                      DateFormat("EEEE, dd/MM", 'pt_BR').format(_selectedDate!),
                       style: const TextStyle(
                         color: _BP.gold,
                         fontWeight: FontWeight.w700,
@@ -1116,14 +1134,19 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   if (_totalBlocks() > 1) ...[
                     Row(
                       children: [
-                        const Icon(Icons.info_outline,
-                            size: 13, color: _BP.gold),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 13,
+                          color: _BP.gold,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             'Este agendamento ocupa ${_totalBlocks()} horários seguidos (${_totalBlocks() * 30} min).',
                             style: const TextStyle(
-                                color: _BP.muted, fontSize: 11),
+                              color: _BP.muted,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                       ],
@@ -1138,26 +1161,26 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         color: _BP.card,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: _BP.gold.withValues(alpha: 0.4)),
+                          color: _BP.gold.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: const Column(
                         children: [
-                          Icon(Icons.event_busy,
-                              color: _BP.gold, size: 28),
+                          Icon(Icons.event_busy, color: _BP.gold, size: 28),
                           SizedBox(height: 8),
                           Text(
                             'Sem horários disponíveis nesta data!',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                                color: _BP.gold,
-                                fontWeight: FontWeight.w700),
+                              color: _BP.gold,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           SizedBox(height: 4),
                           Text(
                             'Volte e escolha outro barbeiro ou data.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: _BP.muted, fontSize: 13),
+                            style: TextStyle(color: _BP.muted, fontSize: 13),
                           ),
                         ],
                       ),
@@ -1166,10 +1189,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _availableSlots
-                          .asMap()
-                          .entries
-                          .map((entry) {
+                      children: _availableSlots.asMap().entries.map((entry) {
                         final i = entry.key;
                         final t = entry.value;
                         final label =
@@ -1182,8 +1202,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           selected: selected,
                           selectedColor: _BP.gold,
                           backgroundColor: _BP.card,
-                          disabledColor:
-                              _BP.card.withValues(alpha: 0.4),
+                          disabledColor: _BP.card.withValues(alpha: 0.4),
                           side: BorderSide(
                             color: selected ? _BP.gold : _BP.border,
                           ),
@@ -1191,8 +1210,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                             color: selected
                                 ? _BP.bg
                                 : disabled
-                                    ? _BP.muted
-                                    : _BP.text,
+                                ? _BP.muted
+                                : _BP.text,
                             fontWeight: selected
                                 ? FontWeight.w700
                                 : FontWeight.normal,
@@ -1228,8 +1247,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                   TextField(
                     controller: _nameController,
                     style: const TextStyle(color: _BP.text),
-                    decoration:
-                        _inputDeco('Nome completo', Icons.person_outline),
+                    decoration: _inputDeco(
+                      'Nome completo',
+                      Icons.person_outline,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -1238,9 +1259,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     style: const TextStyle(color: _BP.text),
                     inputFormatters: [_phoneMask],
                     onChanged: _checkPlanClient,
-                    decoration:
-                        _inputDeco('Telefone', Icons.phone_outlined)
-                            .copyWith(hintText: '(00) 00000-0000'),
+                    decoration: _inputDeco(
+                      'Telefone',
+                      Icons.phone_outlined,
+                    ).copyWith(hintText: '(00) 00000-0000'),
                   ),
                   if (_checkingPlan)
                     const Padding(
@@ -1250,13 +1272,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                           SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                           SizedBox(width: 8),
-                          Text('Verificando plano...',
-                              style: TextStyle(
-                                  color: _BP.muted, fontSize: 12)),
+                          Text(
+                            'Verificando plano...',
+                            style: TextStyle(color: _BP.muted, fontSize: 12),
+                          ),
                         ],
                       ),
                     )
@@ -1264,18 +1286,22 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                     Container(
                       margin: const EdgeInsets.only(top: 8),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: Colors.green.shade400),
+                        border: Border.all(color: Colors.green.shade400),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.card_membership,
-                              color: Colors.green.shade400, size: 16),
+                          Icon(
+                            Icons.card_membership,
+                            color: Colors.green.shade400,
+                            size: 16,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Cliente Mensalista',
@@ -1305,17 +1331,17 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     final barber = _barbers.firstWhere(
       (b) => b.id == _selectedBarberId,
-      orElse: () =>
-          BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
+      orElse: () => BarberLite(id: '', name: '—', avatarUrl: '', rating: 0),
     );
 
     final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
     final timeStr = DateFormat('HH:mm').format(dt);
     final services = _selectedServices.map((s) => s.name).join(', ');
     final totalPrice = _selectedServices.fold<double>(
-        0, (sum, s) => sum + s.price);
-    final valor =
-        'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
+      0,
+      (sum, s) => sum + s.price,
+    );
+    final valor = 'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
 
     WhatsappService.loadConfig().then((config) {
       if (!config.enabled || !config.isConfigured) return;
@@ -1332,12 +1358,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       if (barberContactPhone.isNotEmpty) {
         msg += '\n📞 Contato do barbeiro: $barberContactPhone';
       }
-      WhatsappService.sendMessage(
-          phone: phone, message: msg, config: config);
+      WhatsappService.sendMessage(phone: phone, message: msg, config: config);
 
       final barberPhone = barber.phone.trim();
       if (barberPhone.isNotEmpty) {
-        final msgBarbeiro = '📅 *Novo agendamento!*\n\n'
+        final msgBarbeiro =
+            '📅 *Novo agendamento!*\n\n'
             '👤 Cliente: $cliente\n'
             '📞 Telefone: $phone\n'
             '✂️ Serviço: $services\n'
@@ -1373,9 +1399,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: selected
-                ? _BP.gold.withValues(alpha: 0.08)
-                : _BP.card,
+            color: selected ? _BP.gold.withValues(alpha: 0.08) : _BP.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: selected ? _BP.gold : _BP.border,
@@ -1422,11 +1446,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 ),
               ),
               if (selected && !unavailable)
-                const Icon(Icons.check_circle_rounded,
-                    color: _BP.gold, size: 20),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: _BP.gold,
+                  size: 20,
+                ),
               if (unavailable)
-                const Icon(Icons.block,
-                    color: Color(0xFFF06666), size: 18),
+                const Icon(Icons.block, color: Color(0xFFF06666), size: 18),
             ],
           ),
         ),
@@ -1517,7 +1543,9 @@ class _MultiSelectServicesFromSupabaseState
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: checked
                         ? _BP.gold.withValues(alpha: 0.08)

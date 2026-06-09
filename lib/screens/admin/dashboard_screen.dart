@@ -14,9 +14,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
   String? _error;
-  int _barbers = 0;
-  int _services = 0;
-  int _appointments = 0;
   List<_Slice> _slices = const [];
   List<_BarberRank> _barberMonth = const [];
   DateTime? _dashboardMonth;
@@ -31,88 +28,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '${value.year.toString().padLeft(4, '0')}-'
         '${value.month.toString().padLeft(2, '0')}-'
         '${value.day.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _loadStats() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final supabase = Supabase.instance.client;
-      final barbersRows = await supabase.from('barbers').select('id');
-      final servicesRows = await supabase.from('services').select('id');
-      final appointmentsRows = await supabase.from('appointments').select('id');
-
-      final b = (barbersRows as List).length;
-      final s = (servicesRows as List).length;
-      final a = (appointmentsRows as List).length;
-
-      final slices = <_Slice>[
-        _Slice(
-          value: b.toDouble(),
-          color: const Color(0xFF1E88E5),
-          label: 'Barbeiros',
-        ),
-        _Slice(
-          value: s.toDouble(),
-          color: const Color(0xFFFFC107),
-          label: 'Serviços',
-        ),
-        _Slice(
-          value: a.toDouble(),
-          color: const Color(0xFFD81B60),
-          label: 'Agendamentos',
-        ),
-      ];
-
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, 1);
-      final end = DateTime(now.year, now.month + 1, 1);
-      final monthRows = await supabase
-          .from('appointments')
-          .select('barber_id, barbers:barber_id(name)')
-          .gte('appointment_date', _dateOnly(start))
-          .lt('appointment_date', _dateOnly(end));
-      final list = List<Map<String, dynamic>>.from(monthRows);
-      final map = <String, _BarberRank>{};
-      for (final r in list) {
-        final id = (r['barber_id'] ?? '').toString();
-        final name = (r['barbers'] is Map)
-            ? ((r['barbers']['name'] ?? '').toString())
-            : '';
-        final current = map[id];
-        if (current == null) {
-          map[id] = _BarberRank(
-            id: id,
-            name: name.isEmpty ? 'Sem nome' : name,
-            count: 1,
-          );
-        } else {
-          map[id] = _BarberRank(
-            id: id,
-            name: current.name,
-            count: current.count + 1,
-          );
-        }
-      }
-      final ranks = map.values.toList()
-        ..sort((a, b) => b.count.compareTo(a.count));
-
-      setState(() {
-        _barbers = b;
-        _services = s;
-        _appointments = a;
-        _slices = slices;
-        _barberMonth = ranks;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
   }
 
   Future<void> _loadMonthDistribution() async {
@@ -256,7 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline.withOpacity(0.2),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
                     child: Column(
@@ -324,7 +239,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ? 0
                                 : ((s.value / total) * 100).round();
                             return Chip(
-                              backgroundColor: theme.colorScheme.surfaceVariant,
+                              backgroundColor: theme.colorScheme.surfaceContainerHighest,
                               label: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -424,7 +339,7 @@ extension on _DashboardScreenState {
                     Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceVariant,
+                        color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
@@ -490,7 +405,7 @@ class _PiePainter extends CustomPainter {
     }
 
     final holePaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = Colors.white.withValues(alpha: 0.08)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius * 0.55, holePaint);
   }
@@ -501,62 +416,3 @@ class _PiePainter extends CustomPainter {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: theme.colorScheme.primary),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

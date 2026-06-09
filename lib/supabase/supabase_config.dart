@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
@@ -9,10 +10,7 @@ class SupabaseConfig {
     required String url,
     required String anonKey,
   }) async {
-    await Supabase.initialize(
-      url: url,
-      anonKey: anonKey,
-    );
+    await Supabase.initialize(url: url, anonKey: anonKey);
   }
 
   static SupabaseClient get client => Supabase.instance.client;
@@ -22,9 +20,9 @@ class SupabaseConfig {
     try {
       // This would typically run your SQL migrations
       // For now, this is a placeholder that indicates migrations are ready
-      print('Migrations applied successfully');
+      debugPrint('Migrations applied successfully');
     } catch (e) {
-      print('Migration error: $e');
+      debugPrint('Migration error: $e');
       rethrow;
     }
   }

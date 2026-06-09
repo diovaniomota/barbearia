@@ -48,8 +48,7 @@ class Appointment {
 
     final List<dynamic> rows = await supabase
         .from('appointments')
-        .select(
-          '''
+        .select('''
           id,
           client_name,
           client_phone,
@@ -58,8 +57,7 @@ class Appointment {
           notes,
           barber:barbers(*),
           service:services(*)
-          ''',
-        )
+          ''')
         .eq('user_id', user.id) // troque para customer_id se for o seu schema
         .order('date_time', ascending: true);
 
@@ -78,8 +76,9 @@ class Appointment {
       clientName: (map['client_name'] ?? '').toString(),
       clientPhone: (map['client_phone'] ?? '').toString(),
       barber: barberMap != null ? Barber.fromMap(barberMap) : _fallbackBarber(),
-      service:
-          serviceMap != null ? Service.fromMap(serviceMap) : _fallbackService(),
+      service: serviceMap != null
+          ? Service.fromMap(serviceMap)
+          : _fallbackService(),
       dateTime: DateTime.parse(map['date_time'].toString()),
       status: _parseStatus((map['status'] ?? 'pending').toString()),
       notes: map['notes'] as String?,
@@ -104,21 +103,21 @@ class Appointment {
 
   // ---------- FALLBACKS compatíveis com seu construtor ----------
   static Barber _fallbackBarber() => Barber(
-        id: 'unknown',
-        name: 'Barbeiro',
-        imageUrl: '',
-        specialties: const [],
-        availableDays: const [],
-        workingHours: '',
-        rating: 0,
-      );
+    id: 'unknown',
+    name: 'Barbeiro',
+    imageUrl: '',
+    specialties: const [],
+    availableDays: const [],
+    workingHours: '',
+    rating: 0,
+  );
 
   static Service _fallbackService() => Service(
-        id: 'unknown',
-        name: 'Serviço',
-        description: '',
-        price: 0,
-        durationMinutes: 0,
-        imageUrl: '',
-      );
+    id: 'unknown',
+    name: 'Serviço',
+    description: '',
+    price: 0,
+    durationMinutes: 0,
+    imageUrl: '',
+  );
 }

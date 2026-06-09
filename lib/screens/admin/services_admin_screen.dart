@@ -53,8 +53,9 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
 
   /// Ordena por sort_order e, em empate, pelo nome.
   int _byOrder(Map<String, dynamic> a, Map<String, dynamic> b) {
-    final c = Service.parseInt(a['sort_order'])
-        .compareTo(Service.parseInt(b['sort_order']));
+    final c = Service.parseInt(
+      a['sort_order'],
+    ).compareTo(Service.parseInt(b['sort_order']));
     return c != 0
         ? c
         : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
@@ -77,7 +78,8 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
         for (var i = 0; i < _services.length; i++)
           sb
               .from('services')
-              .update({'sort_order': i}).eq('id', _services[i]['id'].toString()),
+              .update({'sort_order': i})
+              .eq('id', _services[i]['id'].toString()),
       ]);
       for (var i = 0; i < _services.length; i++) {
         _services[i]['sort_order'] = i;
@@ -87,8 +89,7 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
       final hint = e.toString().toLowerCase().contains('sort_order')
           ? 'Rode a migration services_sort_order_migration.sql no Supabase para criar a coluna sort_order.'
           : 'Erro ao salvar a ordem: $e';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(hint)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(hint)));
       await _load(); // reverte para a ordem do banco
     }
   }
@@ -192,7 +193,11 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                   padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
                   child: Row(
                     children: [
-                      Icon(Icons.drag_indicator, size: 16, color: Colors.white38),
+                      Icon(
+                        Icons.drag_indicator,
+                        size: 16,
+                        color: Colors.white38,
+                      ),
                       SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -210,7 +215,7 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                       buildDefaultDragHandles: false,
                       padding: const EdgeInsets.all(16),
                       itemCount: _services.length,
-                      onReorder: _onReorder,
+                      onReorderItem: _onReorder,
                       itemBuilder: (context, i) {
                         final s = _services[i];
                         final active = (s['is_active'] ?? true) == true;
@@ -229,9 +234,13 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                   ReorderableDragStartListener(
                                     index: i,
                                     child: const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 2),
-                                      child: Icon(Icons.drag_indicator,
-                                          color: Colors.white38),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                      ),
+                                      child: Icon(
+                                        Icons.drag_indicator,
+                                        color: Colors.white38,
+                                      ),
                                     ),
                                   ),
                                   _Thumb(url: imageUrl),
@@ -247,7 +256,8 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                              fontWeight: FontWeight.w700),
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
@@ -258,7 +268,11 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          _blocksLabel(Service.parseInt(s['duration_blocks'] ?? 1)),
+                                          _blocksLabel(
+                                            Service.parseInt(
+                                              s['duration_blocks'] ?? 1,
+                                            ),
+                                          ),
                                           style: const TextStyle(
                                             fontSize: 11,
                                             color: Colors.white54,
@@ -809,8 +823,10 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Duração',
                   border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 child: Row(
                   children: [

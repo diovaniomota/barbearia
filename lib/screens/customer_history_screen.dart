@@ -121,19 +121,19 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     final bookings = <Map<String, dynamic>>[];
 
     for (final row in sorted) {
-      final phone    = row['customer_phone']?.toString() ?? '';
+      final phone = row['customer_phone']?.toString() ?? '';
       final barberId = row['barber_id']?.toString() ?? '';
-      final date     = row['appointment_date']?.toString() ?? '';
-      final status   = row['status']?.toString() ?? '';
-      final rowDt    = _appointmentDateTime(row);
+      final date = row['appointment_date']?.toString() ?? '';
+      final status = row['status']?.toString() ?? '';
+      final rowDt = _appointmentDateTime(row);
 
       // Try to extend an existing booking group
       Map<String, dynamic>? match;
       for (final b in bookings) {
-        if (b['_g_phone']    == phone    &&
+        if (b['_g_phone'] == phone &&
             b['_g_barberId'] == barberId &&
-            b['_g_date']     == date     &&
-            b['_g_status']   == status) {
+            b['_g_date'] == date &&
+            b['_g_status'] == status) {
           final lastDt = b['_g_lastDt'] as DateTime;
           if (rowDt.difference(lastDt).inMinutes == 30) {
             match = b;
@@ -148,7 +148,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
         match['_g_blocks'] = (match['_g_blocks'] as int) + 1;
         // Accumulate price (extra blocks usually have 0 price)
         final prev = (match['total_price'] as num?)?.toDouble() ?? 0.0;
-        final cur  = (row['total_price']   as num?)?.toDouble() ?? 0.0;
+        final cur = (row['total_price'] as num?)?.toDouble() ?? 0.0;
         match['total_price'] = prev + cur;
         // Collect unique service names
         final svcSet = match['_g_services'] as Set<String>;
@@ -157,13 +157,13 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
       } else {
         bookings.add({
           ...row,
-          '_g_ids':      <String>[row['id'].toString()],
-          '_g_phone':    phone,
+          '_g_ids': <String>[row['id'].toString()],
+          '_g_phone': phone,
           '_g_barberId': barberId,
-          '_g_date':     date,
-          '_g_status':   status,
-          '_g_lastDt':   rowDt,
-          '_g_blocks':   1,
+          '_g_date': date,
+          '_g_status': status,
+          '_g_lastDt': rowDt,
+          '_g_blocks': 1,
           '_g_services': <String>{_serviceName(row)},
         });
       }
@@ -199,9 +199,9 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     } catch (e) {
       if (!mounted) return false;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível cancelar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Não foi possível cancelar: $e')));
       return false;
     }
   }
@@ -240,10 +240,11 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     if (confirmed != true || !mounted) return;
 
     // Captura os dados antes do async
-    final allIds  = (booking['_g_ids'] as List<String>?) ?? [booking['id'].toString()];
+    final allIds =
+        (booking['_g_ids'] as List<String>?) ?? [booking['id'].toString()];
     final cliente = booking['customer_name']?.toString() ?? 'Cliente';
     final clientPhone = booking['customer_phone']?.toString() ?? '';
-    final dt      = _appointmentDateTime(booking);
+    final dt = _appointmentDateTime(booking);
     final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
     final timeStr = DateFormat('HH:mm').format(dt);
     final servico = _bookingServiceLabel(booking);
@@ -261,26 +262,34 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
 
       // Mensagem para o cliente
       if (clientPhone.isNotEmpty) {
-        final msgCliente = '❌ *Agendamento cancelado*\n\n'
+        final msgCliente =
+            '❌ *Agendamento cancelado*\n\n'
             'Olá, $cliente! Seu agendamento foi cancelado:\n\n'
             '📅 Data: $dateStr\n'
             '🕐 Hora: $timeStr\n'
             '✂️ Serviço: $servico\n\n'
             'Para reagendar acesse nosso app. 😊';
         WhatsappService.sendMessage(
-            phone: clientPhone, message: msgCliente, config: config);
+          phone: clientPhone,
+          message: msgCliente,
+          config: config,
+        );
       }
 
       // Mensagem para o barbeiro
       if (barberPhone.isNotEmpty) {
-        final msgBarbeiro = '❌ *Agendamento cancelado pelo cliente*\n\n'
+        final msgBarbeiro =
+            '❌ *Agendamento cancelado pelo cliente*\n\n'
             '👤 Cliente: $cliente\n'
             '📅 Data: $dateStr\n'
             '🕐 Hora: $timeStr\n'
             '✂️ Serviço: $servico\n\n'
             'O horário foi liberado na sua agenda.';
         WhatsappService.sendMessage(
-            phone: barberPhone, message: msgBarbeiro, config: config);
+          phone: barberPhone,
+          message: msgBarbeiro,
+          config: config,
+        );
       }
     });
   }
@@ -312,7 +321,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final hPad  = width > 600 ? (width - 560) / 2 : 0.0;
+    final hPad = width > 600 ? (width - 560) / 2 : 0.0;
 
     final customerName = _bookings.isEmpty
         ? null
@@ -332,10 +341,9 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(18 + hPad, 18, 18 + hPad, 0),
                   child: _HistoryHeader(
-                    customerName:
-                        customerName == null || customerName.isEmpty
-                            ? null
-                            : customerName,
+                    customerName: customerName == null || customerName.isEmpty
+                        ? null
+                        : customerName,
                     phone: _phone,
                     count: _bookings.length,
                     onChangePhone: _showPhoneDialog,
@@ -386,15 +394,13 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                 )
               else
                 SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    14 + hPad, 0, 14 + hPad, 100,
-                  ),
+                  padding: EdgeInsets.fromLTRB(14 + hPad, 0, 14 + hPad, 100),
                   sliver: SliverList.builder(
                     itemCount: _bookings.length,
                     itemBuilder: (context, index) {
-                      final booking  = _bookings[index];
+                      final booking = _bookings[index];
                       final previous = index == 0 ? null : _bookings[index - 1];
-                      final showDay  =
+                      final showDay =
                           previous == null ||
                           _dayKey(previous) != _dayKey(booking);
                       final expanded = _expandedIndex == index;
@@ -402,8 +408,7 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (showDay)
-                            _DaySeparator(label: _dayLabel(booking)),
+                          if (showDay) _DaySeparator(label: _dayLabel(booking)),
                           _AppointmentCard(
                             booking: booking,
                             expanded: expanded,
@@ -508,8 +513,7 @@ class _PhoneLookupDialogState extends State<_PhoneLookupDialog> {
                   hintText: '(00) 00000-0000',
                   hintStyle: const TextStyle(color: _P.muted),
                   errorText: _error,
-                  prefixIcon:
-                      const Icon(Icons.phone_rounded, color: _P.gold),
+                  prefixIcon: const Icon(Icons.phone_rounded, color: _P.gold),
                   filled: true,
                   fillColor: _P.bg,
                   border: OutlineInputBorder(
@@ -553,8 +557,10 @@ class _PhoneLookupDialogState extends State<_PhoneLookupDialog> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text('Consultar',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      child: const Text(
+                        'Consultar',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
                 ],
@@ -633,10 +639,9 @@ class _HistoryHeader extends StatelessWidget {
           customerName == null
               ? 'Consulte os horários pelo celular do cliente.'
               : 'Agendamentos de $customerName',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: _P.muted),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: _P.muted),
         ),
         const SizedBox(height: 14),
         DecoratedBox(
@@ -659,19 +664,17 @@ class _HistoryHeader extends StatelessWidget {
                         phone ?? 'Telefone não informado',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: _P.text,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: _P.text,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '$count agendamento${count == 1 ? '' : 's'} encontrado${count == 1 ? '' : 's'}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: _P.muted),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: _P.muted),
                       ),
                     ],
                   ),
@@ -733,20 +736,20 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status   = _statusInfo(booking['status']?.toString());
+    final status = _statusInfo(booking['status']?.toString());
     final dateTime = _appointmentDateTime(booking);
-    final blocks   = booking['_g_blocks'] as int? ?? 1;
+    final blocks = booking['_g_blocks'] as int? ?? 1;
 
     final canCancel =
         status.raw != 'cancelled' &&
-        status.raw != 'canceled'  &&
+        status.raw != 'canceled' &&
         status.raw != 'completed' &&
-        status.raw != 'attended'  &&
+        status.raw != 'attended' &&
         status.raw != 'no_show';
 
     // Time label: "13:00" for 1 block, "13:00 – 14:30" for multi-block
     final startLabel = DateFormat('HH:mm').format(dateTime);
-    final timeLabel  = blocks > 1
+    final timeLabel = blocks > 1
         ? '$startLabel – ${DateFormat('HH:mm').format(dateTime.add(Duration(minutes: 30 * blocks)))}'
         : startLabel;
 
@@ -755,8 +758,8 @@ class _AppointmentCard extends StatelessWidget {
     final durationLabel = durationMins < 60
         ? '${durationMins}min'
         : durationMins % 60 == 0
-            ? '${durationMins ~/ 60}h'
-            : '${durationMins ~/ 60}h${(durationMins % 60).toString().padLeft(2, '0')}';
+        ? '${durationMins ~/ 60}h'
+        : '${durationMins ~/ 60}h${(durationMins % 60).toString().padLeft(2, '0')}';
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -796,9 +799,7 @@ class _AppointmentCard extends StatelessWidget {
                             const Spacer(),
                             Text(
                               timeLabel,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(
                                     color: _P.gold,
                                     fontWeight: FontWeight.w900,
@@ -815,9 +816,7 @@ class _AppointmentCard extends StatelessWidget {
                           _bookingServiceLabel(booking),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: _P.text,
                                 fontWeight: FontWeight.w900,
@@ -897,8 +896,7 @@ class _AppointmentCard extends StatelessWidget {
                               style: FilledButton.styleFrom(
                                 backgroundColor: _P.gold,
                                 foregroundColor: _P.bg,
-                                minimumSize:
-                                    const Size(double.infinity, 44),
+                                minimumSize: const Size(double.infinity, 44),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -907,10 +905,7 @@ class _AppointmentCard extends StatelessWidget {
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
                               onPressed: onCancel,
-                              icon: const Icon(
-                                Icons.cancel_outlined,
-                                size: 17,
-                              ),
+                              icon: const Icon(Icons.cancel_outlined, size: 17),
                               label: const Text(
                                 'Cancelar agendamento',
                                 style: TextStyle(
@@ -920,14 +915,14 @@ class _AppointmentCard extends StatelessWidget {
                               ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: _P.danger,
-                                backgroundColor:
-                                    _P.danger.withValues(alpha: 0.10),
+                                backgroundColor: _P.danger.withValues(
+                                  alpha: 0.10,
+                                ),
                                 side: const BorderSide(
                                   color: _P.danger,
                                   width: 1.5,
                                 ),
-                                minimumSize:
-                                    const Size(double.infinity, 44),
+                                minimumSize: const Size(double.infinity, 44),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -1049,10 +1044,9 @@ class _EmptyHistory extends StatelessWidget {
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: _P.muted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: _P.muted),
             ),
             const SizedBox(height: 18),
             FilledButton(
@@ -1084,20 +1078,20 @@ class _RescheduleModal extends StatefulWidget {
 }
 
 class _RescheduleModalState extends State<_RescheduleModal> {
-  DateTime?       _selectedDate;
-  TimeOfDay?      _selectedTime;
-  DateTime?       _selectedDateTime;
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  DateTime? _selectedDateTime;
   List<TimeOfDay> _availableSlots = const [];
-  Set<String>     _takenSlots     = const {};
+  Set<String> _takenSlots = const {};
   bool _loadingSlots = false;
-  bool _saving       = false;
+  bool _saving = false;
 
   Map<String, dynamic> get _ap => widget.appointment;
-  String get _barberId      => _ap['barber_id']?.toString()      ?? '';
-  String get _serviceId     => _ap['service_id']?.toString()     ?? '';
-  String get _customerName  => _ap['customer_name']?.toString()  ?? '';
+  String get _barberId => _ap['barber_id']?.toString() ?? '';
+  String get _serviceId => _ap['service_id']?.toString() ?? '';
+  String get _customerName => _ap['customer_name']?.toString() ?? '';
   String get _customerPhone => _ap['customer_phone']?.toString() ?? '';
-  double get _totalPrice    => (_ap['total_price'] as num?)?.toDouble() ?? 0;
+  double get _totalPrice => (_ap['total_price'] as num?)?.toDouble() ?? 0;
 
   List<String> get _allIds =>
       (_ap['_g_ids'] as List<String>?) ?? [_ap['id'].toString()];
@@ -1119,7 +1113,7 @@ class _RescheduleModalState extends State<_RescheduleModal> {
       _selectedDateTime = null;
     });
     try {
-      final dow    = date.weekday;
+      final dow = date.weekday;
       final avRows = await Supabase.instance.client
           .from('barber_availability')
           .select('*')
@@ -1127,14 +1121,14 @@ class _RescheduleModalState extends State<_RescheduleModal> {
           .eq('day_of_week', dow == 7 ? 0 : dow)
           .limit(1);
 
-      TimeOfDay start = const TimeOfDay(hour: 9,  minute: 0);
-      TimeOfDay end   = const TimeOfDay(hour: 18, minute: 0);
-      bool enabled    = true;
+      TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
+      TimeOfDay end = const TimeOfDay(hour: 18, minute: 0);
+      bool enabled = true;
       if (avRows.isNotEmpty) {
         final row = avRows.first;
         enabled = (row['is_available'] ?? true) == true;
         final st = '${row['start_time'] ?? '09:00'}'.split(':');
-        final et = '${row['end_time']   ?? '18:00'}'.split(':');
+        final et = '${row['end_time'] ?? '18:00'}'.split(':');
         start = TimeOfDay(
           hour: int.tryParse(st[0]) ?? 9,
           minute: int.tryParse(st[1]) ?? 0,
@@ -1147,15 +1141,27 @@ class _RescheduleModalState extends State<_RescheduleModal> {
 
       final slots = <TimeOfDay>[];
       if (enabled) {
-        var cur     = DateTime(date.year, date.month, date.day, start.hour, start.minute);
-        final endDt = DateTime(date.year, date.month, date.day, end.hour,   end.minute);
+        var cur = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          start.hour,
+          start.minute,
+        );
+        final endDt = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          end.hour,
+          end.minute,
+        );
         while (cur.isBefore(endDt) || cur.isAtSameMomentAs(endDt)) {
           slots.add(TimeOfDay(hour: cur.hour, minute: cur.minute));
           cur = cur.add(const Duration(minutes: 30));
         }
       }
 
-      final dateStr   = DateFormat('yyyy-MM-dd').format(date);
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final takenRows = await Supabase.instance.client
           .from('appointments')
           .select('id, appointment_time, status')
@@ -1164,23 +1170,21 @@ class _RescheduleModalState extends State<_RescheduleModal> {
 
       final taken = <String>{};
       for (final r in takenRows as List) {
-        final m  = r as Map<String, dynamic>;
+        final m = r as Map<String, dynamic>;
         if (_allIds.contains(m['id']?.toString())) continue;
         final st = m['status']?.toString() ?? '';
         if (st == 'cancelled' || st == 'canceled' || st == 'no_show') continue;
         final parts = (m['appointment_time']?.toString() ?? '').split(':');
         if (parts.length >= 2) {
-          taken.add(
-            '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}',
-          );
+          taken.add('${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}');
         }
       }
 
       if (!mounted) return;
       setState(() {
         _availableSlots = slots;
-        _takenSlots     = taken;
-        _loadingSlots   = false;
+        _takenSlots = taken;
+        _loadingSlots = false;
       });
     } catch (_) {
       if (mounted) setState(() => _loadingSlots = false);
@@ -1193,19 +1197,20 @@ class _RescheduleModalState extends State<_RescheduleModal> {
     setState(() => _saving = true);
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(dt);
-      final timeStr = '${dt.hour.toString().padLeft(2, '0')}:'
+      final timeStr =
+          '${dt.hour.toString().padLeft(2, '0')}:'
           '${dt.minute.toString().padLeft(2, '0')}:00';
 
       await Supabase.instance.client.from('appointments').insert({
-        'service_id':       _serviceId,
-        'barber_id':        _barberId,
+        'service_id': _serviceId,
+        'barber_id': _barberId,
         'appointment_date': dateStr,
         'appointment_time': timeStr,
-        'status':           'scheduled',
-        'customer_name':    _customerName,
-        'customer_phone':   _customerPhone,
-        'notes':            'Reagendamento — $_customerName / $_customerPhone',
-        'total_price':      _totalPrice,
+        'status': 'scheduled',
+        'customer_name': _customerName,
+        'customer_phone': _customerPhone,
+        'notes': 'Reagendamento — $_customerName / $_customerPhone',
+        'total_price': _totalPrice,
       });
 
       // Cancel all old blocks via SECURITY DEFINER RPC (contorna RLS para anon)
@@ -1221,11 +1226,12 @@ class _RescheduleModalState extends State<_RescheduleModal> {
       }
 
       // WhatsApp notification
-      final dateF   = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
-      final timeF   = DateFormat('HH:mm').format(dt);
+      final dateF = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
+      final timeF = DateFormat('HH:mm').format(dt);
       WhatsappService.loadConfig().then((config) {
         if (!config.enabled || !config.isConfigured) return;
-        final msg = '🔄 *Agendamento remarcado!*\n\n'
+        final msg =
+            '🔄 *Agendamento remarcado!*\n\n'
             'Olá, $_customerName! Seu novo horário está confirmado:\n\n'
             '📅 Data: $dateF\n'
             '🕐 Hora: $timeF\n'
@@ -1233,15 +1239,19 @@ class _RescheduleModalState extends State<_RescheduleModal> {
             '💈 Profissional: $_barberNameStr\n\n'
             'Te esperamos! 😊';
         WhatsappService.sendMessage(
-          phone: _customerPhone, message: msg, config: config);
+          phone: _customerPhone,
+          message: msg,
+          config: config,
+        );
       });
 
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao remarcar: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao remarcar: $e')));
     }
   }
 
@@ -1262,7 +1272,8 @@ class _RescheduleModalState extends State<_RescheduleModal> {
           children: [
             Center(
               child: Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: _P.stroke,
                   borderRadius: BorderRadius.circular(2),
@@ -1287,7 +1298,7 @@ class _RescheduleModalState extends State<_RescheduleModal> {
 
             OutlinedButton.icon(
               onPressed: () async {
-                final now    = DateTime.now();
+                final now = DateTime.now();
                 final picked = await showDatePicker(
                   context: context,
                   locale: const Locale('pt', 'BR'),
@@ -1297,7 +1308,7 @@ class _RescheduleModalState extends State<_RescheduleModal> {
                   builder: (ctx, child) => Theme(
                     data: Theme.of(ctx).copyWith(
                       colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                        primary:   _P.gold,
+                        primary: _P.gold,
                         onPrimary: _P.bg,
                       ),
                     ),
@@ -1311,13 +1322,16 @@ class _RescheduleModalState extends State<_RescheduleModal> {
               },
               icon: const Icon(
                 Icons.calendar_today_outlined,
-                size: 16, color: _P.gold,
+                size: 16,
+                color: _P.gold,
               ),
               label: Text(
                 _selectedDate == null
                     ? 'Selecionar nova data'
-                    : DateFormat('EEEE, dd/MM/yyyy', 'pt_BR')
-                        .format(_selectedDate!),
+                    : DateFormat(
+                        'EEEE, dd/MM/yyyy',
+                        'pt_BR',
+                      ).format(_selectedDate!),
                 style: const TextStyle(color: _P.gold),
               ),
               style: OutlinedButton.styleFrom(
@@ -1350,9 +1364,10 @@ class _RescheduleModalState extends State<_RescheduleModal> {
                 spacing: 8,
                 runSpacing: 8,
                 children: _availableSlots.map((t) {
-                  final label    = '${t.hour.toString().padLeft(2, '0')}:'
+                  final label =
+                      '${t.hour.toString().padLeft(2, '0')}:'
                       '${t.minute.toString().padLeft(2, '0')}';
-                  final taken    = _takenSlots.contains(label);
+                  final taken = _takenSlots.contains(label);
                   final selected = _selectedTime == t;
                   return ChoiceChip(
                     label: Text(label),
@@ -1360,13 +1375,16 @@ class _RescheduleModalState extends State<_RescheduleModal> {
                     selectedColor: _P.gold,
                     backgroundColor: _P.card,
                     disabledColor: _P.card.withValues(alpha: 0.4),
-                    side: BorderSide(
-                      color: selected ? _P.gold : _P.stroke,
-                    ),
+                    side: BorderSide(color: selected ? _P.gold : _P.stroke),
                     labelStyle: TextStyle(
-                      color: selected ? _P.bg : taken ? _P.muted : _P.text,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.normal,
+                      color: selected
+                          ? _P.bg
+                          : taken
+                          ? _P.muted
+                          : _P.text,
+                      fontWeight: selected
+                          ? FontWeight.w700
+                          : FontWeight.normal,
                     ),
                     onSelected: taken
                         ? null
@@ -1378,7 +1396,8 @@ class _RescheduleModalState extends State<_RescheduleModal> {
                                 _selectedDate!.year,
                                 _selectedDate!.month,
                                 _selectedDate!.day,
-                                t.hour, t.minute,
+                                t.hour,
+                                t.minute,
                               );
                             });
                           },
@@ -1389,19 +1408,24 @@ class _RescheduleModalState extends State<_RescheduleModal> {
             const SizedBox(height: 20),
 
             FilledButton.icon(
-              onPressed: (_selectedDateTime == null || _saving) ? null : _confirm,
+              onPressed: (_selectedDateTime == null || _saving)
+                  ? null
+                  : _confirm,
               icon: _saving
                   ? const SizedBox(
-                      width: 16, height: 16,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2, color: _P.bg,
+                        strokeWidth: 2,
+                        color: _P.bg,
                       ),
                     )
                   : const Icon(Icons.check_rounded, size: 18),
               label: Text(_saving ? 'Remarcando...' : 'Confirmar remarcação'),
               style: FilledButton.styleFrom(
-                backgroundColor:
-                    _selectedDateTime != null ? _P.gold : _P.stroke,
+                backgroundColor: _selectedDateTime != null
+                    ? _P.gold
+                    : _P.stroke,
                 foregroundColor: _P.bg,
                 minimumSize: const Size(double.infinity, 48),
                 shape: RoundedRectangleBorder(
@@ -1486,35 +1510,47 @@ _StatusInfo _statusInfo(String? rawStatus) {
   switch (raw) {
     case 'confirmed':
       return const _StatusInfo(
-        'confirmed', 'Confirmado',
-        Icons.check_circle_rounded, _P.success,
+        'confirmed',
+        'Confirmado',
+        Icons.check_circle_rounded,
+        _P.success,
       );
     case 'cancelled':
     case 'canceled':
       return const _StatusInfo(
-        'cancelled', 'Cancelado',
-        Icons.cancel_rounded, _P.danger,
+        'cancelled',
+        'Cancelado',
+        Icons.cancel_rounded,
+        _P.danger,
       );
     case 'completed':
     case 'attended':
       return const _StatusInfo(
-        'completed', 'Concluído',
-        Icons.task_alt_rounded, _P.mint,
+        'completed',
+        'Concluído',
+        Icons.task_alt_rounded,
+        _P.mint,
       );
     case 'no_show':
       return const _StatusInfo(
-        'no_show', 'Ausente',
-        Icons.person_off_rounded, _P.muted,
+        'no_show',
+        'Ausente',
+        Icons.person_off_rounded,
+        _P.muted,
       );
     case 'pending':
       return const _StatusInfo(
-        'pending', 'Pendente',
-        Icons.schedule_rounded, _P.gold,
+        'pending',
+        'Pendente',
+        Icons.schedule_rounded,
+        _P.gold,
       );
     default:
       return const _StatusInfo(
-        'scheduled', 'Agendado',
-        Icons.event_available_rounded, _P.gold,
+        'scheduled',
+        'Agendado',
+        Icons.event_available_rounded,
+        _P.gold,
       );
   }
 }
@@ -1531,14 +1567,14 @@ class _StatusInfo {
 // ── Palette — matches the dark admin/booking theme ────────────────────────────
 
 class _P {
-  static const Color bg      = Color(0xFF080808);
-  static const Color panel   = Color(0xFF111111);
-  static const Color card    = Color(0xFF111111);
-  static const Color stroke  = Color(0xFF222222);
-  static const Color text    = Color(0xFFF0EDE8);
-  static const Color muted   = Color(0xFF6B7280);
-  static const Color gold    = Color(0xFFF5C200);
-  static const Color mint    = Color(0xFF20D8B2);
-  static const Color danger  = Color(0xFFE85B4D);
+  static const Color bg = Color(0xFF080808);
+  static const Color panel = Color(0xFF111111);
+  static const Color card = Color(0xFF111111);
+  static const Color stroke = Color(0xFF222222);
+  static const Color text = Color(0xFFF0EDE8);
+  static const Color muted = Color(0xFF6B7280);
+  static const Color gold = Color(0xFFF5C200);
+  static const Color mint = Color(0xFF20D8B2);
+  static const Color danger = Color(0xFFE85B4D);
   static const Color success = Color(0xFF4CAF50);
 }

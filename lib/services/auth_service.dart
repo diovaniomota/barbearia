@@ -11,10 +11,14 @@ class AuthService {
   static User? get currentUser => _client.auth.currentUser;
 
   // Stream do estado de autenticação
-  static Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+  static Stream<AuthState> get authStateChanges =>
+      _client.auth.onAuthStateChange;
 
   // Login com email e senha
-  static Future<AuthResponse> signInWithEmailPassword(String email, String password) async {
+  static Future<AuthResponse> signInWithEmailPassword(
+    String email,
+    String password,
+  ) async {
     try {
       final response = await _client.auth.signInWithPassword(
         email: email,
@@ -28,8 +32,8 @@ class AuthService {
 
   // Registro de novo usuário
   static Future<AuthResponse> signUpWithEmailPassword(
-    String email, 
-    String password, 
+    String email,
+    String password,
     String fullName,
   ) async {
     try {
@@ -66,13 +70,13 @@ class AuthService {
   static Future<Map<String, dynamic>?> getUserProfile() async {
     try {
       if (currentUser == null) return null;
-      
+
       final response = await _client
           .from('users')
           .select()
           .eq('id', currentUser!.id)
           .single();
-      
+
       return response;
     } catch (e) {
       return null;
@@ -83,15 +87,13 @@ class AuthService {
   static Future<void> updateUserProfile(Map<String, dynamic> userData) async {
     try {
       if (currentUser == null) throw Exception('Usuário não logado');
-      
-      await _client
-          .from('users')
-          .upsert({
-            'id': currentUser!.id,
-            'email': currentUser!.email,
-            'updated_at': DateTime.now().toIso8601String(),
-            ...userData,
-          });
+
+      await _client.from('users').upsert({
+        'id': currentUser!.id,
+        'email': currentUser!.email,
+        'updated_at': DateTime.now().toIso8601String(),
+        ...userData,
+      });
     } catch (e) {
       rethrow;
     }

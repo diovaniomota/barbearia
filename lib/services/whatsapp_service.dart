@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WhatsappConfig {
   final String serverUrl; // ex: https://meu-servidor.railway.app
-  final String apiKey;    // chave secreta definida no servidor
+  final String apiKey; // chave secreta definida no servidor
   final bool enabled;
   final String template;
 
@@ -28,11 +28,11 @@ class WhatsappConfig {
       'Obrigado, {{cliente}}! Te esperamos 👋';
 
   factory WhatsappConfig.empty() => const WhatsappConfig(
-        serverUrl: '',
-        apiKey: '',
-        enabled: false,
-        template: defaultTemplate,
-      );
+    serverUrl: '',
+    apiKey: '',
+    enabled: false,
+    template: defaultTemplate,
+  );
 
   bool get isConfigured => serverUrl.isNotEmpty && apiKey.isNotEmpty;
 
@@ -47,13 +47,12 @@ class WhatsappConfig {
     String? apiKey,
     bool? enabled,
     String? template,
-  }) =>
-      WhatsappConfig(
-        serverUrl: serverUrl ?? this.serverUrl,
-        apiKey: apiKey ?? this.apiKey,
-        enabled: enabled ?? this.enabled,
-        template: template ?? this.template,
-      );
+  }) => WhatsappConfig(
+    serverUrl: serverUrl ?? this.serverUrl,
+    apiKey: apiKey ?? this.apiKey,
+    enabled: enabled ?? this.enabled,
+    template: template ?? this.template,
+  );
 }
 
 // ── Resultado ─────────────────────────────────────────────────────────────────
@@ -75,11 +74,11 @@ class WhatsappService {
           .from('app_settings')
           .select('key, value')
           .inFilter('key', [
-        'wa_server_url',
-        'wa_api_key',
-        'wa_enabled',
-        'wa_template',
-      ]);
+            'wa_server_url',
+            'wa_api_key',
+            'wa_enabled',
+            'wa_template',
+          ]);
       final map = <String, String>{
         for (final r in (rows as List))
           r['key'] as String: r['value'] as String,
@@ -120,14 +119,13 @@ class WhatsappService {
     required String servico,
     required String barbeiro,
     String valor = '',
-  }) =>
-      template
-          .replaceAll('{{cliente}}', cliente)
-          .replaceAll('{{data}}', data)
-          .replaceAll('{{hora}}', hora)
-          .replaceAll('{{servico}}', servico)
-          .replaceAll('{{barbeiro}}', barbeiro)
-          .replaceAll('{{valor}}', valor);
+  }) => template
+      .replaceAll('{{cliente}}', cliente)
+      .replaceAll('{{data}}', data)
+      .replaceAll('{{hora}}', hora)
+      .replaceAll('{{servico}}', servico)
+      .replaceAll('{{barbeiro}}', barbeiro)
+      .replaceAll('{{valor}}', valor);
 
   // ── Enviar mensagem ──────────────────────────────────────────────────────
 
@@ -137,19 +135,24 @@ class WhatsappService {
     required WhatsappConfig config,
   }) async {
     if (!config.enabled || !config.isConfigured) {
-      return const WhatsappResult(ok: false, error: 'WhatsApp não configurado.');
+      return const WhatsappResult(
+        ok: false,
+        error: 'WhatsApp não configurado.',
+      );
     }
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
     final fullPhone = clean.startsWith('55') ? clean : '55$clean';
     try {
-      final res = await http.post(
-        Uri.parse('${config.normalizedUrl}/send'),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.apiKey,
-        },
-        body: jsonEncode({'phone': fullPhone, 'message': message}),
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .post(
+            Uri.parse('${config.normalizedUrl}/send'),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': config.apiKey,
+            },
+            body: jsonEncode({'phone': fullPhone, 'message': message}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) return const WhatsappResult(ok: true);
 
@@ -188,10 +191,12 @@ class WhatsappService {
       return ServerStatus(online: false, connected: false);
     }
     try {
-      final res = await http.get(
-        Uri.parse('${config.normalizedUrl}/status'),
-        headers: {'x-api-key': config.apiKey},
-      ).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(
+            Uri.parse('${config.normalizedUrl}/status'),
+            headers: {'x-api-key': config.apiKey},
+          )
+          .timeout(const Duration(seconds: 6));
 
       // Servidor respondeu — está online
       if (res.statusCode == 401) {
@@ -218,19 +223,29 @@ class WhatsappService {
 
   static Future<WhatsappResult> resetSession(WhatsappConfig config) async {
     try {
-      final res = await http.post(
-        Uri.parse('${config.normalizedUrl}/reset-session'),
-        headers: {'x-api-key': config.apiKey},
-      ).timeout(const Duration(seconds: 10));
+      final res = await http
+          .post(
+            Uri.parse('${config.normalizedUrl}/reset-session'),
+            headers: {'x-api-key': config.apiKey},
+          )
+          .timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) return const WhatsappResult(ok: true);
       return WhatsappResult(ok: false, error: 'Erro ${res.statusCode}');
     } catch (e) {
       final msg = e.toString().toLowerCase();
-      if (msg.contains('failed to fetch') || msg.contains('socketexception') || msg.contains('connection refused')) {
-        return const WhatsappResult(ok: false, error: 'Servidor não está acessível. Verifique se ele está rodando.');
+      if (msg.contains('failed to fetch') ||
+          msg.contains('socketexception') ||
+          msg.contains('connection refused')) {
+        return const WhatsappResult(
+          ok: false,
+          error: 'Servidor não está acessível. Verifique se ele está rodando.',
+        );
       }
       if (msg.contains('timeout') || msg.contains('timed out')) {
-        return const WhatsappResult(ok: false, error: 'Servidor demorou demais para responder (timeout).');
+        return const WhatsappResult(
+          ok: false,
+          error: 'Servidor demorou demais para responder (timeout).',
+        );
       }
       return WhatsappResult(ok: false, error: e.toString());
     }
@@ -240,10 +255,12 @@ class WhatsappService {
 
   static Future<String?> fetchQR(WhatsappConfig config) async {
     try {
-      final res = await http.get(
-        Uri.parse('${config.normalizedUrl}/qr'),
-        headers: {'x-api-key': config.apiKey},
-      ).timeout(const Duration(seconds: 6));
+      final res = await http
+          .get(
+            Uri.parse('${config.normalizedUrl}/qr'),
+            headers: {'x-api-key': config.apiKey},
+          )
+          .timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return null;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return data['qr']?.toString();

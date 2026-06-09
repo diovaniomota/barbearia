@@ -34,9 +34,9 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao carregar: $e')));
     }
   }
 
@@ -208,9 +208,9 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                   await _load();
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Erro: $e')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Erro: $e')));
                   }
                 }
               },
@@ -254,9 +254,9 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
       }
     }
   }
@@ -283,152 +283,158 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _clients.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.card_membership_outlined,
-                        size: 72,
-                        color: theme.colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Nenhum cliente plano cadastrado',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Toque em + para adicionar',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.card_membership_outlined,
+                    size: 72,
+                    color: theme.colorScheme.outline,
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: _clients.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final c = _clients[i];
-                    final planName = c['plan_name']?.toString();
-                    final paymentMethod = c['payment_method']?.toString();
-                    final dueDay = c['due_day'];
-                    final notes = c['notes']?.toString();
-                    return Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                          child: Icon(
-                            Icons.card_membership,
-                            color: theme.colorScheme.onPrimaryContainer,
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nenhum cliente plano cadastrado',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Toque em + para adicionar',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: _clients.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) {
+                final c = _clients[i];
+                final planName = c['plan_name']?.toString();
+                final paymentMethod = c['payment_method']?.toString();
+                final dueDay = c['due_day'];
+                final notes = c['notes']?.toString();
+                return Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(
+                        Icons.card_membership,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    title: Text(
+                      c['name']?.toString() ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 2),
+                        Text(_displayPhone(c['phone'] ?? '')),
+                        if (planName != null && planName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              planName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
                           ),
-                        ),
-                        title: Text(
-                          c['name']?.toString() ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 2),
-                            Text(_displayPhone(c['phone'] ?? '')),
-                            if (planName != null && planName.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primaryContainer,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  planName,
+                        ],
+                        if (paymentMethod != null && paymentMethod.isNotEmpty ||
+                            dueDay != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              if (paymentMethod != null &&
+                                  paymentMethod.isNotEmpty) ...[
+                                const Icon(Icons.payment_outlined, size: 13),
+                                const SizedBox(width: 4),
+                                Text(
+                                  paymentMethod,
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurface,
                                   ),
                                 ),
-                              ),
-                            ],
-                            if (paymentMethod != null && paymentMethod.isNotEmpty ||
-                                dueDay != null) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  if (paymentMethod != null && paymentMethod.isNotEmpty) ...[
-                                    const Icon(Icons.payment_outlined, size: 13),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      paymentMethod,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                  if (paymentMethod != null && paymentMethod.isNotEmpty && dueDay != null)
-                                    const Text('  ·  ', style: TextStyle(fontSize: 12)),
-                                  if (dueDay != null) ...[
-                                    const Icon(Icons.event_outlined, size: 13),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Vence dia $dueDay',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                            if (notes != null && notes.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                notes,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: theme.colorScheme.outline,
+                              ],
+                              if (paymentMethod != null &&
+                                  paymentMethod.isNotEmpty &&
+                                  dueDay != null)
+                                const Text(
+                                  '  ·  ',
+                                  style: TextStyle(fontSize: 12),
                                 ),
-                              ),
+                              if (dueDay != null) ...[
+                                const Icon(Icons.event_outlined, size: 13),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Vence dia $dueDay',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                        isThreeLine: true,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              tooltip: 'Editar',
-                              onPressed: () => _openDialog(client: c),
+                          ),
+                        ],
+                        if (notes != null && notes.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            notes,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.outline,
                             ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.delete_outline,
-                                color: theme.colorScheme.error,
-                              ),
-                              tooltip: 'Remover',
-                              onPressed: () => _delete(c),
-                            ),
-                          ],
+                          ),
+                        ],
+                      ],
+                    ),
+                    isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: 'Editar',
+                          onPressed: () => _openDialog(client: c),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: theme.colorScheme.error,
+                          ),
+                          tooltip: 'Remover',
+                          onPressed: () => _delete(c),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
