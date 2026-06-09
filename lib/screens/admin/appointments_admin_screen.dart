@@ -927,7 +927,10 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                 setState(() {
                   _period = _Period.day;
                   _selected = DateTime.now();
-                  _barberId = null;
+                  // Barbeiro continua restrito a si mesmo; só super-admin volta a "Todos"
+                  _barberId = AdminSession.isBarber
+                      ? AdminSession.barberId
+                      : null;
                 });
                 await _load();
               },
@@ -1023,7 +1026,10 @@ class _AppointmentsAdminScreenState extends State<AppointmentsAdminScreen> {
                   if (_period == _Period.day)
                     AgendaDiaView(
                       date: _selected,
-                      barberId: _barberId,
+                      // Barbeiro sempre vê a própria agenda (sem precisar selecionar)
+                      barberId: AdminSession.isBarber
+                          ? AdminSession.barberId
+                          : _barberId,
                       barbers: _barbers,
                     ),
                   if (_period != _Period.day && _appointments.isEmpty)

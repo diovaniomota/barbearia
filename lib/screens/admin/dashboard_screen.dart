@@ -187,7 +187,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'barber_id, barbers:barber_id(name), services:service_id(price)',
         )
         .gte('appointment_date', _dateOnly(start))
-        .lt('appointment_date', _dateOnly(end));
+        .lt('appointment_date', _dateOnly(end))
+        .neq('status', 'cancelled');
     if (AdminSession.isBarber) {
       query = query.eq('barber_id', AdminSession.barberId!);
     }
