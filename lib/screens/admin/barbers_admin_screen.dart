@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:barbearia/supabase/supabase_config.dart';
@@ -262,6 +262,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
     final passwordController = TextEditingController();
     final hasLogin = existing?['user_id'] != null;
     XFile? pickedImage;
+    Uint8List? pickedBytes;
     final specialtiesController = TextEditingController();
     List<String> specialties = existing?['specialties'] is List
         ? List<String>.from(existing!['specialties'])
@@ -328,9 +329,9 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                           height: 96,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: pickedImage != null
-                                ? Image.file(
-                                    File(pickedImage!.path),
+                            child: pickedBytes != null
+                                ? Image.memory(
+                                    pickedBytes!,
                                     fit: BoxFit.cover,
                                   )
                                 : (existing?['image_url'] != null &&
@@ -363,7 +364,11 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                               imageQuality: 85,
                             );
                             if (file != null) {
-                              setStateDialog(() => pickedImage = file);
+                              final bytes = await file.readAsBytes();
+                              setStateDialog(() {
+                                pickedImage = file;
+                                pickedBytes = bytes;
+                              });
                             }
                           },
                           icon: const Icon(Icons.photo_library),
@@ -451,19 +456,21 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
               onPressed: () async {
                 try {
                   String? imageUrl;
-                  if (pickedImage != null) {
+                  if (pickedBytes != null && pickedImage != null) {
                     try {
-                      final ext = pickedImage!.path
-                          .split('.')
-                          .last
-                          .toLowerCase();
+                      final name = pickedImage!.name;
+                      final ext = name.contains('.')
+                          ? name.split('.').last.toLowerCase()
+                          : 'jpg';
                       final fileName =
                           'barber_${DateTime.now().millisecondsSinceEpoch}.$ext';
                       final filePath = 'avatars/$fileName';
-                      final file = File(pickedImage!.path);
                       await Supabase.instance.client.storage
                           .from('fotos')
-                          .upload(filePath, file);
+                          .uploadBinary(filePath, pickedBytes!,
+                              fileOptions: FileOptions(
+                                  contentType: 'image/$ext',
+                                  upsert: true));
                       imageUrl = Supabase.instance.client.storage
                           .from('fotos')
                           .getPublicUrl(filePath);

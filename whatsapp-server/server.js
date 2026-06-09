@@ -14,11 +14,38 @@ const {
   fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
+const path = require('path');
+const fs   = require('fs');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const PORT    = process.env.PORT    || 3000;
 const API_KEY = process.env.API_KEY || 'minha-chave-secreta';
+
+// Apaga o CONTEÚDO da pasta sessao (não o diretório em si, que é bind mount).
+// Tenta várias vezes pois o Baileys pode ter arquivos abertos momentaneamente.
+function clearSession(retries = 6, delay = 700) {
+  return new Promise((resolve) => {
+    const attempt = (left) => {
+      try {
+        if (fs.existsSync('sessao')) {
+          for (const f of fs.readdirSync('sessao')) {
+            fs.rmSync(path.join('sessao', f), { recursive: true, force: true });
+          }
+        }
+        resolve();
+      } catch (e) {
+        if (left > 0 && (e.code === 'EBUSY' || e.code === 'ENOTEMPTY')) {
+          setTimeout(() => attempt(left - 1), delay);
+        } else {
+          if (e.code !== 'ENOENT') console.log('Sessão não apagada:', e.message);
+          resolve();
+        }
+      }
+    };
+    attempt(retries);
+  });
+}
 
 // ── Estado ────────────────────────────────────────────────────────────────────
 
@@ -108,12 +135,8 @@ app.post('/reset-session', async (req, res) => {
     qrBase64    = null;
     phoneNumber = null;
     retryCount  = 0;
-    const fs = require('fs');
-    if (fs.existsSync('sessao')) {
-      fs.rmSync('sessao', { recursive: true, force: true });
-    }
-    setTimeout(connect, 1000);
     res.json({ ok: true, message: 'Sessão resetada. Novo QR em breve.' });
+    clearSession().then(() => setTimeout(connect, 1000));
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
@@ -138,7 +161,6 @@ async function connect() {
     sock = makeWASocket({
       version,
       logger: pino({ level: 'silent' }),
-      printQRInTerminal: true,
       auth: state,
     });
 
@@ -172,15 +194,10 @@ async function connect() {
         if (rawErr) console.log('  → Erro bruto:', rawErr?.message ?? rawErr);
 
         if (loggedOut || (code === 0 && retryCount === 0)) {
-          // Sessão inválida: limpa credenciais e força novo QR
           const reason = loggedOut ? 'loggedOut' : 'falha imediata (credenciais inválidas)';
           console.log(`Sessão inválida (${reason}). Limpando e aguardando QR...`);
           retryCount = 0;
-          const fs = require('fs');
-          if (fs.existsSync('sessao')) {
-            fs.rmSync('sessao', { recursive: true, force: true });
-          }
-          setTimeout(connect, 3000);
+          clearSession().then(() => setTimeout(connect, 3000));
         } else if (retryCount < MAX_RETRIES) {
           retryCount++;
           const delay = Math.min(3000 * retryCount, 30000); // backoff até 30s

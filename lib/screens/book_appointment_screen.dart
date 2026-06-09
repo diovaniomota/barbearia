@@ -341,6 +341,19 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           }
           cur = cur.add(const Duration(minutes: 30));
         }
+
+        // Remove horários já passados quando o dia selecionado é hoje
+        final now = DateTime.now();
+        final isToday = selDate.year == now.year &&
+            selDate.month == now.month &&
+            selDate.day == now.day;
+        if (isToday) {
+          slots.removeWhere((t) {
+            final slotDt = DateTime(
+                selDate.year, selDate.month, selDate.day, t.hour, t.minute);
+            return slotDt.isBefore(now);
+          });
+        }
       }
       final appointmentDate = _dateOnlyForDb(selDate);
       dynamic takenRows;
