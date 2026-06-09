@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'package:barbearia/utils/admin_session.dart';
+import 'package:barbearia/screens/admin/inactive_clients_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,12 +20,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime? _dashboardMonth;
   int _executedToday = 0;
   int _executedMonth = 0;
+  List<InactiveClient> _inactiveClients = const [];
+  bool _loadingInactive = true;
 
   @override
   void initState() {
     super.initState();
     _loadMonthDistribution();
     _loadExecutedCounts();
+    _loadInactiveClients();
   }
 
   String _dateOnly(DateTime value) {
@@ -91,6 +95,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
         });
       }
     } catch (_) {}
+  }
+
+  /// Clientes do barbeiro cujo agendamento mais recente (passado ou futuro,
+  /// excluindo cancelados) foi há mais de 30 dias — candidatos a reativação.
+  Future<void> _loadInactiveClients() async {
+    try {
+      final sb = Supabase.instance.client;
+      final now = DateTime.now();
+      final limit = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 30));
+
+      var query = sb
+          .from('appointments')
+          .select(
+            'appointment_date, customer_name, customer_phone, '
+            'users:user_id(name, phone)',
+          )
+          .neq('status', 'cancelled');
+      if (AdminSession.isBarber) {
+        query = query.eq('barber_id', AdminSession.barberId!);
+      }
+      final rows = List<Map<String, dynamic>>.from(await query);
+
+      // Agrupa por telefone normalizado; guarda a data + nome mais recentes.
+      final lastDate = <String, DateTime>{};
+      final names = <String, String>{};
+      final phones = <String, String>{};
+      for (final r in rows) {
+        final usersRaw = r['users'];
+        String userName = '';
+        String userPhone = '';
+        if (usersRaw is Map) {
+          userName = usersRaw['name']?.toString() ?? '';
+          userPhone = usersRaw['phone']?.toString() ?? '';
+        }
+        final cName = (r['customer_name']?.toString() ?? '').trim();
+        final cPhone = (r['customer_phone']?.toString() ?? '').trim();
+        final name = cName.isNotEmpty ? cName : userName;
+        final rawPhone = cPhone.isNotEmpty ? cPhone : userPhone;
+        final digits = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+        if (digits.length < 10) continue; // sem telefone válido, ignora
+
+        final dt = DateTime.tryParse((r['appointment_date']?.toString() ?? ''));
+        if (dt == null) continue;
+
+        final cur = lastDate[digits];
+        if (cur == null || dt.isAfter(cur)) {
+          lastDate[digits] = dt;
+          if (name.isNotEmpty) names[digits] = name;
+          phones[digits] = rawPhone;
+        } else {
+          names.putIfAbsent(digits, () => name);
+          phones.putIfAbsent(digits, () => rawPhone);
+        }
+      }
+
+      final inactive =
+          lastDate.entries.where((e) => e.value.isBefore(limit)).map((e) {
+            return InactiveClient(
+              name: names[e.key]?.trim().isNotEmpty == true
+                  ? names[e.key]!
+                  : 'Cliente',
+              phone: phones[e.key] ?? '',
+              lastVisit: e.value,
+            );
+          }).toList()..sort((a, b) => b.lastVisit.compareTo(a.lastVisit));
+
+      if (mounted) {
+        setState(() {
+          _inactiveClients = inactive;
+          _loadingInactive = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingInactive = false);
+    }
   }
 
   Future<void> _loadMonthDistribution() async {
@@ -379,10 +462,109 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ],
+                  if (!AdminSession.isSuperAdmin) ...[
+                    const SizedBox(height: 12),
+                    _buildInactiveSection(theme),
+                  ],
                   const SizedBox(height: 12),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildInactiveSection(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.notifications_active_outlined, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Clientes para reativar',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (!_loadingInactive && _inactiveClients.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${_inactiveClients.length}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Sem agendar há mais de 30 dias',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          if (_loadingInactive)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_inactiveClients.isEmpty)
+            Text(
+              'Nenhum cliente nessa situação. 👍',
+              style: theme.textTheme.bodyMedium,
+            )
+          else ...[
+            ..._inactiveClients
+                .take(5)
+                .map((c) => InactiveClientTile(client: c)),
+            if (_inactiveClients.length > 5) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _openAllInactive,
+                  icon: const Icon(Icons.list_alt, size: 18),
+                  label: Text('Ver todos (${_inactiveClients.length})'),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openAllInactive() {
+    // Reaplica o tema admin atual na nova rota (telas secundárias do admin).
+    final adminTheme = Theme.of(context);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Theme(
+          data: adminTheme,
+          child: InactiveClientsScreen(clients: _inactiveClients),
+        ),
+      ),
     );
   }
 
