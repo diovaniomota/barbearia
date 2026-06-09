@@ -198,18 +198,27 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       for (final r in (blockedRows as List)) {
         final m = r as Map<String, dynamic>;
         final label = _hhmm('${m['time']}');
-        final slot = byLabel[label];
-        if (slot != null) {
-          slot.state = _SlotState.blocked;
-          slot.blockedId = m['id']?.toString();
+        // Bloqueio fora do expediente (horário extra) também precisa aparecer.
+        var slot = byLabel[label];
+        if (slot == null) {
+          slot = _Slot(label);
+          byLabel[label] = slot;
+          slots.add(slot);
         }
+        slot.state = _SlotState.blocked;
+        slot.blockedId = m['id']?.toString();
       }
 
       // 7. Preenche os slots com os agendamentos
       for (final m in appts) {
         final label = _hhmm('${m['appointment_time']}');
-        final slot = byLabel[label];
-        if (slot == null) continue;
+        // Agendamento fora do expediente (horário extra) também precisa aparecer.
+        var slot = byLabel[label];
+        if (slot == null) {
+          slot = _Slot(label);
+          byLabel[label] = slot;
+          slots.add(slot);
+        }
         if (slot.state == _SlotState.blocked) continue; // bloqueio tem prioridade
         final source = (m['source'] ?? 'client').toString();
         final ph = (m['customer_phone'] ?? '').toString().trim();
@@ -224,6 +233,10 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           slot.state = _SlotState.client;
         }
       }
+
+      // Ordena por horário (labels "HH:mm" já são comparáveis como string),
+      // garantindo que horários extras fiquem na posição certa.
+      slots.sort((a, b) => a.label.compareTo(b.label));
 
       if (!mounted) return;
       setState(() {
@@ -473,6 +486,51 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Arredonda um horário para o slot de 30 min mais próximo (xx:00 ou xx:30).
+  TimeOfDay _snap(TimeOfDay t) {
+    var h = t.hour;
+    int m;
+    if (t.minute < 15) {
+      m = 0;
+    } else if (t.minute < 45) {
+      m = 30;
+    } else {
+      m = 0;
+      h = (h + 1) % 24;
+    }
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  /// Adiciona um horário extra (fora do expediente) só para este dia.
+  /// O slot vira "Livre" na agenda; o admin toca nele para agendar/encaixar.
+  Future<void> _addExtraSlot() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 19, minute: 0),
+      helpText: 'Horário extra para este dia',
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final t = _snap(picked);
+    final label =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+    if (_slots.any((s) => s.label == label)) {
+      _toast('O horário $label já está na agenda.');
+      return;
+    }
+
+    setState(() {
+      _slots.add(_Slot(label));
+      _slots.sort((a, b) => a.label.compareTo(b.label));
+    });
+    _toast('Horário $label adicionado. Toque nele para agendar.');
   }
 
   InputDecoration _dlgDeco(String label) => InputDecoration(
@@ -893,22 +951,31 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
 
   Widget _selectBar() {
     if (!_selectMode) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      const compact = ButtonStyle(
+        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 4)),
+        minimumSize: WidgetStatePropertyAll(Size.zero),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+      return Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 2,
         children: [
+          TextButton.icon(
+            onPressed: _addExtraSlot,
+            icon: const Icon(Icons.more_time_rounded, color: _gold, size: 16),
+            label: const Text('Adicionar horário',
+                style: TextStyle(color: _gold, fontSize: 12)),
+            style: compact,
+          ),
           if (_dayBlockId == null)
             TextButton.icon(
               onPressed: _openBlockDayDialog,
               icon: const Icon(Icons.block, color: _red, size: 14),
               label: const Text('Bloquear dia',
                   style: TextStyle(color: _red, fontSize: 12)),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+              style: compact,
             ),
-          if (_dayBlockId == null) const SizedBox(width: 12),
           TextButton.icon(
             onPressed: () => setState(() {
               _selectMode = true;
@@ -917,11 +984,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             icon: const Icon(Icons.checklist_rounded, color: _muted, size: 16),
             label: const Text('Selecionar',
                 style: TextStyle(color: _muted, fontSize: 12)),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+            style: compact,
           ),
         ],
       );
@@ -1061,9 +1124,6 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     if (_error != null) {
       return _box('Erro: $_error');
     }
-    if (_slots.isEmpty) {
-      return _box('Sem expediente para este dia.');
-    }
 
     final barberName = widget.barbers.firstWhere(
       (b) => b['id']?.toString() == widget.barberId,
@@ -1149,7 +1209,11 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                   color: _gold, fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
-        ..._slots.map(_slotRow),
+        if (_slots.isEmpty)
+          _box('Sem expediente para este dia. Use "Adicionar horário" '
+              'para encaixar um atendimento.')
+        else
+          ..._slots.map(_slotRow),
       ],
     );
   }
