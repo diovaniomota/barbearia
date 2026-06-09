@@ -17,17 +17,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<_Slice> _slices = const [];
   List<_BarberRank> _barberMonth = const [];
   DateTime? _dashboardMonth;
+  int _executedToday = 0;
+  int _executedMonth = 0;
 
   @override
   void initState() {
     super.initState();
     _loadMonthDistribution();
+    _loadExecutedCounts();
   }
 
   String _dateOnly(DateTime value) {
     return '${value.year.toString().padLeft(4, '0')}-'
         '${value.month.toString().padLeft(2, '0')}-'
         '${value.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _loadExecutedCounts() async {
+    try {
+      final sb = Supabase.instance.client;
+      final now = DateTime.now();
+      final cutoff = now.add(const Duration(minutes: 10));
+      final todayStr = _dateOnly(now);
+      final monthStartStr = _dateOnly(DateTime(now.year, now.month, 1));
+
+      var query = sb
+          .from('appointments')
+          .select('appointment_date, appointment_time')
+          .gte('appointment_date', monthStartStr)
+          .lte('appointment_date', todayStr)
+          .neq('status', 'cancelled');
+
+      if (AdminSession.isBarber) {
+        query = query.eq('barber_id', AdminSession.barberId!);
+      }
+
+      final rows = List<Map<String, dynamic>>.from(await query);
+      int today = 0, month = 0;
+      for (final r in rows) {
+        final dateStr = r['appointment_date'] as String? ?? '';
+        final raw = (r['appointment_time'] as String? ?? '00:00');
+        final timeStr = raw.length >= 5 ? raw.substring(0, 5) : raw;
+        final dt = DateTime.tryParse('$dateStr $timeStr');
+        if (dt == null) continue;
+        if (dt.isBefore(cutoff)) {
+          month++;
+          if (dateStr == todayStr) today++;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _executedToday = today;
+          _executedMonth = month;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadMonthDistribution() async {
@@ -165,6 +209,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ExecutedCard(
+                          label: 'Realizados hoje',
+                          count: _executedToday,
+                          icon: Icons.today_rounded,
+                          iconColor: const Color(0xFFF5C200),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ExecutedCard(
+                          label: 'Realizados no mês',
+                          count: _executedMonth,
+                          icon: Icons.calendar_month_rounded,
+                          iconColor: const Color(0xFF1E88E5),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -359,6 +425,56 @@ extension on _DashboardScreenState {
         ),
       );
     }).toList();
+  }
+}
+
+class _ExecutedCard extends StatelessWidget {
+  final String label;
+  final int count;
+  final IconData icon;
+  final Color iconColor;
+
+  const _ExecutedCard({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(height: 10),
+          Text(
+            '$count',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: iconColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

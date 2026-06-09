@@ -570,7 +570,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     try {
       final rows = await Supabase.instance.client
           .from('services')
-          .select('id,name,price,sort_order')
+          .select('id,name,price,sort_order,duration_blocks')
           .order('name');
       services = List<Map<String, dynamic>>.from(rows)
         ..sort((a, b) {
@@ -741,7 +741,11 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     String name,
     String phone,
   ) async {
-    final n = services.length;
+    // Total de blocos de 30 min considerando duration_blocks de cada serviço
+    final n = services.fold<int>(
+      0,
+      (sum, s) => sum + ((s['duration_blocks'] as int?) ?? 1),
+    );
     final startIdx = _slots.indexWhere((s) => s.label == startSlot.label);
     if (startIdx < 0) return 'Horário inválido.';
     if (startIdx + n > _slots.length) {
@@ -768,22 +772,28 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         } catch (_) {}
       }
       final payload = <Map<String, dynamic>>[];
-      for (var i = 0; i < n; i++) {
-        final s = services[i];
-        final label = _slots[startIdx + i].label;
-        payload.add({
-          'service_id': s['id'],
-          'barber_id': widget.barberId,
-          'appointment_date': _dateStr,
-          'appointment_time': '$label:00',
-          'status': 'scheduled',
-          'customer_name': name,
-          'customer_phone': phone,
-          'notes': 'Encaixe manual (admin)\nCliente: $name\nTelefone: $phone',
-          'total_price': (s['price'] as num? ?? 0).toDouble(),
-          'is_plan_client': isPlan,
-          'source': 'admin',
-        });
+      var slotOffset = 0;
+      for (final s in services) {
+        final blocks = (s['duration_blocks'] as int?) ?? 1;
+        final price = (s['price'] as num? ?? 0).toDouble();
+        for (var k = 0; k < blocks; k++) {
+          final label = _slots[startIdx + slotOffset].label;
+          payload.add({
+            'service_id': s['id'],
+            'barber_id': widget.barberId,
+            'appointment_date': _dateStr,
+            'appointment_time': '$label:00',
+            'status': 'scheduled',
+            'customer_name': name,
+            'customer_phone': phone,
+            'notes':
+                'Encaixe manual (admin)\nCliente: $name\nTelefone: $phone',
+            'total_price': k == 0 ? price : 0.0,
+            'is_plan_client': isPlan,
+            'source': 'admin',
+          });
+          slotOffset++;
+        }
       }
       await sb.from('appointments').insert(payload);
       return null;
