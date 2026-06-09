@@ -1319,7 +1319,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     WhatsappService.loadConfig().then((config) {
       if (!config.enabled || !config.isConfigured) return;
-      final msg = WhatsappService.buildMessage(
+      String msg = WhatsappService.buildMessage(
         template: config.template,
         cliente: cliente,
         data: dateStr,
@@ -1328,6 +1328,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         barbeiro: barber.name,
         valor: valor,
       );
+      final barberContactPhone = barber.phone.trim();
+      if (barberContactPhone.isNotEmpty) {
+        msg += '\n📞 Contato do barbeiro: $barberContactPhone';
+      }
       WhatsappService.sendMessage(
           phone: phone, message: msg, config: config);
 
