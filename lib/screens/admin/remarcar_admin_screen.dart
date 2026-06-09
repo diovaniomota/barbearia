@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/services/whatsapp_service.dart';
+import 'package:barbearia/utils/admin_session.dart';
 
 class RemarcarAdminScreen extends StatefulWidget {
   const RemarcarAdminScreen({super.key});
@@ -33,20 +34,26 @@ class _RemarcarAdminScreenState extends State<RemarcarAdminScreen> {
       final supabase = Supabase.instance.client;
       final cutoff = DateTime.now().subtract(const Duration(days: 30));
 
+      // Barbeiro só enxerga os próprios clientes; super-admin vê todos.
+      final barberId = AdminSession.isBarber ? AdminSession.barberId : null;
+
       // 1. Busca todos os agendamentos passados não cancelados
-      final rows = await supabase
+      var pastQuery = supabase
           .from('appointments')
           .select('customer_phone, customer_name, appointment_date, user_id, users:user_id(name, phone)')
           .lte('appointment_date', DateFormat('yyyy-MM-dd').format(DateTime.now()))
-          .not('status', 'in', '("cancelled","canceled","no_show")')
-          .order('appointment_date', ascending: false);
+          .not('status', 'in', '("cancelled","canceled","no_show")');
+      if (barberId != null) pastQuery = pastQuery.eq('barber_id', barberId);
+      final rows = await pastQuery.order('appointment_date', ascending: false);
 
       // 2. Busca phones que têm agendamento futuro (não devem aparecer)
-      final futureRows = await supabase
+      var futureQuery = supabase
           .from('appointments')
           .select('customer_phone')
           .gt('appointment_date', DateFormat('yyyy-MM-dd').format(DateTime.now()))
           .not('status', 'in', '("cancelled","canceled","no_show")');
+      if (barberId != null) futureQuery = futureQuery.eq('barber_id', barberId);
+      final futureRows = await futureQuery;
 
       final futurePhones = <String>{
         for (final r in (futureRows as List))
