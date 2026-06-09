@@ -560,8 +560,18 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                 itemBuilder: (context, index) {
                   final b = _barbers[index];
                   final available = (b['is_available'] ?? true) == true;
+                  final imageUrl = b['image_url']?.toString() ?? '';
                   return ListTile(
-                    leading: const Icon(Icons.person),
+                    leading: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey[800],
+                      foregroundImage: imageUrl.isNotEmpty
+                          ? NetworkImage(imageUrl)
+                          : null,
+                      child: imageUrl.isEmpty
+                          ? const Icon(Icons.person, color: Colors.white54, size: 20)
+                          : null,
+                    ),
                     title: Text(b['name']?.toString() ?? ''),
                     subtitle: Text(b['email']?.toString() ?? ''),
                     onTap: () => _createBarber(existing: b),

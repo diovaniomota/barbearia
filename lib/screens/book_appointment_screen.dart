@@ -1372,7 +1372,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           child: Row(
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: 32,
                 backgroundColor: _BP.border,
                 foregroundImage: avatarUrl.isNotEmpty
                     ? NetworkImage(avatarUrl)
