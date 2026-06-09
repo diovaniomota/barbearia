@@ -183,11 +183,17 @@ class _CustomerHistoryScreenState extends State<CustomerHistoryScreen> {
     if (phone == null || ids.isEmpty) return false;
     setState(() => _loading = true);
     try {
-      // Cancela todos os blocos de 30min do agendamento → libera a agenda do barbeiro
-      await Supabase.instance.client
-          .from('appointments')
-          .update({'status': 'cancelled'})
-          .inFilter('id', ids);
+      // RPC com SECURITY DEFINER — único jeito de contornar o RLS para anon
+      for (final id in ids) {
+        await Supabase.instance.client.rpc(
+          'set_customer_appointment_status',
+          params: {
+            'p_appointment_id': id,
+            'p_phone': phone,
+            'p_status': 'cancelled',
+          },
+        );
+      }
       await _loadHistory(phone);
       return true;
     } catch (e) {
@@ -1202,11 +1208,17 @@ class _RescheduleModalState extends State<_RescheduleModal> {
         'total_price':      _totalPrice,
       });
 
-      // Cancel all old blocks
-      await Supabase.instance.client
-          .from('appointments')
-          .update({'status': 'cancelled'})
-          .inFilter('id', _allIds);
+      // Cancel all old blocks via SECURITY DEFINER RPC (contorna RLS para anon)
+      for (final id in _allIds) {
+        await Supabase.instance.client.rpc(
+          'set_customer_appointment_status',
+          params: {
+            'p_appointment_id': id,
+            'p_phone': _customerPhone,
+            'p_status': 'cancelled',
+          },
+        );
+      }
 
       // WhatsApp notification
       final dateF   = DateFormat('dd/MM/yyyy', 'pt_BR').format(dt);
