@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:barbearia/models/service.dart';
 
 /// Estados possíveis de um slot de 30 min na agenda do dia.
 enum _SlotState { free, client, newClient, admin, blocked }
@@ -553,9 +554,16 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     try {
       final rows = await Supabase.instance.client
           .from('services')
-          .select('id,name,price')
+          .select('id,name,price,sort_order')
           .order('name');
-      services = List<Map<String, dynamic>>.from(rows);
+      services = List<Map<String, dynamic>>.from(rows)
+        ..sort((a, b) {
+          final c = Service.parseInt(a['sort_order'])
+              .compareTo(Service.parseInt(b['sort_order']));
+          return c != 0
+              ? c
+              : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
+        });
     } catch (e) {
       _toast('Erro ao carregar serviços: $e');
       return;

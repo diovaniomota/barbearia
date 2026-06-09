@@ -1441,9 +1441,11 @@ class _MultiSelectServicesFromSupabaseState
         .from('services')
         .select()
         .order('name');
-    return (response as List)
+    final list = (response as List)
         .map((serviceData) => Service.fromMap(serviceData))
         .toList();
+    Service.sortByOrder(list);
+    return list;
   }
 
   @override

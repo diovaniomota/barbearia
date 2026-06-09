@@ -25,7 +25,9 @@ class _HomeScreenState extends State<HomeScreen> {
           .from('services')
           .select()
           .order('name');
-      return (response as List).map((e) => Service.fromMap(e)).toList();
+      final list = (response as List).map((e) => Service.fromMap(e)).toList();
+      Service.sortByOrder(list);
+      return list;
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('oauth_client_id')) {
@@ -34,7 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
             .from('services')
             .select()
             .order('name');
-        return (response as List).map((e) => Service.fromMap(e)).toList();
+        final list = (response as List).map((e) => Service.fromMap(e)).toList();
+        Service.sortByOrder(list);
+        return list;
       }
       rethrow;
     }

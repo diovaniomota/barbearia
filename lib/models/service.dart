@@ -8,6 +8,9 @@ class Service {
   final int durationMinutes;
   final String imageUrl;
 
+  /// Ordem manual definida no admin (arrastar p/ reordenar). Menor = primeiro.
+  final int sortOrder;
+
   Service({
     required this.id,
     required this.name,
@@ -15,6 +18,7 @@ class Service {
     required this.price,
     required this.durationMinutes,
     required this.imageUrl,
+    this.sortOrder = 0,
   });
 
   String get formattedPrice =>
@@ -69,7 +73,18 @@ class Service {
             map['duracao'],
       ),
       imageUrl: parseImageUrl(map),
+      sortOrder: parseInt(map['sort_order'] ?? map['sortOrder']),
     );
+  }
+
+  /// Ordena uma lista de serviços pela ordem manual e, em empate, pelo nome.
+  static void sortByOrder(List<Service> list) {
+    list.sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      return c != 0
+          ? c
+          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
   }
 
   /// MOCK opcional – se telas antigas chamam getSampleServices()

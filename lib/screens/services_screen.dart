@@ -37,8 +37,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
 
       final list = (rows as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
+      final mapped = list.map(Service.fromMap).toList();
+      Service.sortByOrder(mapped);
       setState(() {
-        services = list.map(Service.fromMap).toList();
+        services = mapped;
         isLoading = false;
       });
     } on PostgrestException catch (e) {

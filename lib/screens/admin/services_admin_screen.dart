@@ -38,8 +38,9 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
           .from('services')
           .select('*')
           .order('name');
+      final list = List<Map<String, dynamic>>.from(rows)..sort(_byOrder);
       setState(() {
-        _services = List<Map<String, dynamic>>.from(rows);
+        _services = list;
         _loading = false;
       });
     } catch (e) {
@@ -47,6 +48,48 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  /// Ordena por sort_order e, em empate, pelo nome.
+  int _byOrder(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final c = Service.parseInt(a['sort_order'])
+        .compareTo(Service.parseInt(b['sort_order']));
+    return c != 0
+        ? c
+        : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
+  }
+
+  /// Reordena localmente e persiste a nova ordem no banco.
+  Future<void> _onReorder(int oldIndex, int newIndex) async {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final item = _services.removeAt(oldIndex);
+      _services.insert(newIndex, item);
+    });
+    await _persistOrder();
+  }
+
+  Future<void> _persistOrder() async {
+    final sb = Supabase.instance.client;
+    try {
+      await Future.wait([
+        for (var i = 0; i < _services.length; i++)
+          sb
+              .from('services')
+              .update({'sort_order': i}).eq('id', _services[i]['id'].toString()),
+      ]);
+      for (var i = 0; i < _services.length; i++) {
+        _services[i]['sort_order'] = i;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final hint = e.toString().toLowerCase().contains('sort_order')
+          ? 'Rode a migration services_sort_order_migration.sql no Supabase para criar a coluna sort_order.'
+          : 'Erro ao salvar a ordem: $e';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(hint)));
+      await _load(); // reverte para a ordem do banco
     }
   }
 
@@ -125,82 +168,128 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(child: Text('Erro: $_error'))
-          : RefreshIndicator(
+          : _services.isEmpty
+          ? RefreshIndicator(
               onRefresh: _load,
-              child: _services.isEmpty
-                  ? const Center(child: Text('Nenhum serviço cadastrado.'))
-                  : ListView.separated(
+              child: ListView(
+                children: const [
+                  SizedBox(height: 220),
+                  Center(child: Text('Nenhum serviço cadastrado.')),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.drag_indicator, size: 16, color: Colors.white38),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Arraste pela alça para mudar a ordem. A ordem vale também para o cliente.',
+                          style: TextStyle(fontSize: 11, color: Colors.white54),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _load,
+                    child: ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
                       padding: const EdgeInsets.all(16),
                       itemCount: _services.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      onReorder: _onReorder,
                       itemBuilder: (context, i) {
                         final s = _services[i];
                         final active = (s['is_active'] ?? true) == true;
                         final imageUrl = Service.parseImageUrl(s);
                         final price = (s['price'] as num? ?? 0).toDouble();
 
-                        return Card(
-                          child: ListTile(
-                            minLeadingWidth: 68,
-                            contentPadding: const EdgeInsets.fromLTRB(
-                              12,
-                              8,
-                              8,
-                              8,
-                            ),
-                            leading: _Thumb(url: imageUrl),
-                            title: Text(
-                              s['name']?.toString() ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  NumberFormat.currency(
-                                    locale: 'pt_BR',
-                                    symbol: 'R\$',
-                                  ).format(price),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  imageUrl.isEmpty
-                                      ? '⚠ SEM URL no banco'
-                                      : 'Foto salva',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: imageUrl.isEmpty
-                                        ? Colors.redAccent
-                                        : Colors.greenAccent,
+                        return Padding(
+                          key: ValueKey(s['id'].toString()),
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Card(
+                            margin: EdgeInsets.zero,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(2, 6, 4, 6),
+                              child: Row(
+                                children: [
+                                  ReorderableDragStartListener(
+                                    index: i,
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 2),
+                                      child: Icon(Icons.drag_indicator,
+                                          color: Colors.white38),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Switch(
-                                  value: active,
-                                  onChanged: (_) => _toggleActive(s),
-                                ),
-                                IconButton(
-                                  tooltip: 'Editar',
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () => _openForm(existing: s),
-                                ),
-                                IconButton(
-                                  tooltip: 'Excluir',
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () => _delete(s['id'].toString()),
-                                ),
-                              ],
+                                  _Thumb(url: imageUrl),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          s['name']?.toString() ?? '',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          NumberFormat.currency(
+                                            locale: 'pt_BR',
+                                            symbol: 'R\$',
+                                          ).format(price),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          imageUrl.isEmpty
+                                              ? '⚠ SEM URL no banco'
+                                              : 'Foto salva',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: imageUrl.isEmpty
+                                                ? Colors.redAccent
+                                                : Colors.greenAccent,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: active,
+                                    onChanged: (_) => _toggleActive(s),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: 'Editar',
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () => _openForm(existing: s),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: 'Excluir',
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () =>
+                                        _delete(s['id'].toString()),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
                       },
                     ),
+                  ),
+                ),
+              ],
             ),
     );
   }
