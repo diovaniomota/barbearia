@@ -420,8 +420,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  int _totalBlocks() {
+    if (_selectedServices.isEmpty) return 1;
+    return _selectedServices.fold(0, (sum, s) => sum + s.durationBlocks);
+  }
+
   bool _slotFits(int startIndex) {
-    final n = _selectedServices.isEmpty ? 1 : _selectedServices.length;
+    final n = _totalBlocks();
     if (startIndex + n > _availableSlots.length) return false;
     for (var k = 0; k < n; k++) {
       final t = _availableSlots[startIndex + k];
@@ -459,10 +464,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
 
     try {
-      final n = _selectedServices.length;
+      final totalBlocks = _totalBlocks();
       final appointmentDate = _dateOnlyForDb(dt);
-      final slotTimes =
-          List.generate(n, (i) => dt.add(Duration(minutes: 30 * i)));
+      final slotTimes = List.generate(
+          totalBlocks, (i) => dt.add(Duration(minutes: 30 * i)));
       final wantedHHmm = slotTimes
           .map((d) =>
               '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}')
@@ -498,8 +503,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                 ],
               ),
               content: Text(
-                n > 1
-                    ? 'Um dos horários necessários para esses $n serviços já está ocupado. Escolha outro horário.'
+                totalBlocks > 1
+                    ? 'Um dos ${totalBlocks} horários necessários já está ocupado. Escolha outro horário.'
                     : 'Este barbeiro já possui agendamento neste horário.',
               ),
               actions: [
@@ -516,24 +521,28 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       final authUser = Supabase.instance.client.auth.currentUser;
       final isAdmin = authUser != null && !authUser.isAnonymous;
 
+      // Cada serviço gera durationBlocks linhas consecutivas na agenda
       final payload = <Map<String, dynamic>>[];
-      for (var i = 0; i < n; i++) {
-        final s = _selectedServices[i];
-        final slotDt = slotTimes[i];
-        payload.add({
-          'service_id': s.id,
-          'barber_id': barberId,
-          'appointment_date': _dateOnlyForDb(slotDt),
-          'appointment_time': _timeOnlyForDb(slotDt),
-          'status': 'scheduled',
-          'customer_name': _nameController.text.trim(),
-          'customer_phone': _phoneController.text.trim(),
-          'notes':
-              'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
-          'total_price': s.price,
-          'is_plan_client': _isPlanClient,
-          'source': isAdmin ? 'admin' : 'client',
-        });
+      var slotOffset = 0;
+      for (final s in _selectedServices) {
+        for (var k = 0; k < s.durationBlocks; k++) {
+          final slotDt = dt.add(Duration(minutes: 30 * slotOffset));
+          payload.add({
+            'service_id': s.id,
+            'barber_id': barberId,
+            'appointment_date': _dateOnlyForDb(slotDt),
+            'appointment_time': _timeOnlyForDb(slotDt),
+            'status': 'scheduled',
+            'customer_name': _nameController.text.trim(),
+            'customer_phone': _phoneController.text.trim(),
+            'notes':
+                'Cliente: ${_nameController.text.trim()}\nTelefone: ${_phoneController.text.trim()}',
+            'total_price': k == 0 ? s.price : 0.0,
+            'is_plan_client': _isPlanClient,
+            'source': isAdmin ? 'admin' : 'client',
+          });
+          slotOffset++;
+        }
       }
 
       final insertQuery = Supabase.instance.client
@@ -1104,7 +1113,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                       ),
                     ),
                   const SizedBox(height: 12),
-                  if (_selectedServices.length > 1) ...[
+                  if (_totalBlocks() > 1) ...[
                     Row(
                       children: [
                         const Icon(Icons.info_outline,
@@ -1112,7 +1121,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            '${_selectedServices.length} serviços ocupam ${_selectedServices.length} horários seguidos (${_selectedServices.length * 30}min).',
+                            'Este agendamento ocupa ${_totalBlocks()} horários seguidos (${_totalBlocks() * 30} min).',
                             style: const TextStyle(
                                 color: _BP.muted, fontSize: 11),
                           ),
@@ -1547,7 +1556,7 @@ class _MultiSelectServicesFromSupabaseState
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              s.formattedPrice,
+                              '${s.formattedPrice}  ·  ${s.durationLabel}',
                               style: const TextStyle(
                                 color: _BP.muted,
                                 fontSize: 12,

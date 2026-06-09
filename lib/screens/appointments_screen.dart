@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:barbearia/screens/book_appointment_screen.dart';
+import 'package:barbearia/services/whatsapp_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AppointmentsScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           .select('''
             *,
             users:user_id(name, email),
-            barbers:barber_id(name),
+            barbers:barber_id(name, phone),
             services:service_id(name, price)
           ''')
           .order('appointment_date', ascending: false)
@@ -226,7 +227,7 @@ class _AppointmentCard extends StatelessWidget {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => _showCancelDialog(context, appointment['id']),
+        onTap: () => _showCancelDialog(context, appointment),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -328,8 +329,7 @@ class _AppointmentCard extends StatelessWidget {
                   children: [
                     TextButton.icon(
                       onPressed: () {
-                        // Implementar cancelamento
-                        _showCancelDialog(context, appointment['id']);
+                        _showCancelDialog(context, appointment);
                       },
                       icon: const Icon(Icons.cancel_outlined, size: 16),
                       label: const Text('Cancelar'),
@@ -369,7 +369,7 @@ class _AppointmentCard extends StatelessWidget {
     return DateTime.tryParse('${date}T$time') ?? DateTime.now();
   }
 
-  void _showCancelDialog(BuildContext context, String appointmentId) {
+  void _showCancelDialog(BuildContext context, Map<String, dynamic> appt) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -385,7 +385,7 @@ class _AppointmentCard extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              await _deleteAppointment(context, appointmentId);
+              await _deleteAppointment(context, appt);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Sim, Cancelar'),
@@ -439,14 +439,51 @@ class _AppointmentCard extends StatelessWidget {
 
   Future<void> _deleteAppointment(
     BuildContext context,
-    String appointmentId,
+    Map<String, dynamic> appt,
   ) async {
+    // Notifica o barbeiro via WhatsApp
     try {
-      // Mostra loading
+      final barberPhone = appt['barbers']?['phone']?.toString() ?? '';
+      if (barberPhone.isNotEmpty) {
+        final config = await WhatsappService.loadConfig();
+        if (config.enabled && config.isConfigured) {
+          final clientName =
+              (appt['customer_name']?.toString() ?? '').isNotEmpty
+                  ? appt['customer_name'].toString()
+                  : appt['users']?['name']?.toString() ?? 'Cliente';
+          final dt = _appointmentDateTime(appt);
+          final data =
+              '${dt.day.toString().padLeft(2, '0')}/'
+              '${dt.month.toString().padLeft(2, '0')}/'
+              '${dt.year}';
+          final hora =
+              '${dt.hour.toString().padLeft(2, '0')}:'
+              '${dt.minute.toString().padLeft(2, '0')}';
+          final servico =
+              appt['services']?['name']?.toString() ?? 'Serviço';
+          final msg =
+              '❌ Agendamento cancelado\n\n'
+              '👤 Cliente: $clientName\n'
+              '📅 Data: $data\n'
+              '🕐 Hora: $hora\n'
+              '✂️ Serviço: $servico\n\n'
+              'O cliente cancelou o agendamento.';
+          await WhatsappService.sendMessage(
+            phone: barberPhone,
+            message: msg,
+            config: config,
+          );
+        }
+      }
+    } catch (_) {
+      // Falha no WA não bloqueia o cancelamento
+    }
+
+    try {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Excluindo agendamento...'),
+            content: Text('Cancelando agendamento...'),
             duration: Duration(seconds: 1),
           ),
         );
@@ -455,23 +492,21 @@ class _AppointmentCard extends StatelessWidget {
       await Supabase.instance.client
           .from('appointments')
           .delete()
-          .eq('id', appointmentId);
+          .eq('id', appt['id']);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Agendamento cancelado e excluído com sucesso!'),
+            content: Text('Agendamento cancelado com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
-
-        // Trigger refresh da lista
         await onDelete();
       }
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao excluir agendamento: $error')),
+          SnackBar(content: Text('Erro ao cancelar agendamento: $error')),
         );
       }
     }

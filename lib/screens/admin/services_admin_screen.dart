@@ -151,6 +151,14 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
     if (saved == true) await _load();
   }
 
+  static String _blocksLabel(int blocks) {
+    final mins = blocks * 30;
+    if (mins < 60) return '$mins min';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -249,6 +257,13 @@ class _ServicesAdminScreenState extends State<ServicesAdminScreen> {
                                           ).format(price),
                                         ),
                                         const SizedBox(height: 2),
+                                        Text(
+                                          _blocksLabel(Service.parseInt(s['duration_blocks'] ?? 1)),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white54,
+                                          ),
+                                        ),
                                         Text(
                                           imageUrl.isEmpty
                                               ? '⚠ SEM URL no banco'
@@ -367,6 +382,15 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
   XFile? _pickedImage;
   Uint8List? _pickedBytes;
   bool _saving = false;
+  int _durationBlocks = 1;
+
+  static String _blocksLabel(int blocks) {
+    final mins = blocks * 30;
+    if (mins < 60) return '$mins min';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -380,6 +404,8 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
         symbol: 'R\$',
       ).format(price);
       _currentImageUrl = (e['image_url'] ?? '').toString();
+      final b = Service.parseInt(e['duration_blocks'] ?? 1);
+      _durationBlocks = b < 1 ? 1 : b;
     }
   }
 
@@ -665,6 +691,7 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
       final data = <String, dynamic>{
         'name': name,
         'price': price,
+        'duration_blocks': _durationBlocks,
         'image_url': imageUrl, // always include (null clears, URL saves)
       };
 
@@ -774,6 +801,42 @@ class _ServiceFormDialogState extends State<_ServiceFormDialog> {
                     selection: TextSelection.collapsed(offset: text.length),
                   );
                 },
+              ),
+              const SizedBox(height: 12),
+
+              // ── Duração ────────────────────────────────────────
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Duração',
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.remove),
+                      onPressed: _durationBlocks <= 1
+                          ? null
+                          : () => setState(() => _durationBlocks--),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '$_durationBlocks bloco${_durationBlocks > 1 ? 's' : ''} – ${_blocksLabel(_durationBlocks)}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.add),
+                      onPressed: _durationBlocks >= 6
+                          ? null
+                          : () => setState(() => _durationBlocks++),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -6,6 +6,7 @@ class Service {
   final String description;
   final double price;
   final int durationMinutes;
+  final int durationBlocks;
   final String imageUrl;
 
   /// Ordem manual definida no admin (arrastar p/ reordenar). Menor = primeiro.
@@ -18,12 +19,22 @@ class Service {
     required this.price,
     required this.durationMinutes,
     required this.imageUrl,
+    this.durationBlocks = 1,
     this.sortOrder = 0,
   });
 
   String get formattedPrice =>
       NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(price);
   String get duration => '$durationMinutes min';
+
+  /// Ex: 1 bloco → "30 min", 2 blocos → "1h", 3 blocos → "1h30".
+  String get durationLabel {
+    final mins = durationBlocks * 30;
+    if (mins < 60) return '$mins min';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
+  }
 
   // Helpers sem underscore (evita lint chato)
   static double parseDouble(dynamic v) {
@@ -56,6 +67,7 @@ class Service {
 
   /// Converte do Supabase tolerando nomes diferentes no schema
   factory Service.fromMap(Map<String, dynamic> map) {
+    final blocks = parseInt(map['duration_blocks']);
     return Service(
       id: map['id'].toString(),
       name: (map['name'] ?? map['titulo'] ?? 'Sem nome').toString(),
@@ -72,6 +84,7 @@ class Service {
             map['time_minutes'] ??
             map['duracao'],
       ),
+      durationBlocks: blocks < 1 ? 1 : blocks,
       imageUrl: parseImageUrl(map),
       sortOrder: parseInt(map['sort_order'] ?? map['sortOrder']),
     );
