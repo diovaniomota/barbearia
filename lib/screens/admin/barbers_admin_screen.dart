@@ -465,11 +465,18 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       final fileName =
                           'barber_${DateTime.now().millisecondsSinceEpoch}.$ext';
                       final filePath = 'avatars/$fileName';
+                      final mime = (ext == 'jpg' || ext == 'jpeg')
+                          ? 'image/jpeg'
+                          : ext == 'png'
+                              ? 'image/png'
+                              : ext == 'webp'
+                                  ? 'image/webp'
+                                  : 'image/jpeg';
                       await Supabase.instance.client.storage
                           .from('fotos')
                           .uploadBinary(filePath, pickedBytes!,
                               fileOptions: FileOptions(
-                                  contentType: 'image/$ext',
+                                  contentType: mime,
                                   upsert: true));
                       imageUrl = Supabase.instance.client.storage
                           .from('fotos')
