@@ -1,10 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/admin/admin_navigation.dart';
 import 'package:barbearia/utils/user_bootstrap.dart';
 import 'package:barbearia/utils/admin_session.dart';
+
+const _kSavedEmail = 'login_saved_email';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,11 +23,33 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _checkingSession = true;
+  bool _rememberEmail = false;
 
   @override
   void initState() {
     super.initState();
+    _loadSavedEmail();
     _redirectIfLogged();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kSavedEmail) ?? '';
+    if (saved.isNotEmpty && mounted) {
+      setState(() {
+        _emailController.text = saved;
+        _rememberEmail = true;
+      });
+    }
+  }
+
+  Future<void> _persistEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberEmail) {
+      await prefs.setString(_kSavedEmail, email);
+    } else {
+      await prefs.remove(_kSavedEmail);
+    }
   }
 
   @override
@@ -64,9 +89,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (response.user != null) {
-        // 🔑 garante a linha do usuário na tabela `users`
+        await _persistEmail(_emailController.text.trim());
         await ensureUserRow();
-
         await _navigateAfterLogin();
       }
     } on AuthException catch (error) {
@@ -274,17 +298,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _isLoading ? null : _showForgotPasswordDialog,
-                  child: const Text(
-                    'Esqueci minha senha',
-                    style: TextStyle(color: _gold, fontSize: 13),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberEmail,
+                    onChanged: (v) => setState(() => _rememberEmail = v ?? false),
+                    activeColor: _gold,
+                    side: const BorderSide(color: _muted),
                   ),
-                ),
+                  GestureDetector(
+                    onTap: () => setState(() => _rememberEmail = !_rememberEmail),
+                    child: const Text(
+                      'Lembrar e-mail',
+                      style: TextStyle(color: _muted, fontSize: 14),
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _isLoading ? null : _showForgotPasswordDialog,
+                    child: const Text(
+                      'Esqueci minha senha',
+                      style: TextStyle(color: _gold, fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 24),
