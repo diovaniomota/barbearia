@@ -391,7 +391,7 @@ class _ServicePhotoCard extends StatelessWidget {
                               style: TextStyle(color: _P.muted, fontSize: 12),
                             ),
                             Text(
-                              service.duration,
+                              service.durationLabel,
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(
                                     color: _P.muted,
