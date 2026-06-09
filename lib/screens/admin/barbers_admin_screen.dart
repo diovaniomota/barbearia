@@ -145,34 +145,109 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
     throw Exception('Erro ao criar login: ${body['msg'] ?? res.body}');
   }
 
-  Future<void> _sendPasswordReset(String email) async {
-    final target = email.trim();
-    // Sem e-mail não há como enviar a redefinição (caso de barbeiro com login
-    // mas sem e-mail salvo na tabela). Avisa em vez de mandar vazio.
-    if (target.isEmpty || !target.contains('@')) {
+  /// Define a nova senha do barbeiro na hora (sem e-mail), via Edge Function
+  /// `set-barber-password`, que usa a service_role no servidor.
+  Future<void> _setBarberPassword(String? userId) async {
+    if (userId == null || userId.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Cadastre o e-mail do barbeiro antes de redefinir a senha.'),
+          content: Text('Este barbeiro ainda não tem login criado.'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
-    try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(target);
+
+    final passCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Definir nova senha'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: passCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Nova senha'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirmar senha'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final pass = passCtrl.text.trim();
+    if (pass.length < 6) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('E-mail de redefinição enviado para $target.')),
+        const SnackBar(
+          content: Text('A senha deve ter no mínimo 6 caracteres.'),
+          backgroundColor: Colors.orange,
+        ),
       );
-    } catch (e) {
+      return;
+    }
+    if (pass != confirmCtrl.text.trim()) {
       if (!mounted) return;
-      final lower = e.toString().toLowerCase();
-      final msg = lower.contains('rate limit')
-          ? 'Limite de envio de e-mails do Supabase atingido. Aguarde alguns minutos e tente novamente.'
-          : 'Erro ao redefinir senha: $e';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('As senhas não coincidem.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'set-barber-password',
+        body: {'userId': userId, 'newPassword': pass},
+      );
+      final data = res.data;
+      final ok = data is Map && data['ok'] == true;
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Senha do barbeiro atualizada!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final err = (data is Map ? data['error'] : null) ?? 'Erro ao atualizar senha.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: $err'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      // A Edge Function devolve a mensagem em `details` quando retorna erro.
+      String err = e.toString();
+      try {
+        final d = (e as dynamic).details;
+        if (d is Map && d['error'] != null) err = d['error'].toString();
+      } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro: $err'), backgroundColor: Colors.red),
       );
     }
   }
@@ -235,7 +310,7 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
                       ),
                       TextButton(
                         onPressed: () =>
-                            _sendPasswordReset(emailController.text.trim()),
+                            _setBarberPassword(existing?['user_id']?.toString()),
                         child: const Text('Redefinir senha',
                             style: TextStyle(fontSize: 12)),
                       ),
