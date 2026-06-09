@@ -43,7 +43,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       var query = sb
           .from('appointments')
-          .select('appointment_date, appointment_time')
+          .select(
+            'appointment_date, appointment_time, user_id, '
+            'customer_phone, customer_name, service_id',
+          )
           .gte('appointment_date', monthStartStr)
           .lte('appointment_date', todayStr)
           .neq('status', 'cancelled');
@@ -53,18 +56,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       final rows = List<Map<String, dynamic>>.from(await query);
-      int today = 0, month = 0;
+      // Serviços de vários blocos geram várias linhas; agrupa para
+      // contar cada serviço como 1 atendimento (pelo horário do 1º bloco).
+      final groupStart = <String, DateTime>{};
+      final groupDate = <String, String>{};
       for (final r in rows) {
         final dateStr = r['appointment_date'] as String? ?? '';
         final raw = (r['appointment_time'] as String? ?? '00:00');
         final timeStr = raw.length >= 5 ? raw.substring(0, 5) : raw;
         final dt = DateTime.tryParse('$dateStr $timeStr');
         if (dt == null) continue;
+        final key = [
+          dateStr,
+          r['user_id'] ?? '',
+          r['customer_phone'] ?? '',
+          r['customer_name'] ?? '',
+          r['service_id'] ?? '',
+        ].join('|');
+        final cur = groupStart[key];
+        if (cur == null || dt.isBefore(cur)) groupStart[key] = dt;
+        groupDate[key] = dateStr;
+      }
+      int today = 0, month = 0;
+      groupStart.forEach((key, dt) {
         if (dt.isBefore(cutoff)) {
           month++;
-          if (dateStr == todayStr) today++;
+          if (groupDate[key] == todayStr) today++;
         }
-      }
+      });
       if (mounted) {
         setState(() {
           _executedToday = today;
@@ -102,7 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
       final totals = <String, double>{};
-      final counts = <String, int>{};
+      final countKeys = <String, Set<String>>{};
       final names = <String, String>{};
       for (final r in list) {
         final id = (r['barber_id'] ?? '').toString();
@@ -116,23 +135,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
         names[id] = (name.isEmpty ? 'Sem nome' : name);
 
-        double price = 0.0;
-        final servicesRaw = r['services'];
-        if (servicesRaw is Map) {
-          final p = servicesRaw['price'] as num?;
-          price = (p == null) ? 0.0 : p.toDouble();
-        } else if (servicesRaw is List) {
-          for (final s in servicesRaw) {
-            if (s is Map) {
-              final p = s['price'] as num?;
-              if (p != null) price += p.toDouble();
+        // total_price já vem 0 nos blocos extras de um serviço longo;
+        // linhas antigas sem a coluna caem no preço do serviço.
+        double price;
+        final tp = r['total_price'] as num?;
+        if (tp != null) {
+          price = tp.toDouble();
+        } else {
+          price = 0.0;
+          final servicesRaw = r['services'];
+          if (servicesRaw is Map) {
+            final p = servicesRaw['price'] as num?;
+            price = (p == null) ? 0.0 : p.toDouble();
+          } else if (servicesRaw is List) {
+            for (final s in servicesRaw) {
+              if (s is Map) {
+                final p = s['price'] as num?;
+                if (p != null) price += p.toDouble();
+              }
             }
           }
         }
 
         totals[id] = (totals[id] ?? 0.0) + price;
-        counts[id] = (counts[id] ?? 0) + 1;
+
+        // Cada serviço conta 1 vez, mesmo ocupando vários blocos de 30 min
+        final gkey = [
+          r['appointment_date'] ?? '',
+          r['user_id'] ?? '',
+          r['customer_phone'] ?? '',
+          r['customer_name'] ?? '',
+          r['service_id'] ?? '',
+        ].join('|');
+        (countKeys[id] ??= <String>{}).add(gkey);
       }
+      final counts = countKeys.map((id, keys) => MapEntry(id, keys.length));
 
       final palette = <Color>[
         const Color(0xFF1E88E5),
@@ -184,7 +221,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     var query = supabase
         .from('appointments')
         .select(
-          'barber_id, barbers:barber_id(name), services:service_id(price)',
+          'barber_id, appointment_date, user_id, customer_phone, '
+          'customer_name, service_id, total_price, '
+          'barbers:barber_id(name), services:service_id(price)',
         )
         .gte('appointment_date', _dateOnly(start))
         .lt('appointment_date', _dateOnly(end))
@@ -232,106 +271,177 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Top barbeiros do mês',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                  // Ranking e pizza comparam barbeiros — só p/ super-admin.
+                  // Barbeiro vê um resumo só com os próprios números.
+                  if (!AdminSession.isSuperAdmin) _buildMyMonthCard(theme),
+                  if (AdminSession.isSuperAdmin) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.2,
                           ),
                         ),
-                        if (_dashboardMonth != null) ...[
-                          const SizedBox(height: 4),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            DateFormat.yMMMM('pt_BR').format(_dashboardMonth!),
-                            style: theme.textTheme.bodySmall,
+                            'Top barbeiros do mês',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (_dashboardMonth != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat.yMMMM(
+                                'pt_BR',
+                              ).format(_dashboardMonth!),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          ..._buildBarberMonth(theme),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.2,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Resumo em pizza',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 220,
+                            child: _slices.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      'Sem dados para exibir',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  )
+                                : _PieChart(slices: _slices),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _slices.map((s) {
+                              final total = _slices.fold<double>(
+                                0,
+                                (p, e) => p + e.value,
+                              );
+                              final pct = total == 0
+                                  ? 0
+                                  : ((s.value / total) * 100).round();
+                              return Chip(
+                                backgroundColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                label: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: s.color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text('${s.label} • $pct%'),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        ..._buildBarberMonth(theme),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Resumo em pizza',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 220,
-                          child: _slices.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    'Sem dados para exibir',
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                )
-                              : _PieChart(slices: _slices),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _slices.map((s) {
-                            final total = _slices.fold<double>(
-                              0,
-                              (p, e) => p + e.value,
-                            );
-                            final pct = total == 0
-                                ? 0
-                                : ((s.value / total) * 100).round();
-                            return Chip(
-                              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                              label: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: s.color,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('${s.label} • $pct%'),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                   const SizedBox(height: 12),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildMyMonthCard(ThemeData theme) {
+    final count = _barberMonth.isEmpty ? 0 : _barberMonth.first.count;
+    final total = _slices.fold<double>(0.0, (p, e) => p + e.value);
+    final money = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+    ).format(total);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Seu mês',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (_dashboardMonth != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              DateFormat.yMMMM('pt_BR').format(_dashboardMonth!),
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.event_available, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Atendimentos no mês: $count',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.attach_money, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Faturamento previsto: $money',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -532,4 +642,3 @@ class _PiePainter extends CustomPainter {
     return oldDelegate.slices != slices;
   }
 }
-
