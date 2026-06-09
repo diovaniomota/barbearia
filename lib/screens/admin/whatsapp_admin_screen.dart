@@ -101,6 +101,15 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
       );
       return;
     }
+    if (_status?.online != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Servidor está offline. Não é possível resetar a sessão agora.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(

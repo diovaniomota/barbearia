@@ -225,6 +225,13 @@ class WhatsappService {
       if (res.statusCode == 200) return const WhatsappResult(ok: true);
       return WhatsappResult(ok: false, error: 'Erro ${res.statusCode}');
     } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('failed to fetch') || msg.contains('socketexception') || msg.contains('connection refused')) {
+        return const WhatsappResult(ok: false, error: 'Servidor não está acessível. Verifique se ele está rodando.');
+      }
+      if (msg.contains('timeout') || msg.contains('timed out')) {
+        return const WhatsappResult(ok: false, error: 'Servidor demorou demais para responder (timeout).');
+      }
       return WhatsappResult(ok: false, error: e.toString());
     }
   }
