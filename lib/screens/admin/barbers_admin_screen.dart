@@ -146,17 +146,34 @@ class _BarbersAdminScreenState extends State<BarbersAdminScreen> {
   }
 
   Future<void> _sendPasswordReset(String email) async {
+    final target = email.trim();
+    // Sem e-mail não há como enviar a redefinição (caso de barbeiro com login
+    // mas sem e-mail salvo na tabela). Avisa em vez de mandar vazio.
+    if (target.isEmpty || !target.contains('@')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastre o e-mail do barbeiro antes de redefinir a senha.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email de redefinição de senha enviado!')),
-        );
-      }
+      await Supabase.instance.client.auth.resetPasswordForEmail(target);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('E-mail de redefinição enviado para $target.')),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
-      }
+      if (!mounted) return;
+      final lower = e.toString().toLowerCase();
+      final msg = lower.contains('rate limit')
+          ? 'Limite de envio de e-mails do Supabase atingido. Aguarde alguns minutos e tente novamente.'
+          : 'Erro ao redefinir senha: $e';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     }
   }
 
