@@ -291,12 +291,12 @@ class _AdminNavigationState extends State<AdminNavigation> {
                   'Barbeiros',
                   () => _pushScreen(const BarbersAdminScreen()),
                 ),
-                _DrawerItem(
-                  Icons.card_membership_outlined,
-                  'Clientes Plano',
-                  () => _pushScreen(const PlanClientsAdminScreen()),
-                ),
               ],
+              _DrawerItem(
+                Icons.card_membership_outlined,
+                'Clientes Plano',
+                () => _pushScreen(const PlanClientsAdminScreen()),
+              ),
               _DrawerItem(
                 Icons.person_off_outlined,
                 'Remarcar',

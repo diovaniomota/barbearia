@@ -1,3 +1,4 @@
+import 'package:barbearia/utils/admin_session.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -42,18 +43,29 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
     setState(() => _loading = true);
     try {
       final sb = Supabase.instance.client;
+
+      // Recorrentes deste cliente — barbeiro vê apenas os seus
+      var recQuery = sb
+          .from('recurring_schedules')
+          .select(
+            'id,day_of_week,appointment_time,is_active,barber_id,'
+            'barbers!barber_id(id,name),'
+            'services!service_id(id,name,duration_blocks)',
+          )
+          .eq('plan_client_id', widget.planClientId);
+      if (AdminSession.isBarber) {
+        recQuery = recQuery.eq('barber_id', AdminSession.barberId!);
+      }
+
+      // Barbeiros para o seletor — barbeiro vê apenas a si mesmo
+      var barbersQuery = sb.from('barbers').select('id,name');
+      if (AdminSession.isBarber) {
+        barbersQuery = barbersQuery.eq('id', AdminSession.barberId!);
+      }
+
       final results = await Future.wait([
-        sb
-            .from('recurring_schedules')
-            .select(
-              'id,day_of_week,appointment_time,is_active,'
-              'barbers!barber_id(id,name),'
-              'services!service_id(id,name,duration_blocks)',
-            )
-            .eq('plan_client_id', widget.planClientId)
-            .order('day_of_week')
-            .order('appointment_time'),
-        sb.from('barbers').select('id,name').order('name'),
+        recQuery.order('day_of_week').order('appointment_time'),
+        barbersQuery.order('name'),
         sb.from('services').select('id,name,duration_blocks').order('name'),
       ]);
       if (!mounted) return;
@@ -86,7 +98,7 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
     }
     String? selBarberId = isEdit
         ? (sched['barbers']  is Map ? (sched['barbers']  as Map)['id']?.toString() : null)
-        : null;
+        : (AdminSession.isBarber ? AdminSession.barberId : null);
     String? selServiceId = isEdit
         ? (sched['services'] is Map ? (sched['services'] as Map)['id']?.toString() : null)
         : null;
@@ -153,25 +165,35 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Barbeiro
-                  DropdownButtonFormField<String>(
-                    initialValue: selBarberId,
-                    decoration: const InputDecoration(
-                      labelText: 'Barbeiro *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outline),
+                  // Barbeiro — barbeiro-admin fica fixo em si mesmo
+                  if (AdminSession.isBarber)
+                    InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Barbeiro',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      child: Text(AdminSession.barberName ?? 'Você'),
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: selBarberId,
+                      decoration: const InputDecoration(
+                        labelText: 'Barbeiro *',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      hint: const Text('Selecionar…'),
+                      items: _barbers
+                          .map(
+                            (b) => DropdownMenuItem<String>(
+                              value: b['id']?.toString(),
+                              child: Text(b['name']?.toString() ?? ''),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setSt(() => selBarberId = v),
                     ),
-                    hint: const Text('Selecionar…'),
-                    items: _barbers
-                        .map(
-                          (b) => DropdownMenuItem<String>(
-                            value: b['id']?.toString(),
-                            child: Text(b['name']?.toString() ?? ''),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setSt(() => selBarberId = v),
-                  ),
                   const SizedBox(height: 12),
 
                   // Serviço
