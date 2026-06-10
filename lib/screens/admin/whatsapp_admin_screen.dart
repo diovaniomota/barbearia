@@ -13,12 +13,15 @@ class WhatsappAdminScreen extends StatefulWidget {
 }
 
 class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
-  final _urlCtr = TextEditingController();
-  final _keyCtr = TextEditingController();
-  final _tmplCtr = TextEditingController();
-  final _testCtr = TextEditingController();
+  final _urlCtr     = TextEditingController();
+  final _keyCtr     = TextEditingController();
+  final _tmplCtr    = TextEditingController();
+  final _testCtr    = TextEditingController();
+  final _plan24hCtr = TextEditingController();
+  final _plan1hCtr  = TextEditingController();
 
   bool _enabled = false;
+  int  _reminderHours = 1;
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
@@ -40,6 +43,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     _keyCtr.dispose();
     _tmplCtr.dispose();
     _testCtr.dispose();
+    _plan24hCtr.dispose();
+    _plan1hCtr.dispose();
     super.dispose();
   }
 
@@ -47,20 +52,26 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     final config = await WhatsappService.loadConfig();
     if (!mounted) return;
     setState(() {
-      _urlCtr.text = config.serverUrl;
-      _keyCtr.text = config.apiKey;
-      _tmplCtr.text = config.template;
-      _enabled = config.enabled;
-      _loading = false;
+      _urlCtr.text     = config.serverUrl;
+      _keyCtr.text     = config.apiKey;
+      _tmplCtr.text    = config.template;
+      _plan24hCtr.text = config.planTemplate24h;
+      _plan1hCtr.text  = config.planTemplate1h;
+      _enabled         = config.enabled;
+      _reminderHours   = config.reminderNormalHours;
+      _loading         = false;
     });
     if (config.isConfigured) _startPolling();
   }
 
   WhatsappConfig get _currentConfig => WhatsappConfig(
-    serverUrl: _urlCtr.text.trim(),
-    apiKey: _keyCtr.text.trim(),
-    enabled: _enabled,
-    template: _tmplCtr.text.trim(),
+    serverUrl:           _urlCtr.text.trim(),
+    apiKey:              _keyCtr.text.trim(),
+    enabled:             _enabled,
+    template:            _tmplCtr.text.trim(),
+    reminderNormalHours: _reminderHours,
+    planTemplate24h:     _plan24hCtr.text.trim(),
+    planTemplate1h:      _plan1hCtr.text.trim(),
   );
 
   // Verifica status + QR a cada 4 segundos enquanto não conectado
@@ -327,7 +338,93 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
               hintText: 'Texto da mensagem…',
             ),
           ),
+          const SizedBox(height: 28),
+
+          // ── Lembretes automáticos ─────────────────────────
+          Text(
+            'Lembretes automáticos',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Antecedência para enviar o lembrete (clientes normais e plano).',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<int>(
+            initialValue: _reminderHours,
+            decoration: const InputDecoration(
+              labelText: 'Enviar lembrete com antecedência de',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.alarm_outlined),
+            ),
+            items: const [
+              DropdownMenuItem(value: 1,  child: Text('1 hora')),
+              DropdownMenuItem(value: 2,  child: Text('2 horas')),
+              DropdownMenuItem(value: 6,  child: Text('6 horas')),
+              DropdownMenuItem(value: 24, child: Text('24 horas')),
+            ],
+            onChanged: (v) => setState(() => _reminderHours = v ?? 1),
+          ),
           const SizedBox(height: 24),
+
+          // Plano 24h
+          Text(
+            'Lembrete do plano — 24 horas antes',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enviado exclusivamente para clientes do plano, 24h antes do horário.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _VariableChips(controller: _plan24hCtr),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _plan24hCtr,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Texto da mensagem…',
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Plano no horário configurado
+          Text(
+            'Lembrete do plano — no horário configurado',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enviado para clientes do plano com a mesma antecedência do lembrete normal.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _VariableChips(controller: _plan1hCtr),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _plan1hCtr,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Texto da mensagem…',
+            ),
+          ),
+          const SizedBox(height: 28),
 
           // ── Teste ────────────────────────────────────────
           Text(

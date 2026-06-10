@@ -1,3 +1,4 @@
+import 'package:barbearia/screens/admin/recurring_schedule_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -416,6 +417,22 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.repeat_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
+                          tooltip: 'Agendamentos recorrentes',
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecurringScheduleScreen(
+                                planClientId:   c['id'].toString(),
+                                planClientName: c['name']?.toString() ?? '',
+                              ),
+                            ),
+                          ),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           tooltip: 'Editar',

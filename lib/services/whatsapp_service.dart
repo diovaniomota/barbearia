@@ -10,12 +10,18 @@ class WhatsappConfig {
   final String apiKey; // chave secreta definida no servidor
   final bool enabled;
   final String template;
+  final int reminderNormalHours; // horas antes para lembrete (clientes normais)
+  final String planTemplate24h;  // lembrete 24h antes para clientes do plano
+  final String planTemplate1h;   // lembrete no horário configurado para clientes do plano
 
   const WhatsappConfig({
     required this.serverUrl,
     required this.apiKey,
     required this.enabled,
     required this.template,
+    this.reminderNormalHours = 1,
+    this.planTemplate24h = defaultPlanTemplate24h,
+    this.planTemplate1h  = defaultPlanTemplate1h,
   });
 
   static const defaultTemplate =
@@ -26,6 +32,20 @@ class WhatsappConfig {
       '💈 Profissional: {{barbeiro}}\n'
       '💰 Valor: {{valor}}\n\n'
       'Obrigado, {{cliente}}! Te esperamos 👋';
+
+  static const defaultPlanTemplate24h =
+      '📅 Lembrete do seu plano!\n\n'
+      'Olá {{cliente}}! Seu horário é amanhã às {{hora}}.\n'
+      '✂️ Serviço: {{servico}}\n'
+      '💈 Profissional: {{barbeiro}}\n\n'
+      'Te esperamos amanhã! 👋';
+
+  static const defaultPlanTemplate1h =
+      '⏰ Quase na hora!\n\n'
+      'Olá {{cliente}}! Seu horário de plano é hoje às {{hora}}.\n'
+      '✂️ Serviço: {{servico}}\n'
+      '💈 Profissional: {{barbeiro}}\n\n'
+      'Te esperamos daqui a pouco! 🙌';
 
   factory WhatsappConfig.empty() => const WhatsappConfig(
     serverUrl: '',
@@ -47,11 +67,17 @@ class WhatsappConfig {
     String? apiKey,
     bool? enabled,
     String? template,
+    int? reminderNormalHours,
+    String? planTemplate24h,
+    String? planTemplate1h,
   }) => WhatsappConfig(
-    serverUrl: serverUrl ?? this.serverUrl,
-    apiKey: apiKey ?? this.apiKey,
-    enabled: enabled ?? this.enabled,
-    template: template ?? this.template,
+    serverUrl:            serverUrl            ?? this.serverUrl,
+    apiKey:               apiKey               ?? this.apiKey,
+    enabled:              enabled              ?? this.enabled,
+    template:             template             ?? this.template,
+    reminderNormalHours:  reminderNormalHours  ?? this.reminderNormalHours,
+    planTemplate24h:      planTemplate24h      ?? this.planTemplate24h,
+    planTemplate1h:       planTemplate1h       ?? this.planTemplate1h,
   );
 }
 
@@ -78,6 +104,9 @@ class WhatsappService {
             'wa_api_key',
             'wa_enabled',
             'wa_template',
+            'reminder_normal_hours',
+            'wa_plan_reminder_template_24h',
+            'wa_plan_reminder_template_1h',
           ]);
       final map = <String, String>{
         for (final r in (rows as List))
@@ -88,6 +117,12 @@ class WhatsappService {
         apiKey: map['wa_api_key'] ?? '',
         enabled: map['wa_enabled'] == 'true',
         template: map['wa_template'] ?? WhatsappConfig.defaultTemplate,
+        reminderNormalHours:
+            int.tryParse(map['reminder_normal_hours'] ?? '1') ?? 1,
+        planTemplate24h: map['wa_plan_reminder_template_24h'] ??
+            WhatsappConfig.defaultPlanTemplate24h,
+        planTemplate1h: map['wa_plan_reminder_template_1h'] ??
+            WhatsappConfig.defaultPlanTemplate1h,
       );
     } catch (_) {
       return WhatsappConfig.empty();
@@ -102,6 +137,9 @@ class WhatsappService {
       {'key': 'wa_api_key', 'value': c.apiKey},
       {'key': 'wa_enabled', 'value': c.enabled.toString()},
       {'key': 'wa_template', 'value': c.template},
+      {'key': 'reminder_normal_hours', 'value': c.reminderNormalHours.toString()},
+      {'key': 'wa_plan_reminder_template_24h', 'value': c.planTemplate24h},
+      {'key': 'wa_plan_reminder_template_1h', 'value': c.planTemplate1h},
     ]) {
       await Supabase.instance.client
           .from('app_settings')
