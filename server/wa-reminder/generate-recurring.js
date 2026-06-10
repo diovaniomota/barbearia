@@ -129,17 +129,18 @@ async function main() {
       const rows = [];
       for (let k = 0; k < blocks; k++) {
         rows.push({
-          barber_id:        sched.barber_id,
-          service_id:       sched.service_id,
-          appointment_date: date,
-          appointment_time: addMin(time, k * 30),
-          customer_name:    name,
-          customer_phone:   phone,
-          status:           'scheduled',
-          total_price:      k === 0 ? price : 0,
-          is_plan_client:   true,
-          source:           'recurring',
-          notes:            `Recorrente automático — toda ${DOW_PT[sched.day_of_week]}`,
+          barber_id:             sched.barber_id,
+          service_id:            sched.service_id,
+          appointment_date:      date,
+          appointment_time:      addMin(time, k * 30),
+          customer_name:         name,
+          customer_phone:        phone,
+          status:                'scheduled',
+          total_price:           k === 0 ? price : 0,
+          is_plan_client:        true,
+          source:                'recurring',
+          recurring_schedule_id: sched.id,
+          notes:                 `Recorrente automático — toda ${DOW_PT[sched.day_of_week]}`,
         });
       }
 

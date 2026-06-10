@@ -345,34 +345,60 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir recorrente?'),
-        content: Text(
-          'Remover o agendamento de $day às $time com $barberName?\n\n'
-          'Agendamentos já criados não serão afetados.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+      builder: (ctx) => Theme(
+        data: Theme.of(context),
+        child: AlertDialog(
+          title: const Text('Excluir recorrente?'),
+          content: Text(
+            'Remover o agendamento de $day às $time com $barberName?\n\n'
+            'Os horários futuros já reservados por esta recorrência serão '
+            'liberados. Atendimentos passados não são afetados.',
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
             ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Excluir'),
+            ),
+          ],
+        ),
       ),
     );
     if (confirmed != true) return;
     try {
-      await Supabase.instance.client
-          .from('recurring_schedules')
+      final sb = Supabase.instance.client;
+      final now = DateTime.now();
+      final today =
+          '${now.year.toString().padLeft(4, '0')}-'
+          '${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+
+      // 1. Libera os horários futuros já gerados por esta recorrência.
+      //    Mantém atendimentos passados (histórico/caixa) intactos.
+      await sb
+          .from('appointments')
           .delete()
-          .eq('id', sched['id']);
+          .eq('recurring_schedule_id', sched['id'])
+          .gte('appointment_date', today)
+          .inFilter('status', ['scheduled', 'confirmed']);
+
+      // 2. Remove a recorrência em si.
+      await sb.from('recurring_schedules').delete().eq('id', sched['id']);
+
       await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recorrência removida e horários liberados.'),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

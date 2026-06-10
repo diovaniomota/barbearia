@@ -26,6 +26,15 @@ CREATE POLICY "authenticated_all" ON public.recurring_schedules
 ALTER TABLE public.appointments
   ADD COLUMN IF NOT EXISTS reminder_24h_sent boolean NOT NULL DEFAULT false;
 
+-- 2b. Liga cada agendamento gerado à sua recorrência ---------------------------
+-- Permite liberar os horários futuros quando a recorrência é excluída.
+ALTER TABLE public.appointments
+  ADD COLUMN IF NOT EXISTS recurring_schedule_id uuid
+  REFERENCES public.recurring_schedules(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_appointments_recurring_schedule
+  ON public.appointments(recurring_schedule_id);
+
 -- 3. Configurações de lembretes em app_settings --------------------------------
 -- Só insere se a chave ainda não existir
 INSERT INTO public.app_settings (key, value) VALUES
