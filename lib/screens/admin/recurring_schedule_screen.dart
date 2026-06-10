@@ -105,9 +105,15 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
     bool    isActive     = isEdit ? (sched['is_active'] as bool? ?? true) : true;
     String? err;
 
+    // Captura o tema atual (admin) para re-aplicar no dialog, que abre
+    // no root navigator e não herda a subárvore de tema.
+    final dialogTheme = Theme.of(context);
+
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => Theme(
+        data: dialogTheme,
+        child: StatefulBuilder(
         builder: (ctx, setSt) {
           // Computed label — local variable, não getter
           final timeLabel = selTime == null
@@ -140,6 +146,8 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                   // Dia da semana
                   DropdownButtonFormField<int>(
                     initialValue: selDay,
+                    dropdownColor: Theme.of(ctx).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
                     decoration: const InputDecoration(
                       labelText: 'Dia da semana *',
                       border: OutlineInputBorder(),
@@ -178,6 +186,9 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                   else
                     DropdownButtonFormField<String>(
                       initialValue: selBarberId,
+                      dropdownColor: Theme.of(ctx).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Barbeiro *',
                         border: OutlineInputBorder(),
@@ -199,6 +210,9 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                   // Serviço
                   DropdownButtonFormField<String>(
                     initialValue: selServiceId,
+                    dropdownColor: Theme.of(ctx).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Serviço *',
                       border: OutlineInputBorder(),
@@ -299,6 +313,7 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
             ],
           );
         },
+        ),
       ),
     );
   }
@@ -428,72 +443,120 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                 final isActive = s['is_active'] as bool? ?? true;
 
                 return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: isActive
-                          ? theme.colorScheme.primaryContainer
-                          : theme.colorScheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.repeat_rounded,
-                        color: isActive
-                            ? theme.colorScheme.onPrimaryContainer
-                            : theme.colorScheme.outline,
-                      ),
-                    ),
-                    title: Text(
-                      '$day às $time',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Column(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 2),
-                        Text('$serviceName  •  $barberName'),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$blocks bloco${blocks > 1 ? 's' : ''} de 30 min  •  '
-                          '${isActive ? 'Ativo' : 'Inativo'}',
-                          style: TextStyle(
-                            fontSize: 12,
+                        CircleAvatar(
+                          backgroundColor: isActive
+                              ? theme.colorScheme.primaryContainer
+                              : theme.colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.repeat_rounded,
                             color: isActive
-                                ? theme.colorScheme.primary
+                                ? theme.colorScheme.onPrimaryContainer
                                 : theme.colorScheme.outline,
                           ),
                         ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            isActive
-                                ? Icons.pause_circle_outline
-                                : Icons.play_circle_outline,
-                            color: isActive
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outline,
+                        const SizedBox(width: 12),
+                        // Conteúdo flexível — usa o espaço restante e trunca
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$day às $time',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$serviceName  •  $barberName',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$blocks bloco${blocks > 1 ? 's' : ''} de 30 min  •  '
+                                '${isActive ? 'Ativo' : 'Inativo'}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isActive
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.outline,
+                                ),
+                              ),
+                            ],
                           ),
-                          tooltip: isActive ? 'Pausar' : 'Reativar',
-                          onPressed: () => _toggleActive(s),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Editar',
-                          onPressed: () => _openDialog(sched: s),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: theme.colorScheme.error,
-                          ),
-                          tooltip: 'Excluir',
-                          onPressed: () => _delete(s),
+                        const SizedBox(width: 4),
+                        // Ações compactas — pausar/reativar visível + menu
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                isActive
+                                    ? Icons.pause_circle_outline
+                                    : Icons.play_circle_outline,
+                                color: isActive
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.outline,
+                              ),
+                              tooltip: isActive ? 'Pausar' : 'Reativar',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _toggleActive(s),
+                            ),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert),
+                              tooltip: 'Mais opções',
+                              onSelected: (v) {
+                                if (v == 'edit') {
+                                  _openDialog(sched: s);
+                                } else if (v == 'delete') {
+                                  _delete(s);
+                                }
+                              },
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_outlined, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Editar'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                        color: theme.colorScheme.error,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Excluir',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.error,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ],
                     ),

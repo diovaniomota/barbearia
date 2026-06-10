@@ -320,131 +320,177 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                 final paymentMethod = c['payment_method']?.toString();
                 final dueDay = c['due_day'];
                 final notes = c['notes']?.toString();
+                final hasPayment =
+                    paymentMethod != null && paymentMethod.isNotEmpty;
+
                 return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(
-                        Icons.card_membership,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                    title: Text(
-                      c['name']?.toString() ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Column(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 2),
-                        Text(_displayPhone(c['phone'] ?? '')),
-                        if (planName != null && planName.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              planName,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
+                        CircleAvatar(
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          child: Icon(
+                            Icons.card_membership,
+                            color: theme.colorScheme.onPrimaryContainer,
                           ),
-                        ],
-                        if (paymentMethod != null && paymentMethod.isNotEmpty ||
-                            dueDay != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
+                        ),
+                        const SizedBox(width: 12),
+                        // Conteúdo flexível — ocupa o espaço restante e trunca
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (paymentMethod != null &&
-                                  paymentMethod.isNotEmpty) ...[
-                                const Icon(Icons.payment_outlined, size: 13),
-                                const SizedBox(width: 4),
-                                Text(
-                                  paymentMethod,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: theme.colorScheme.onSurface,
+                              Text(
+                                c['name']?.toString() ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _displayPhone(c['phone'] ?? ''),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              if (planName != null && planName.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    planName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
+                                    ),
                                   ),
                                 ),
                               ],
-                              if (paymentMethod != null &&
-                                  paymentMethod.isNotEmpty &&
-                                  dueDay != null)
-                                const Text(
-                                  '  ·  ',
-                                  style: TextStyle(fontSize: 12),
+                              if (hasPayment || dueDay != null) ...[
+                                const SizedBox(height: 6),
+                                // Wrap evita estouro horizontal em telas estreitas
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    if (hasPayment)
+                                      _InfoChip(
+                                        icon: Icons.payment_outlined,
+                                        label: paymentMethod,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                    if (dueDay != null)
+                                      _InfoChip(
+                                        icon: Icons.event_outlined,
+                                        label: 'Vence dia $dueDay',
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                  ],
                                 ),
-                              if (dueDay != null) ...[
-                                const Icon(Icons.event_outlined, size: 13),
-                                const SizedBox(width: 4),
+                              ],
+                              if (notes != null && notes.isNotEmpty) ...[
+                                const SizedBox(height: 4),
                                 Text(
-                                  'Vence dia $dueDay',
+                                  notes,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: theme.colorScheme.onSurface,
+                                    color: theme.colorScheme.outline,
                                   ),
                                 ),
                               ],
                             ],
                           ),
-                        ],
-                        if (notes != null && notes.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            notes,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.outline,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.repeat_rounded,
-                            color: theme.colorScheme.primary,
-                          ),
-                          tooltip: 'Agendamentos recorrentes',
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => RecurringScheduleScreen(
-                                planClientId:   c['id'].toString(),
-                                planClientName: c['name']?.toString() ?? '',
+                        ),
+                        const SizedBox(width: 4),
+                        // Ações compactas — recorrente visível + menu
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.repeat_rounded,
+                                color: theme.colorScheme.primary,
                               ),
+                              tooltip: 'Agendamentos recorrentes',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                // Repassa o tema admin para a tela empilhada,
+                                // senão ela abre com o tema claro padrão.
+                                final adminTheme = Theme.of(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => Theme(
+                                      data: adminTheme,
+                                      child: RecurringScheduleScreen(
+                                        planClientId: c['id'].toString(),
+                                        planClientName:
+                                            c['name']?.toString() ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Editar',
-                          onPressed: () => _openDialog(client: c),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: theme.colorScheme.error,
-                          ),
-                          tooltip: 'Remover',
-                          onPressed: () => _delete(c),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert),
+                              tooltip: 'Mais opções',
+                              onSelected: (v) {
+                                if (v == 'edit') {
+                                  _openDialog(client: c);
+                                } else if (v == 'delete') {
+                                  _delete(c);
+                                }
+                              },
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_outlined, size: 20),
+                                      SizedBox(width: 12),
+                                      Text('Editar'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                        color: theme.colorScheme.error,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Remover',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.error,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -452,6 +498,34 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+// Pequeno rótulo com ícone — usado nas infos de pagamento/vencimento.
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: color),
+        ),
+      ],
     );
   }
 }
