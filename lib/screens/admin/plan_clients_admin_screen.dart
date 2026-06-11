@@ -71,6 +71,11 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
     final dueDayCtrl = TextEditingController(
       text: client?['due_day']?.toString() ?? '',
     );
+    final monthlyValueCtrl = TextEditingController(
+      text: client?['monthly_value'] != null
+          ? (client!['monthly_value'] as num).toStringAsFixed(2).replaceAll('.', ',')
+          : '',
+    );
 
     final rawPhone = client != null ? _displayPhone(client['phone'] ?? '') : '';
     final phoneCtrl = TextEditingController(text: rawPhone);
@@ -117,6 +122,17 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                     labelText: 'Nome do plano',
                     hintText: 'Ex: Mensal, Quinzenal...',
                     prefixIcon: Icon(Icons.card_membership_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: monthlyValueCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Valor da mensalidade',
+                    hintText: '0,00',
+                    prefixIcon: Icon(Icons.attach_money_outlined),
+                    prefixText: 'R\$ ',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -183,12 +199,16 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                 }
                 Navigator.pop(ctx);
                 try {
+                  final monthlyValueRaw = double.tryParse(
+                    monthlyValueCtrl.text.trim().replaceAll(',', '.'),
+                  );
                   final data = {
                     'name': name,
                     'phone': phone,
                     'plan_name': planCtrl.text.trim().isEmpty
                         ? null
                         : planCtrl.text.trim(),
+                    'monthly_value': monthlyValueRaw,
                     'payment_method': selectedPayment,
                     'due_day': dueDayRaw,
                     'notes': notesCtrl.text.trim().isEmpty
@@ -320,6 +340,9 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                 final paymentMethod = c['payment_method']?.toString();
                 final dueDay = c['due_day'];
                 final notes = c['notes']?.toString();
+                final monthlyValue = c['monthly_value'] != null
+                    ? (c['monthly_value'] as num).toDouble()
+                    : null;
                 final hasPayment =
                     paymentMethod != null && paymentMethod.isNotEmpty;
 
@@ -381,14 +404,19 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                                   ),
                                 ),
                               ],
-                              if (hasPayment || dueDay != null) ...[
+                              if (monthlyValue != null || hasPayment || dueDay != null) ...[
                                 const SizedBox(height: 6),
-                                // Wrap evita estouro horizontal em telas estreitas
                                 Wrap(
                                   spacing: 12,
                                   runSpacing: 4,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
+                                    if (monthlyValue != null)
+                                      _InfoChip(
+                                        icon: Icons.attach_money_outlined,
+                                        label: 'R\$ ${monthlyValue.toStringAsFixed(2).replaceAll('.', ',')}',
+                                        color: theme.colorScheme.primary,
+                                      ),
                                     if (hasPayment)
                                       _InfoChip(
                                         icon: Icons.payment_outlined,

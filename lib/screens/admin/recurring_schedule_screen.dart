@@ -301,6 +301,8 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
                           .insert(data);
                     }
                     await _load();
+                    // Gera os agendamentos imediatamente para bloquear os horários
+                    await _generateNow();
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context)
@@ -316,6 +318,139 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
         ),
       ),
     );
+  }
+
+  /// Gera os agendamentos dos próximos [windowDays] dias para todas as
+  /// recorrências ativas deste cliente, igual ao generate-recurring.js da VPS.
+  Future<void> _generateNow() async {
+    if (_schedules.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nenhuma recorrência ativa para gerar.')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final sb = Supabase.instance.client;
+    const windowDays = 30;
+    int created = 0;
+    int skipped = 0;
+
+    try {
+      // Busca dados do cliente do plano (nome + telefone)
+      final clientRow = await sb
+          .from('plan_clients')
+          .select('name, phone')
+          .eq('id', widget.planClientId)
+          .single();
+      final clientName  = (clientRow['name']  as String? ?? '').trim();
+      final clientPhone = (clientRow['phone'] as String? ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (clientPhone.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cliente sem telefone cadastrado. Adicione o telefone antes de gerar.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        setState(() => _loading = false);
+        return;
+      }
+
+      // Gera datas dos próximos windowDays dias
+      final today = DateTime.now();
+      final dates = List.generate(windowDays, (i) {
+        final d = today.add(Duration(days: i));
+        return d;
+      });
+
+      for (final sched in _schedules) {
+        if (!(sched['is_active'] as bool? ?? true)) continue;
+
+        final serviceMap = sched['services'] is Map ? sched['services'] as Map : {};
+        final blocks     = (serviceMap['duration_blocks'] as int?) ?? 1;
+        final price      = (serviceMap['price'] as num?)?.toDouble() ?? 0.0;
+        final barberId   = sched['barber_id']?.toString() ?? '';
+        final serviceId  = (serviceMap['id'] ?? sched['service_id'])?.toString() ?? '';
+        final dayOfWeek  = sched['day_of_week'] as int? ?? 0;
+        final timeStr    = sched['appointment_time'] as String? ?? '09:00:00';
+        final timeParts  = timeStr.split(':');
+        final hour       = int.tryParse(timeParts[0]) ?? 9;
+        final minute     = int.tryParse(timeParts.length > 1 ? timeParts[1] : '0') ?? 0;
+
+        // Datas que batem com o dia da semana configurado (0=dom…6=sáb)
+        final targets = dates.where((d) => d.weekday % 7 == dayOfWeek).toList();
+
+        for (final date in targets) {
+          final dateStr = '${date.year.toString().padLeft(4, '0')}-'
+              '${date.month.toString().padLeft(2, '0')}-'
+              '${date.day.toString().padLeft(2, '0')}';
+
+          // Verifica se já existe agendamento neste horário para este cliente/barbeiro
+          final existing = await sb
+              .from('appointments')
+              .select('id')
+              .eq('barber_id', barberId)
+              .eq('appointment_date', dateStr)
+              .eq('appointment_time', timeStr)
+              .eq('customer_phone', clientPhone)
+              .neq('status', 'cancelled')
+              .limit(1);
+
+          if ((existing as List).isNotEmpty) {
+            skipped++;
+            continue;
+          }
+
+          // Cria um row por bloco de 30 min
+          final rows = <Map<String, dynamic>>[];
+          for (int k = 0; k < blocks; k++) {
+            final totalMin = hour * 60 + minute + k * 30;
+            final bh = (totalMin ~/ 60) % 24;
+            final bm = totalMin % 60;
+            final blockTime =
+                '${bh.toString().padLeft(2, '0')}:${bm.toString().padLeft(2, '0')}:00';
+            rows.add({
+              'barber_id':             barberId,
+              'service_id':            serviceId,
+              'appointment_date':      dateStr,
+              'appointment_time':      blockTime,
+              'customer_name':         clientName,
+              'customer_phone':        clientPhone,
+              'status':                'scheduled',
+              'total_price':           k == 0 ? price : 0,
+              'is_plan_client':        true,
+              'source':                'recurring',
+              'recurring_schedule_id': sched['id']?.toString(),
+            });
+          }
+
+          await sb.from('appointments').insert(rows);
+          created++;
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            created > 0
+                ? '$created agendamento${created > 1 ? 's' : ''} criado${created > 1 ? 's' : ''}.'
+                    '${skipped > 0 ? ' ($skipped já existiam)' : ''}'
+                : 'Nenhum agendamento novo — todos já existem.',
+          ),
+          backgroundColor: created > 0 ? Colors.green : null,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro ao gerar: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _toggleActive(Map<String, dynamic> sched) async {
@@ -414,6 +549,11 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
       appBar: AppBar(
         title: Text('Recorrente • ${widget.planClientName}'),
         actions: [
+          IconButton(
+            onPressed: _generateNow,
+            icon: const Icon(Icons.play_circle_outline),
+            tooltip: 'Gerar agendamentos agora',
+          ),
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh),
