@@ -39,6 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_appointments_recurring_schedule
 -- Só insere se a chave ainda não existir
 INSERT INTO public.app_settings (key, value) VALUES
   ('reminder_normal_hours', '1'),
+  ('wa_reminder_template_24h',
+   E'📅 Lembrete do seu agendamento!\n\nOlá {{cliente}}! Seu horário é amanhã às {{hora}}.\n✂️ Serviço: {{servico}}\n💈 Profissional: {{barbeiro}}\n\nTe esperamos amanhã! 👋'),
   ('wa_plan_reminder_template_24h',
    E'📅 Lembrete do seu plano!\n\nOlá {{cliente}}! Seu horário é amanhã às {{hora}}.\n✂️ Serviço: {{servico}}\n💈 Profissional: {{barbeiro}}\n\nTe esperamos amanhã! 👋'),
   ('wa_plan_reminder_template_1h',

@@ -31,6 +31,13 @@ const DEFAULT_TPL =
   '💈 Profissional: {{barbeiro}}\n\n' +
   'Te esperamos! 👋';
 
+const DEFAULT_NORMAL_TPL_24H =
+  '📅 Lembrete do seu agendamento!\n\n' +
+  'Olá {{cliente}}! Seu horário é amanhã às {{hora}}.\n' +
+  '✂️ Serviço: {{servico}}\n' +
+  '💈 Profissional: {{barbeiro}}\n\n' +
+  'Te esperamos amanhã! 👋';
+
 const DEFAULT_PLAN_TPL_24H =
   '📅 Lembrete do seu plano!\n\n' +
   'Olá {{cliente}}! Seu horário de plano é amanhã às {{hora}}.\n' +
@@ -131,6 +138,7 @@ async function loadSettings() {
   const keys = [
     'wa_api_key', 'wa_enabled', 'wa_reminder_template',
     'reminder_normal_hours',
+    'wa_reminder_template_24h',
     'wa_plan_reminder_template_24h',
     'wa_plan_reminder_template_1h',
   ];
@@ -168,7 +176,8 @@ async function main() {
 
   const normalHours   = Math.max(1, parseInt(settings.reminder_normal_hours || '1', 10));
   const normalLeadMin = normalHours * 60;
-  const tplNormal     = settings.wa_reminder_template     || DEFAULT_TPL;
+  const tplNormal     = settings.wa_reminder_template          || DEFAULT_TPL;
+  const tplNormal24h  = settings.wa_reminder_template_24h      || DEFAULT_NORMAL_TPL_24H;
   const tplPlan24h    = settings.wa_plan_reminder_template_24h || DEFAULT_PLAN_TPL_24H;
   const tplPlan1h     = settings.wa_plan_reminder_template_1h  || DEFAULT_PLAN_TPL_1H;
 
@@ -221,20 +230,17 @@ async function main() {
         barbeiro: first.barbers?.name || '',
       };
 
-      // ── Lembrete de 24h (somente clientes do plano) ──────────────────────
-      if (isPlan && first.reminder_24h_sent === false && m > 0 && m <= 1500) {
-        // Evita enviar o 24h se já está na janela do lembrete normal
-        const isInsideNormalWindow = m <= normalLeadMin;
-        if (!isInsideNormalWindow) {
-          const msg = buildMessage(tplPlan24h, vars);
-          const ok  = await sendWhatsapp(first.customer_phone, msg);
-          if (ok) {
-            await markReminder(ids, 'reminder_24h_sent');
-            sent++;
-            console.log(`[reminder] 24h → ${first.customer_phone} — ${hora}`);
-          }
-          continue; // não processa o lembrete normal nesta rodada
+      // ── Lembrete de 24h (todos os clientes com ≥ normalLeadMin de antecedência) ──
+      if (first.reminder_24h_sent === false && m > normalLeadMin && m <= 1500) {
+        const tpl = isPlan ? tplPlan24h : tplNormal24h;
+        const msg = buildMessage(tpl, vars);
+        const ok  = await sendWhatsapp(first.customer_phone, msg);
+        if (ok) {
+          await markReminder(ids, 'reminder_24h_sent');
+          sent++;
+          console.log(`[reminder] 24h → ${first.customer_phone} — ${hora}`);
         }
+        continue; // não processa o lembrete normal nesta rodada
       }
 
       // ── Lembrete normal (todos os clientes não lembrados ainda) ──────────

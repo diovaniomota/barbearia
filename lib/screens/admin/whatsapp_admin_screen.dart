@@ -13,12 +13,13 @@ class WhatsappAdminScreen extends StatefulWidget {
 }
 
 class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
-  final _urlCtr     = TextEditingController();
-  final _keyCtr     = TextEditingController();
-  final _tmplCtr    = TextEditingController();
-  final _testCtr    = TextEditingController();
-  final _plan24hCtr = TextEditingController();
-  final _plan1hCtr  = TextEditingController();
+  final _urlCtr        = TextEditingController();
+  final _keyCtr        = TextEditingController();
+  final _tmplCtr       = TextEditingController();
+  final _testCtr       = TextEditingController();
+  final _normal24hCtr  = TextEditingController();
+  final _plan24hCtr    = TextEditingController();
+  final _plan1hCtr     = TextEditingController();
 
   bool _enabled = false;
   int  _reminderHours = 1;
@@ -43,6 +44,7 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     _keyCtr.dispose();
     _tmplCtr.dispose();
     _testCtr.dispose();
+    _normal24hCtr.dispose();
     _plan24hCtr.dispose();
     _plan1hCtr.dispose();
     super.dispose();
@@ -52,11 +54,12 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     final config = await WhatsappService.loadConfig();
     if (!mounted) return;
     setState(() {
-      _urlCtr.text     = config.serverUrl;
-      _keyCtr.text     = config.apiKey;
-      _tmplCtr.text    = config.template;
-      _plan24hCtr.text = config.planTemplate24h;
-      _plan1hCtr.text  = config.planTemplate1h;
+      _urlCtr.text        = config.serverUrl;
+      _keyCtr.text        = config.apiKey;
+      _tmplCtr.text       = config.template;
+      _normal24hCtr.text  = config.normalTemplate24h;
+      _plan24hCtr.text    = config.planTemplate24h;
+      _plan1hCtr.text     = config.planTemplate1h;
       _enabled         = config.enabled;
       _reminderHours   = config.reminderNormalHours;
       _loading         = false;
@@ -70,6 +73,7 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     enabled:             _enabled,
     template:            _tmplCtr.text.trim(),
     reminderNormalHours: _reminderHours,
+    normalTemplate24h:   _normal24hCtr.text.trim(),
     planTemplate24h:     _plan24hCtr.text.trim(),
     planTemplate1h:      _plan1hCtr.text.trim(),
   );
@@ -369,6 +373,33 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
               DropdownMenuItem(value: 24, child: Text('24 horas')),
             ],
             onChanged: (v) => setState(() => _reminderHours = v ?? 1),
+          ),
+          const SizedBox(height: 24),
+
+          // Normal 24h
+          Text(
+            'Lembrete 24h antes — clientes normais',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enviado para clientes normais quando o agendamento foi feito com mais de 24h de antecedência.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _VariableChips(controller: _normal24hCtr),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _normal24hCtr,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Texto da mensagem…',
+            ),
           ),
           const SizedBox(height: 24),
 
