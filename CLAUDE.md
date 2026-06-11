@@ -14,13 +14,11 @@ Flutter **Web** PWA for **TD Barbearia** (Toni Dinis). Stack: Flutter → Cloudf
 ```bash
 # Dev server
 flutter run -d chrome
-
-# Production build + deploy (use PowerShell on Windows — bash breaks --base-href)
-flutter build web --release --base-href "/"
-npx wrangler deploy
 ```
 
-> **Warning:** On Linux/bash, the `--base-href "/"` flag is misinterpreted as a git path. Run the build from PowerShell or wrap the value in single quotes.
+**Deploy is via GitHub push** — Vercel builds on every push using the `buildCommand` in `vercel.json` (clones Flutter stable, runs `flutter build web --release --base-href / --no-web-resources-cdn`). Do **not** suggest `npx wrangler deploy` or manual builds for deploying; just commit and push.
+
+> `--no-web-resources-cdn` is required: it bundles CanvasKit from the site's own domain instead of gstatic.com, which some mobile carriers/DNS block (symptom: app stuck on the splash logo forever).
 
 ```bash
 # Lint / analyze
