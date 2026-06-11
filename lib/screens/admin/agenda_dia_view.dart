@@ -13,7 +13,9 @@ class _Slot {
   String name = '';
   String service = '';
   String phone = '';
-  String? blockedId; // id na tabela blocked_slots (p/ desbloquear)
+  String? blockedId;      // id na tabela blocked_slots (p/ desbloquear)
+  String? appointmentId;  // id do appointment com total_price > 0
+  double? totalPrice;
 }
 
 /// Agenda do dia (lista vertical, slot a slot, colorida por tipo).
@@ -147,7 +149,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       final apptRows = await sb
           .from('appointments')
           .select(
-            'appointment_time,customer_name,customer_phone,status,source,services:service_id(name)',
+            'id,appointment_time,customer_name,customer_phone,status,source,total_price,services:service_id(name)',
           )
           .eq('barber_id', barberId)
           .eq('appointment_date', _dateStr);
@@ -228,9 +230,14 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         }
         final source = (m['source'] ?? 'client').toString();
         final ph = (m['customer_phone'] ?? '').toString().trim();
-        slot.name = (m['customer_name'] ?? '').toString().trim();
-        slot.phone = ph;
+        slot.name    = (m['customer_name'] ?? '').toString().trim();
+        slot.phone   = ph;
         slot.service = _serviceName(m['services']);
+        final rowPrice = (m['total_price'] as num?)?.toDouble() ?? 0.0;
+        if (rowPrice > 0 || slot.appointmentId == null) {
+          slot.appointmentId = m['id']?.toString();
+          if (rowPrice > 0) slot.totalPrice = rowPrice;
+        }
         if (source == 'admin') {
           slot.state = _SlotState.admin;
         } else if (ph.isNotEmpty && !returning.contains(ph)) {
@@ -593,8 +600,24 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     }
 
     final selectedIds = <String>{};
-    final nameCtr = TextEditingController();
+    final nameCtr  = TextEditingController();
     final phoneCtr = TextEditingController();
+    final priceCtr = TextEditingController();
+    bool priceEdited = false;
+
+    double calcTotal() => services
+        .where((s) => selectedIds.contains(s['id'].toString()))
+        .fold(0.0, (sum, s) => sum + (s['price'] as num? ?? 0).toDouble());
+
+    void syncPrice() {
+      if (!priceEdited) {
+        final total = calcTotal();
+        priceCtr.text = total > 0
+            ? total.toStringAsFixed(2).replaceAll('.', ',')
+            : '';
+      }
+    }
+
     bool saving = false;
     String? err;
 
@@ -627,6 +650,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                       } else {
                         selectedIds.remove(id);
                       }
+                      syncPrice();
                     }),
                     title: Text(
                       s['name']?.toString() ?? '',
@@ -647,6 +671,19 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                   );
                 }),
                 const Divider(color: _border),
+                TextField(
+                  controller: priceCtr,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: _text),
+                  decoration: _dlgDeco('Valor cobrado (R\$)').copyWith(
+                    hintText: 'Preço do serviço',
+                    hintStyle: const TextStyle(color: _muted),
+                    helperText: 'Deixe em branco ou edite para dar desconto',
+                    helperStyle: const TextStyle(color: _muted, fontSize: 11),
+                  ),
+                  onChanged: (_) => priceEdited = true,
+                ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: nameCtr,
                   style: const TextStyle(color: _text),
@@ -700,11 +737,15 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
                             (s) => selectedIds.contains(s['id'].toString()),
                           )
                           .toList();
+                      final customPrice = double.tryParse(
+                        priceCtr.text.trim().replaceAll(',', '.'),
+                      );
                       final res = await _saveManual(
                         startSlot,
                         chosen,
                         nameCtr.text.trim(),
                         phoneCtr.text.trim(),
+                        customPrice: customPrice,
                       );
                       if (res != null) {
                         setSt(() {
@@ -739,8 +780,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
     _Slot startSlot,
     List<Map<String, dynamic>> services,
     String name,
-    String phone,
-  ) async {
+    String phone, {
+    double? customPrice,
+  }) async {
     // Total de blocos de 30 min considerando duration_blocks de cada serviço
     final n = services.fold<int>(
       0,
@@ -773,10 +815,22 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       }
       final payload = <Map<String, dynamic>>[];
       var slotOffset = 0;
+      bool customPriceApplied = false;
       for (final s in services) {
         final blocks = (s['duration_blocks'] as int?) ?? 1;
-        final price = (s['price'] as num? ?? 0).toDouble();
+        final servicePrice = (s['price'] as num? ?? 0).toDouble();
         for (var k = 0; k < blocks; k++) {
+          double rowPrice = 0.0;
+          if (customPrice != null) {
+            // Preço customizado: apenas o primeiro slot recebe o valor informado
+            if (!customPriceApplied) {
+              rowPrice = customPrice;
+              customPriceApplied = true;
+            }
+          } else {
+            // Preço padrão: primeiro bloco de cada serviço recebe o preço do serviço
+            rowPrice = k == 0 ? servicePrice : 0.0;
+          }
           final label = _slots[startIdx + slotOffset].label;
           payload.add({
             'service_id': s['id'],
@@ -788,7 +842,7 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             'customer_phone': phone,
             'notes':
                 'Encaixe manual (admin)\nCliente: $name\nTelefone: $phone',
-            'total_price': k == 0 ? price : 0.0,
+            'total_price': rowPrice,
             'is_plan_client': isPlan,
             'source': 'admin',
           });
@@ -920,6 +974,13 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             TextButton(
               onPressed: () async {
                 Navigator.pop(ctx);
+                await _editPrice(slot);
+              },
+              child: const Text('Editar valor', style: TextStyle(color: _gold)),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (c) => AlertDialog(
@@ -963,6 +1024,67 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           ],
         ),
       );
+    }
+  }
+
+  Future<void> _editPrice(_Slot slot) async {
+    if (slot.appointmentId == null) return;
+    final priceCtr = TextEditingController(
+      text: slot.totalPrice != null
+          ? slot.totalPrice!.toStringAsFixed(2).replaceAll('.', ',')
+          : '',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        title: const Text('Editar valor cobrado', style: TextStyle(color: _text)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              slot.service.isNotEmpty ? slot.service : 'Serviço',
+              style: const TextStyle(color: _muted, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: priceCtr,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: _text),
+              decoration: _dlgDeco('Valor cobrado (R\$)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: _muted)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _gold,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final newPrice = double.tryParse(priceCtr.text.trim().replaceAll(',', '.'));
+    if (newPrice == null) return;
+    try {
+      await Supabase.instance.client
+          .from('appointments')
+          .update({'total_price': newPrice})
+          .eq('id', slot.appointmentId!);
+      _toast('Valor atualizado para R\$ ${newPrice.toStringAsFixed(2).replaceAll('.', ',')}');
+      await _load();
+    } catch (e) {
+      _toast('Erro ao atualizar: $e');
     }
   }
 
