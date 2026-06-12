@@ -35,8 +35,98 @@
 
   <title>TD Barbearia</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #080808; }
+    /* Splash de boot: feedback imediato enquanto o Flutter carrega.
+       Removido pelo evento flutter-first-frame quando o app monta. */
+    #boot {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 18px;
+      background: #080808; font-family: sans-serif;
+    }
+    #boot img { width: 96px; height: 96px; border-radius: 50%; }
+    #boot .sp {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 3px solid #2a2a2a; border-top-color: #F5C200;
+      animation: bspin 1s linear infinite;
+    }
+    @keyframes bspin { to { transform: rotate(360deg); } }
+    #boot .msg { color: #9b9b9b; font-size: 14px; }
+    #boot .err {
+      display: none; flex-direction: column; align-items: center;
+      gap: 14px; padding: 0 28px; text-align: center;
+    }
+    #boot .err p { color: #F0EDE8; font-size: 15px; margin: 0; }
+    #boot .err small { color: #6b6b6b; font-size: 11px; word-break: break-all; }
+    #boot .err button {
+      background: #F5C200; color: #080808; border: 0; border-radius: 10px;
+      padding: 12px 24px; font-size: 15px; font-weight: 700;
+    }
+  </style>
 </head>
 <body>
+  <div id="boot">
+    <img src="icons/Icon-192.png" alt="TD Barbearia">
+    <div class="sp"></div>
+    <div class="msg">Carregando&hellip;</div>
+    <div class="err" id="boot-err">
+      <p>N&atilde;o foi poss&iacute;vel carregar o aplicativo.<br>
+         Verifique sua conex&atilde;o e tente novamente.</p>
+      <small id="boot-err-detail"></small>
+      <button onclick="window.__bootRetry()">Tentar novamente</button>
+    </div>
+  </div>
+
+  <script>
+    // Watchdog do boot: se o Flutter não montar, mostra erro com botão de
+    // recuperação em vez de deixar o usuário numa tela preta infinita.
+    (function () {
+      var booted = false;
+      window.addEventListener('flutter-first-frame', function () {
+        booted = true;
+        var b = document.getElementById('boot');
+        if (b && b.parentNode) b.parentNode.removeChild(b);
+      });
+      function showError(detail) {
+        if (booted) return;
+        var sp = document.querySelector('#boot .sp');
+        var msg = document.querySelector('#boot .msg');
+        if (sp) sp.style.display = 'none';
+        if (msg) msg.style.display = 'none';
+        var err = document.getElementById('boot-err');
+        if (err) err.style.display = 'flex';
+        if (detail) {
+          var d = document.getElementById('boot-err-detail');
+          if (d) d.textContent = detail;
+        }
+      }
+      window.__bootRetry = function () {
+        try { sessionStorage.removeItem('sw-cleaned'); } catch (e) {}
+        function go() { window.location.reload(); }
+        try {
+          if (window.caches) {
+            caches.keys().then(function (ks) {
+              return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+            }).then(go, go);
+          } else { go(); }
+        } catch (e) { go(); }
+      };
+      // Erro de script do PRÓPRIO app durante o boot (ex: navegador antigo).
+      // Filtra por origem para ignorar erros de extensões do navegador.
+      window.addEventListener('error', function (ev) {
+        if (booted || !ev || !ev.filename) return;
+        if (ev.filename.indexOf(window.location.origin) !== 0) return;
+        showError(ev.message || 'Erro ao carregar o script.');
+      });
+      // Rede de segurança: 25s sem montar = mostra o erro. Se o app montar
+      // depois disso (conexão lenta), o first-frame remove tudo mesmo assim.
+      setTimeout(function () {
+        showError('Tempo esgotado — conexão lenta ou indisponível.');
+      }, 25000);
+    })();
+  </script>
   <script>
     // Limpeza automática de versões antigas: desregistra o service worker
     // e apaga os caches locais ao abrir. Clientes que ficaram presos numa
