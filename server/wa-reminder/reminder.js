@@ -152,11 +152,15 @@ async function loadSettings() {
 // ── Patch de flags de lembrete ────────────────────────────────────────────────
 
 async function markReminder(ids, field) {
-  await sb(`appointments?id=in.(${ids.join(',')})`, {
+  const res = await sb(`appointments?id=in.(${ids.join(',')})`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ [field]: true }),
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[reminder] PATCH ${field} falhou (${res.status}): ${body}`);
+  }
 }
 
 // ── Principal ─────────────────────────────────────────────────────────────────

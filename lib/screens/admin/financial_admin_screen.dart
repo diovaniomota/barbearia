@@ -21,6 +21,8 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
   List<Map<String, dynamic>> _barbers = [];
   List<_FinanceRow> _rows = [];
   double _total = 0.0;
+  double _planTotal = 0.0;
+  int _planCount = 0;
 
   @override
   void initState() {
@@ -72,6 +74,8 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
         _error = null;
         _rows = [];
         _total = 0.0;
+        _planTotal = 0.0;
+        _planCount = 0;
       });
     }
     try {
@@ -84,7 +88,9 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       var query = supabase
           .from('appointments')
           .select(
-            'appointment_date, appointment_time, status, performed_service_ids, is_plan_client, barber_id, barbers:barber_id(name), services:service_id(id, name, price)',
+            'appointment_date, appointment_time, status, is_plan_client, '
+            'barber_id, customer_phone, total_price, '
+            'barbers:barber_id(name), services:service_id(id, name, price)',
           )
           .gte('appointment_date', startDate)
           .lt('appointment_date', endDate);
@@ -97,18 +103,18 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       final list = List<Map<String, dynamic>>.from(rows);
 
       final byBarber = <String, _FinanceRow>{};
+      // Telefones normalizados (só dígitos) de clientes plano com atendimento
+      // no período — usado depois para buscar monthly_value em plan_clients.
+      final planPhones = <String>{};
       double total = 0.0;
       final now = DateTime.now();
       for (final r in list) {
         final status = (r['status']?.toString() ?? '').toLowerCase();
-        // Exclui cancelados e não compareceu
         if (status == 'no_show' ||
             status == 'cancelled' ||
             status == 'canceled') {
           continue;
         }
-        // Exclui clientes plano
-        if (r['is_plan_client'] == true) continue;
         // Só contabiliza se o horário já passou
         final ds = r['appointment_date']?.toString() ?? '';
         final ts = (r['appointment_time']?.toString() ?? '').split(':');
@@ -126,6 +132,38 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
         } catch (_) {
           continue;
         }
+
+        // Cliente do plano: registra o telefone para calcular mensalidade.
+        // Não entra na receita avulsa.
+        if (r['is_plan_client'] == true) {
+          final phone = (r['customer_phone']?.toString() ?? '')
+              .replaceAll(RegExp(r'[^0-9]'), '');
+          if (phone.isNotEmpty) planPhones.add(phone);
+          continue;
+        }
+
+        // Usa total_price para evitar dupla contagem de serviços multi-bloco
+        // (ex: Nevada = 2 blocos de 30 min — só o 1º bloco tem total_price > 0).
+        double price = 0.0;
+        final tp = r['total_price'] as num?;
+        if (tp != null) {
+          price = tp.toDouble();
+        } else {
+          // Fallback para agendamentos antigos sem total_price
+          final servicesRaw = r['services'];
+          if (servicesRaw is Map) {
+            price = (servicesRaw['price'] as num?)?.toDouble() ?? 0.0;
+          } else if (servicesRaw is List) {
+            for (final s in servicesRaw) {
+              if (s is Map) {
+                final p = s['price'] as num?;
+                if (p != null) price += p.toDouble();
+              }
+            }
+          }
+        }
+
+        total += price;
         final barberRaw = r['barbers'];
         String barberName = '';
         if (barberRaw is Map) {
@@ -137,33 +175,6 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
           }
         }
         final barberId = (r['barber_id'] ?? '').toString();
-        final servicesRaw = r['services'];
-        final performed = <String>{};
-        final performedRaw = r['performed_service_ids'];
-        if (performedRaw is List) {
-          for (final id in performedRaw) {
-            performed.add(id.toString());
-          }
-        }
-        double price = 0.0;
-        if (servicesRaw is Map) {
-          final id = servicesRaw['id']?.toString() ?? '';
-          if (performed.isEmpty || performed.contains(id)) {
-            final p = servicesRaw['price'] as num?;
-            price = (p == null) ? 0.0 : p.toDouble();
-          }
-        } else if (servicesRaw is List) {
-          for (final s in servicesRaw) {
-            if (s is Map) {
-              final id = s['id']?.toString() ?? '';
-              if (performed.isEmpty || performed.contains(id)) {
-                final p = s['price'] as num?;
-                if (p != null) price += p.toDouble();
-              }
-            }
-          }
-        }
-        total += price;
         final current = byBarber[barberId];
         if (current == null) {
           byBarber[barberId] = _FinanceRow(
@@ -180,11 +191,38 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
         }
       }
 
+      // Mensalidades: soma monthly_value de cada cliente plano distinto
+      // que teve atendimento no período (uma vez por cliente, independente
+      // de quantas visitas fez).
+      double planTotal = 0.0;
+      int planCount = 0;
+      if (planPhones.isNotEmpty) {
+        try {
+          final allPlanClients = await supabase
+              .from('plan_clients')
+              .select('phone, monthly_value');
+          final seenDigits = <String>{};
+          for (final pc in List<Map<String, dynamic>>.from(allPlanClients)) {
+            final digits = (pc['phone']?.toString() ?? '')
+                .replaceAll(RegExp(r'[^0-9]'), '');
+            if (digits.isNotEmpty &&
+                planPhones.contains(digits) &&
+                !seenDigits.contains(digits)) {
+              seenDigits.add(digits);
+              planTotal += (pc['monthly_value'] as num?)?.toDouble() ?? 0.0;
+              planCount++;
+            }
+          }
+        } catch (_) {}
+      }
+
       if (!mounted) return;
       setState(() {
         _rows = byBarber.values.toList()
           ..sort((a, b) => b.total.compareTo(a.total));
         _total = total;
+        _planTotal = planTotal;
+        _planCount = planCount;
         _loading = false;
       });
     } catch (e) {
@@ -287,6 +325,8 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
               _rows = byBarber.values.toList()
                 ..sort((a, b) => b.total.compareTo(a.total));
               _total = total;
+              _planTotal = 0.0;
+              _planCount = 0;
               _loading = false;
             });
           }
@@ -474,27 +514,118 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
                       ),
                     ),
                   ),
+                  // Mensalidades dos clientes do plano (valor mensal, não por corte)
+                  if (_planCount > 0)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFF5C200).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.card_membership_outlined,
+                            color: Color(0xFFF5C200),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mensalidades',
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                                Text(
+                                  '$_planCount cliente${_planCount != 1 ? 's' : ''} do plano',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            f.format(_planTotal),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: const Color(0xFFF5C200),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Text(
-                          'Total',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
+                        if (_planCount > 0) ...[
+                          Row(
+                            children: [
+                              Text(
+                                'Avulsos',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                f.format(_total),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          f.format(_total),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                'Plano',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                f.format(_planTotal),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 8),
+                          const Divider(height: 1),
+                          const SizedBox(height: 8),
+                        ],
+                        Row(
+                          children: [
+                            Text(
+                              'Total',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              f.format(_total + _planTotal),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: theme.colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

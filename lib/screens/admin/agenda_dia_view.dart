@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
+import 'package:barbearia/services/whatsapp_service.dart';
 
 /// Estados possíveis de um slot de 30 min na agenda do dia.
 enum _SlotState { free, client, newClient, admin, blocked }
@@ -850,10 +851,97 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
         }
       }
       await sb.from('appointments').insert(payload);
+
+      // Notificação WhatsApp para cliente e barbeiro — fire-and-forget
+      final serviceNames = services
+          .map((s) => s['name']?.toString() ?? '')
+          .where((n) => n.isNotEmpty)
+          .join(', ');
+      final totalForNotif = customPrice ??
+          services.fold<double>(
+            0,
+            (sum, s) => sum + ((s['price'] as num?)?.toDouble() ?? 0),
+          );
+      _sendBookingNotification(
+        clientName: name,
+        clientPhone: phone,
+        serviceNames: serviceNames,
+        startLabel: startSlot.label,
+        totalPrice: totalForNotif,
+      );
+
       return null;
     } catch (e) {
       return 'Erro ao agendar: $e';
     }
+  }
+
+  /// Envia confirmação de agendamento manual via WhatsApp para o cliente
+  /// e para o barbeiro — mesma mensagem usada no fluxo do cliente.
+  void _sendBookingNotification({
+    required String clientName,
+    required String clientPhone,
+    required String serviceNames,
+    required String startLabel,
+    required double totalPrice,
+  }) {
+    if (clientPhone.trim().isEmpty) return;
+    WhatsappService.loadConfig().then((config) async {
+      if (!config.enabled || !config.isConfigured) return;
+
+      String barberName = '';
+      String barberPhone = '';
+      try {
+        if (widget.barberId != null) {
+          final row = await Supabase.instance.client
+              .from('barbers')
+              .select('name, phone')
+              .eq('id', widget.barberId!)
+              .single();
+          barberName = row['name']?.toString() ?? '';
+          barberPhone = (row['phone']?.toString() ?? '').trim();
+        }
+      } catch (_) {}
+
+      final dateStr = DateFormat('dd/MM/yyyy', 'pt_BR').format(widget.date);
+      final valor =
+          'R\$ ${totalPrice.toStringAsFixed(2).replaceAll('.', ',')}';
+
+      // Mensagem para o cliente (mesmo template do agendamento normal)
+      String msgCliente = WhatsappService.buildMessage(
+        template: config.template,
+        cliente: clientName,
+        data: dateStr,
+        hora: startLabel,
+        servico: serviceNames,
+        barbeiro: barberName,
+        valor: valor,
+      );
+      if (barberPhone.isNotEmpty) {
+        msgCliente += '\n📞 Contato do barbeiro: $barberPhone';
+      }
+      WhatsappService.sendMessage(
+        phone: clientPhone,
+        message: msgCliente,
+        config: config,
+      );
+
+      // Notificação para o barbeiro
+      if (barberPhone.isNotEmpty) {
+        final msgBarbeiro =
+            '📅 *Novo agendamento!*\n\n'
+            '👤 Cliente: $clientName\n'
+            '📞 Telefone: $clientPhone\n'
+            '✂️ Serviço: $serviceNames\n'
+            '🗓️ Data: $dateStr às $startLabel\n'
+            '💰 Valor: $valor';
+        WhatsappService.sendMessage(
+          phone: barberPhone,
+          message: msgBarbeiro,
+          config: config,
+        );
+      }
+    });
   }
 
   void _onTapSlot(_Slot slot) {
