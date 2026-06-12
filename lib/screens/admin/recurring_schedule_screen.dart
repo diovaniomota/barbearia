@@ -388,23 +388,8 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
               '${date.month.toString().padLeft(2, '0')}-'
               '${date.day.toString().padLeft(2, '0')}';
 
-          // Verifica se já existe agendamento neste horário para este cliente/barbeiro
-          final existing = await sb
-              .from('appointments')
-              .select('id')
-              .eq('barber_id', barberId)
-              .eq('appointment_date', dateStr)
-              .eq('appointment_time', timeStr)
-              .eq('customer_phone', clientPhone)
-              .neq('status', 'cancelled')
-              .limit(1);
-
-          if ((existing as List).isNotEmpty) {
-            skipped++;
-            continue;
-          }
-
-          // Cria um row por bloco de 30 min
+          // Monta todos os rows antes de verificar — necessário para checar
+          // todos os horários de bloco de uma só vez (serviços multi-bloco).
           final rows = <Map<String, dynamic>>[];
           for (int k = 0; k < blocks; k++) {
             final totalMin = hour * 60 + minute + k * 30;
@@ -425,6 +410,24 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
               'source':                'recurring',
               'recurring_schedule_id': sched['id']?.toString(),
             });
+          }
+
+          // Verifica se algum bloco já está ocupado (por qualquer cliente).
+          // O índice único é (barber_id, date, time) — sem filtro por telefone.
+          final blockTimes =
+              rows.map((r) => r['appointment_time'] as String).toList();
+          final existing = await sb
+              .from('appointments')
+              .select('id')
+              .eq('barber_id', barberId)
+              .eq('appointment_date', dateStr)
+              .inFilter('appointment_time', blockTimes)
+              .not('status', 'in', '("cancelled","no_show")')
+              .limit(1);
+
+          if ((existing as List).isNotEmpty) {
+            skipped++;
+            continue;
           }
 
           await sb.from('appointments').insert(rows);
