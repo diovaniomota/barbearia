@@ -81,9 +81,13 @@ class RoleChoiceScreen extends StatelessWidget {
                         letterSpacing: 0.3,
                       ),
                     ),
-                    onPressed: () async {
-                      await Supabase.instance.client.auth.signOut();
-                      if (!context.mounted) return;
+                    onPressed: () {
+                      // signOut em background: o await aqui fazia o botão
+                      // "não responder" em rede lenta (a navegação esperava
+                      // a chamada de rede do logout terminar).
+                      Supabase.instance.client.auth
+                          .signOut()
+                          .catchError((_) {});
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (_) => const MainNavigation(

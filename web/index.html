@@ -38,10 +38,44 @@
 </head>
 <body>
   <script>
+    // Limpeza automática de versões antigas: desregistra o service worker
+    // e apaga os caches locais ao abrir. Clientes que ficaram presos numa
+    // versão velha (app travado, botões mortos) são recarregados uma única
+    // vez e passam a receber sempre a versão atual direto da rede.
+    (function () {
+      function reloadOnceIfControlled() {
+        if (
+          navigator.serviceWorker &&
+          navigator.serviceWorker.controller &&
+          !sessionStorage.getItem('sw-cleaned')
+        ) {
+          sessionStorage.setItem('sw-cleaned', '1');
+          window.location.reload();
+        }
+      }
+      try {
+        var cachesCleared = window.caches
+          ? caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            })
+          : Promise.resolve();
+        var swUnregistered = ('serviceWorker' in navigator)
+          ? navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+          : Promise.resolve();
+        Promise.all([cachesCleared, swUnregistered])
+          .then(reloadOnceIfControlled)
+          .catch(function () {});
+      } catch (e) { /* navegadores antigos sem suporte — segue normal */ }
+    })();
+
     {{flutter_js}}
     {{flutter_build_config}}
     // CanvasKit servido pelo próprio domínio — o CDN gstatic.com é bloqueado
     // em algumas operadoras/DNS e o app trava no splash sem isso.
+    // Sem serviceWorkerSettings: o app carrega sempre da rede (atualização
+    // imediata a cada deploy, sem cache de versão antiga).
     _flutter.loader.load({
       config: { canvasKitBaseUrl: "canvaskit/" }
     });

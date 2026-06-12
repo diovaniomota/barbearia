@@ -19,18 +19,22 @@ void main() async {
       anonKey:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlYnZ0Ymd2c3l6Ynl6ZGlscmVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzM4MTMsImV4cCI6MjA5NTc0OTgxM30.KilnvJtRntdp3LO_mrTKBxpVcaEgOoJSPNEjBGXsrC4',
     );
-
-    // Se já existir sessão, garante a linha do usuário na tabela `users`
-    final hasSession = Supabase.instance.client.auth.currentSession != null;
-    if (hasSession) {
-      await ensureUserRow();
-    }
   } catch (e, st) {
     debugPrint('Erro ao inicializar o Supabase: $e');
     debugPrintStack(stackTrace: st);
   }
 
   runApp(const BarbeariaApp());
+
+  // Se já existir sessão, garante a linha do usuário na tabela `users`.
+  // Roda DEPOIS do runApp: em rede lenta essa chamada pendurava o await
+  // e o app ficava preso no splash sem nunca montar a primeira tela.
+  try {
+    if (Supabase.instance.client.auth.currentSession != null) {
+      // ignore: unawaited_futures
+      ensureUserRow();
+    }
+  } catch (_) {}
 }
 
 class BarbeariaApp extends StatelessWidget {

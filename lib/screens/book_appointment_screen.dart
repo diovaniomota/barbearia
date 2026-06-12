@@ -61,6 +61,7 @@ class BookAppointmentScreen extends StatefulWidget {
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   // Fluxo: Serviço (0) → Data (1) → Barbeiro (2) → Horário (3) → Dados (4)
   int _currentStep = 0;
+  bool _saving = false;
 
   // Passo 0 – Serviços
   List<Service> _selectedServices = const [];
@@ -465,6 +466,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   Future<void> _saveAppointment() async {
+    // Trava contra toque duplo: sem isso, apertar "Confirmar" várias vezes
+    // dispara inserts paralelos → agendamento duplicado + pops a mais na
+    // navegação (tela quebrada).
+    if (_saving) return;
     final barberId = _selectedBarberId;
     final dt = _selectedDateTime;
     if (_selectedServices.isEmpty ||
@@ -479,6 +484,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       );
       return;
     }
+    setState(() => _saving = true);
 
     try {
       final totalBlocks = _totalBlocks();
@@ -682,6 +688,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           );
         },
       );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -703,6 +711,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   }
 
   String _bookingErrorMessage(PostgrestException e) {
+    if (e.code == '23505' ||
+        e.message.toLowerCase().contains('duplicate key')) {
+      return 'Este horário acabou de ser ocupado por outra pessoa. Escolha outro horário.';
+    }
     if (e.code == '42703' ||
         e.message.contains('customer_name') ||
         e.message.contains('customer_phone') ||
@@ -850,7 +862,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               child: Row(
                 children: [
                   FilledButton(
-                    onPressed: details.onStepContinue,
+                    onPressed: _saving ? null : details.onStepContinue,
                     style: FilledButton.styleFrom(
                       backgroundColor: _BP.gold,
                       foregroundColor: _BP.bg,
@@ -858,10 +870,19 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(
-                      isLast ? 'Confirmar' : 'Continuar',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                    child: _saving && isLast
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : Text(
+                            isLast ? 'Confirmar' : 'Continuar',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   TextButton(
