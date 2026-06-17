@@ -166,8 +166,14 @@
     // em algumas operadoras/DNS e o app trava no splash sem isso.
     // Sem serviceWorkerSettings: o app carrega sempre da rede (atualização
     // imediata a cada deploy, sem cache de versão antiga).
+    // renderer: "canvaskit" força o renderizador maduro/compatível e desativa
+    // o skwasm (experimental, exige SharedArrayBuffer/cross-origin isolation
+    // que WebViews como o do Instagram não têm — causava travar só na logo).
     _flutter.loader.load({
-      config: { canvasKitBaseUrl: "canvaskit/" }
+      config: {
+        renderer: "canvaskit",
+        canvasKitBaseUrl: "canvaskit/"
+      }
     });
   </script>
 </body>
