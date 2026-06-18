@@ -234,8 +234,10 @@ async function main() {
         barbeiro: first.barbers?.name || '',
       };
 
-      // ── Lembrete de 24h (todos os clientes com ≥ normalLeadMin de antecedência) ──
-      if (first.reminder_24h_sent === false && m > normalLeadMin && m <= 1500) {
+      // ── Lembrete de 24h (só para agendamentos que NÃO são hoje) ──
+      // Se o agendamento for hoje, vai direto para o lembrete normal para
+      // não mandar template com "amanhã" num horário que é ainda hoje.
+      if (first.reminder_24h_sent === false && m > normalLeadMin && m <= 1500 && first.appointment_date !== brDate(0)) {
         const tpl = isPlan ? tplPlan24h : tplNormal24h;
         const msg = buildMessage(tpl, vars);
         const ok  = await sendWhatsapp(first.customer_phone, msg);
