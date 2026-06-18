@@ -115,6 +115,44 @@ test('fallback HTML mostra Cliente/Admin quando o Flutter nao inicializa', async
   await expect(page).toHaveURL(/\/admin$/);
 });
 
+test('Instagram WebView fica no fallback HTML e nao inicia Flutter', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    baseURL,
+    viewport: { width: 390, height: 844 },
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 14; Instagram WebView) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Version/4.0 Chrome/124.0.0.0 Mobile Safari/537.36 Instagram 335.0.0.0',
+  });
+  const page = await context.newPage();
+  let requestedFlutterEntrypoint = false;
+  page.on('request', (request) => {
+    if (request.url().includes('/main.dart.js')) {
+      requestedFlutterEntrypoint = true;
+    }
+  });
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#boot')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .client')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .admin')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .iab-note')).toBeVisible();
+  await expect(page.locator('#boot .sp')).toBeHidden();
+  await expect(page.locator('#boot .msg')).toBeHidden();
+  await page.waitForTimeout(2500);
+  expect(requestedFlutterEntrypoint).toBe(false);
+  await expect(page.locator('#boot')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .client')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .admin')).toBeVisible();
+  await expect(page.locator('#boot .msg')).toBeHidden();
+  const externalUrl = await page.evaluate(() =>
+    window.__bootExternalUrl('/agendamentocliente')
+  );
+  expect(externalUrl).toContain('intent://');
+  await context.close();
+});
+
 test('recupera navegador com service worker e cache antigos', async ({
   page,
 }) => {

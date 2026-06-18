@@ -18,13 +18,14 @@ flutter build web --release --base-href /
 
 Os arquivos estaticos ficam em `build/web`.
 
-## Deploy na Vercel
+## Deploy na Cloudflare
 
-O projeto ja inclui `vercel.json`. Ao importar o repositorio na Vercel, ela
-instala o Flutter stable, executa o build web e publica `build/web`.
+O projeto usa `wrangler.jsonc` para publicar `build/web` como Cloudflare
+Workers Static Assets, com fallback de SPA para as rotas internas.
 
-Configuracao usada:
+Fluxo recomendado:
 
-- Build command: `./flutter/bin/flutter build web --release --base-href /`
-- Output directory: `build/web`
-- Rewrite: todas as rotas apontam para `index.html`
+```sh
+flutter build web --release --base-href / --no-web-resources-cdn
+npx wrangler deploy
+```
