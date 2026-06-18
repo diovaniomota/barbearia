@@ -84,6 +84,29 @@
     // recuperação em vez de deixar o usuário numa tela preta infinita.
     (function () {
       var booted = false;
+      function errorText(error) {
+        if (!error) return 'Erro ao carregar o aplicativo.';
+        if (typeof error === 'string') return error;
+        if (error.message) return error.message;
+        return String(error);
+      }
+      function clearCachesAndWorkers() {
+        var cachesCleared = window.caches
+          ? caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            })
+          : Promise.resolve();
+        var swUnregistered = ('serviceWorker' in navigator)
+          ? navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+          : Promise.resolve();
+        return Promise.all([
+          cachesCleared.catch(function () {}),
+          swUnregistered.catch(function () {})
+        ]);
+      }
+      window.__clearAppCachesAndWorkers = clearCachesAndWorkers;
       window.addEventListener('flutter-first-frame', function () {
         booted = true;
         var b = document.getElementById('boot');
@@ -102,16 +125,17 @@
           if (d) d.textContent = detail;
         }
       }
+      window.__bootShowError = showError;
       window.__bootRetry = function () {
-        try { sessionStorage.removeItem('sw-cleaned'); } catch (e) {}
-        function go() { window.location.reload(); }
         try {
-          if (window.caches) {
-            caches.keys().then(function (ks) {
-              return Promise.all(ks.map(function (k) { return caches.delete(k); }));
-            }).then(go, go);
-          } else { go(); }
-        } catch (e) { go(); }
+          sessionStorage.removeItem('sw-cleaned');
+          sessionStorage.removeItem('tdb-sw-cleaned-v2');
+        } catch (e) {}
+        try {
+          localStorage.removeItem('sb-uebvtbgvsyzbyzdilren-auth-token');
+        } catch (e) {}
+        function go() { window.location.reload(); }
+        try { clearCachesAndWorkers().then(go, go); } catch (e) { go(); }
       };
       // Erro de script do PRÓPRIO app durante o boot (ex: navegador antigo).
       // Filtra por origem para ignorar erros de extensões do navegador.
@@ -120,10 +144,14 @@
         if (ev.filename.indexOf(window.location.origin) !== 0) return;
         showError(ev.message || 'Erro ao carregar o script.');
       });
+      window.addEventListener('unhandledrejection', function (ev) {
+        if (booted || !ev) return;
+        showError(errorText(ev.reason));
+      });
       // Rede de segurança: 25s sem montar = mostra o erro. Se o app montar
       // depois disso (conexão lenta), o first-frame remove tudo mesmo assim.
       setTimeout(function () {
-        showError('Tempo esgotado — conexão lenta ou indisponível.');
+        showError('Tempo esgotado - conexão lenta ou indisponível.');
       }, 25000);
     })();
   </script>
@@ -132,34 +160,6 @@
     // e apaga os caches locais ao abrir. Clientes que ficaram presos numa
     // versão velha (app travado, botões mortos) são recarregados uma única
     // vez e passam a receber sempre a versão atual direto da rede.
-    (function () {
-      function reloadOnceIfControlled() {
-        if (
-          navigator.serviceWorker &&
-          navigator.serviceWorker.controller &&
-          !sessionStorage.getItem('sw-cleaned')
-        ) {
-          sessionStorage.setItem('sw-cleaned', '1');
-          window.location.reload();
-        }
-      }
-      try {
-        var cachesCleared = window.caches
-          ? caches.keys().then(function (keys) {
-              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-            })
-          : Promise.resolve();
-        var swUnregistered = ('serviceWorker' in navigator)
-          ? navigator.serviceWorker.getRegistrations().then(function (regs) {
-              return Promise.all(regs.map(function (r) { return r.unregister(); }));
-            })
-          : Promise.resolve();
-        Promise.all([cachesCleared, swUnregistered])
-          .then(reloadOnceIfControlled)
-          .catch(function () {});
-      } catch (e) { /* navegadores antigos sem suporte — segue normal */ }
-    })();
-
     {{flutter_js}}
     {{flutter_build_config}}
     // CanvasKit servido pelo próprio domínio — o CDN gstatic.com é bloqueado
@@ -169,12 +169,101 @@
     // renderer: "canvaskit" força o renderizador maduro/compatível e desativa
     // o skwasm (experimental, exige SharedArrayBuffer/cross-origin isolation
     // que WebViews como o do Instagram não têm — causava travar só na logo).
-    _flutter.loader.load({
-      config: {
-        renderer: "canvaskit",
-        canvasKitBaseUrl: "canvaskit/"
+    (function () {
+      function safeSessionGet(key) {
+        try { return sessionStorage.getItem(key); } catch (e) { return null; }
       }
-    });
+      function safeSessionSet(key, value) {
+        try { sessionStorage.setItem(key, value); } catch (e) {}
+      }
+      function withTimeout(promise, ms) {
+        return new Promise(function (resolve) {
+          var done = false;
+          var timer = setTimeout(function () {
+            if (done) return;
+            done = true;
+            resolve(false);
+          }, ms);
+          promise.then(function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve(true);
+          }, function () {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve(false);
+          });
+        });
+      }
+      function hasWebGl() {
+        try {
+          var canvas = document.createElement('canvas');
+          return !!(
+            (window.WebGL2RenderingContext && canvas.getContext('webgl2')) ||
+            (window.WebGLRenderingContext && (
+              canvas.getContext('webgl') ||
+              canvas.getContext('experimental-webgl')
+            ))
+          );
+        } catch (e) {
+          return false;
+        }
+      }
+      function loadFlutterApp() {
+        if (!window.WebAssembly) {
+          if (window.__bootShowError) {
+            window.__bootShowError('Este navegador não tem WebAssembly habilitado.');
+          }
+          return;
+        }
+        var config = {
+          renderer: "canvaskit",
+          canvasKitBaseUrl: "canvaskit/",
+          canvasKitVariant: "full"
+        };
+        if (!hasWebGl()) {
+          config.canvasKitForceCpuOnly = true;
+        }
+        try {
+          var loading = _flutter.loader.load({ config: config });
+          if (loading && typeof loading.catch === 'function') {
+            loading.catch(function (error) {
+              if (window.__bootShowError) {
+                window.__bootShowError(error && error.message ? error.message : String(error));
+              }
+            });
+          }
+        } catch (error) {
+          if (window.__bootShowError) {
+            window.__bootShowError(error && error.message ? error.message : String(error));
+          }
+        }
+      }
+      function reloadOnceIfControlled(wasControlled) {
+        if (!wasControlled || safeSessionGet('tdb-sw-cleaned-v2') === '1') {
+          return false;
+        }
+        safeSessionSet('tdb-sw-cleaned-v2', '1');
+        window.location.reload();
+        return true;
+      }
+
+      var wasControlled = !!(
+        navigator.serviceWorker &&
+        navigator.serviceWorker.controller
+      );
+      var cleanup = window.__clearAppCachesAndWorkers
+        ? window.__clearAppCachesAndWorkers()
+        : Promise.resolve();
+
+      withTimeout(cleanup, 1800).then(function () {
+        if (!reloadOnceIfControlled(wasControlled)) {
+          loadFlutterApp();
+        }
+      });
+    })();
   </script>
 </body>
 </html>
