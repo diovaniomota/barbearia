@@ -17,6 +17,7 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Agende seu horário na Toni Dinis Barbearia.">
 
@@ -43,13 +44,36 @@
     #boot {
       position: fixed; inset: 0; z-index: 9999;
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 18px;
+      justify-content: center; gap: 18px; box-sizing: border-box;
+      padding: 24px 32px;
       background: #080808; font-family: sans-serif;
     }
-    #boot img { width: 96px; height: 96px; border-radius: 50%; }
+    #boot img { width: 110px; height: 110px; border-radius: 50%; }
+    #boot .native-choice {
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    #boot .native-choice h1 {
+      margin: 14px 0 0; color: #F0EDE8; text-align: center;
+      font-size: 24px; line-height: 1.25; font-weight: 800;
+    }
+    #boot .native-choice p {
+      margin: -4px 0 20px; color: rgba(240, 237, 232, 0.42);
+      text-align: center; font-size: 14px;
+    }
+    #boot .native-choice button {
+      width: 100%; min-height: 54px; border-radius: 14px;
+      font-size: 16px; font-weight: 800; cursor: pointer;
+    }
+    #boot .native-choice .client {
+      border: 0; background: #F5C200; color: #080808;
+    }
+    #boot .native-choice .admin {
+      border: 1.5px solid #F5C200; background: transparent; color: #F5C200;
+    }
     #boot .sp {
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 3px solid #2a2a2a; border-top-color: #F5C200;
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid #2a2a2a; border-top-color: #F5C200;
       animation: bspin 1s linear infinite;
     }
     @keyframes bspin { to { transform: rotate(360deg); } }
@@ -69,6 +93,12 @@
 <body>
   <div id="boot">
     <img src="icons/Icon-192.png" alt="TD Barbearia">
+    <div class="native-choice">
+      <h1>Você é cliente<br>ou admin?</h1>
+      <p>Selecione para continuar</p>
+      <button class="client" type="button" onclick="window.__bootGo('/agendamentocliente', true)">Cliente</button>
+      <button class="admin" type="button" onclick="window.__bootGo('/admin')">Admin</button>
+    </div>
     <div class="sp"></div>
     <div class="msg">Carregando&hellip;</div>
     <div class="err" id="boot-err">
@@ -126,6 +156,18 @@
         }
       }
       window.__bootShowError = showError;
+      window.__bootGo = function (path, clearSession) {
+        try {
+          sessionStorage.removeItem('sw-cleaned');
+          sessionStorage.removeItem('tdb-sw-cleaned-v2');
+        } catch (e) {}
+        if (clearSession) {
+          try {
+            localStorage.removeItem('sb-uebvtbgvsyzbyzdilren-auth-token');
+          } catch (e) {}
+        }
+        window.location.assign(path);
+      };
       window.__bootRetry = function () {
         try {
           sessionStorage.removeItem('sw-cleaned');

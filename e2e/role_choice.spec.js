@@ -96,6 +96,25 @@ test('rotas diretas da Cloudflare SPA carregam sem tela presa no boot', async ({
   await waitForFlutter(page);
 });
 
+test('fallback HTML mostra Cliente/Admin quando o Flutter nao inicializa', async ({
+  page,
+}) => {
+  await page.route('**/main.dart.js', async (route) => {
+    await route.fulfill({
+      contentType: 'application/javascript',
+      body: 'throw new Error("simulated flutter boot failure");',
+    });
+  });
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#boot')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .client')).toBeVisible();
+  await expect(page.locator('#boot .native-choice .admin')).toBeVisible();
+
+  await page.locator('#boot .native-choice .admin').click();
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
 test('recupera navegador com service worker e cache antigos', async ({
   page,
 }) => {
