@@ -146,6 +146,23 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       }
       final byLabel = {for (final s in slots) s.label: s};
 
+      // 2b. Horários extras avulsos abertos para ESTE dia (fora da escala).
+      //     Aparecem como vagos; se houver agendamento/bloqueio, os passos
+      //     seguintes preenchem o estado.
+      final extraRows = await sb
+          .from('extra_slots')
+          .select('slot_time')
+          .eq('barber_id', barberId)
+          .eq('slot_date', _dateStr);
+      for (final r in (extraRows as List)) {
+        final label = _hhmm('${(r as Map)['slot_time']}');
+        if (!byLabel.containsKey(label)) {
+          final slot = _Slot(label);
+          byLabel[label] = slot;
+          slots.add(slot);
+        }
+      }
+
       // 3. Agendamentos do barbeiro nesse dia
       final apptRows = await sb
           .from('appointments')
@@ -551,11 +568,19 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       return;
     }
 
-    setState(() {
-      _slots.add(_Slot(label));
-      _slots.sort((a, b) => a.label.compareTo(b.label));
-    });
-    _toast('Horário $label adicionado. Toque nele para agendar.');
+    // Persiste em extra_slots para o horário aparecer na agenda do admin E
+    // ficar disponível para o cliente agendar (não some ao recarregar).
+    try {
+      await Supabase.instance.client.from('extra_slots').insert({
+        'barber_id': widget.barberId,
+        'slot_date': _dateStr,
+        'slot_time': '$label:00',
+      });
+      await _load();
+      _toast('Horário $label aberto. Já aparece para o cliente agendar.');
+    } catch (e) {
+      _toast('Erro ao abrir horário: $e');
+    }
   }
 
   InputDecoration _dlgDeco(String label) => InputDecoration(

@@ -417,6 +417,38 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         }
       } catch (_) {}
 
+      // Horários extras avulsos abertos pelo barbeiro para ESTA data (fora da
+      // escala). Adiciona os que ainda não estão na grade e não já passaram.
+      try {
+        final extraRows = await Supabase.instance.client
+            .from('extra_slots')
+            .select('slot_time')
+            .eq('barber_id', barberId)
+            .eq('slot_date', appointmentDate);
+        final now = DateTime.now();
+        final isToday = selDate.year == now.year &&
+            selDate.month == now.month &&
+            selDate.day == now.day;
+        for (final r in extraRows) {
+          final p = '${r['slot_time']}'.split(':');
+          final t = TimeOfDay(
+            hour: int.tryParse(p[0]) ?? 0,
+            minute: p.length > 1 ? (int.tryParse(p[1]) ?? 0) : 0,
+          );
+          final exists =
+              slots.any((s) => s.hour == t.hour && s.minute == t.minute);
+          if (exists) continue;
+          if (isToday) {
+            final slotDt = DateTime(
+                selDate.year, selDate.month, selDate.day, t.hour, t.minute);
+            if (slotDt.isBefore(now)) continue;
+          }
+          slots.add(t);
+        }
+        slots.sort((a, b) =>
+            (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
+      } catch (_) {}
+
       setState(() {
         _availableSlots = slots;
         _takenSlots = taken;
