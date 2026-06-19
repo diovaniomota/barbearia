@@ -1,4 +1,5 @@
 import 'package:barbearia/screens/admin/recurring_schedule_screen.dart';
+import 'package:barbearia/utils/admin_session.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -23,21 +24,45 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final rows = await Supabase.instance.client
-          .from('plan_clients')
-          .select()
-          .order('name');
+      final client = Supabase.instance.client;
+      List<Map<String, dynamic>> rows;
+
+      if (AdminSession.isBarber) {
+        // Barbeiro-admin: buscar apenas clientes plano com recorrente vinculado a ele
+        final schedules = await client
+            .from('recurring_schedules')
+            .select('plan_client_id')
+            .eq('barber_id', AdminSession.barberId!);
+        final ids = (schedules as List)
+            .map((s) => s['plan_client_id'])
+            .whereType<String>()
+            .toSet()
+            .toList();
+        if (ids.isEmpty) {
+          if (!mounted) return;
+          setState(() { _clients = []; _loading = false; });
+          return;
+        }
+        rows = List<Map<String, dynamic>>.from(
+          await client.from('plan_clients').select().inFilter('id', ids).order('name'),
+        );
+      } else {
+        rows = List<Map<String, dynamic>>.from(
+          await client.from('plan_clients').select().order('name'),
+        );
+      }
+
       if (!mounted) return;
       setState(() {
-        _clients = List<Map<String, dynamic>>.from(rows);
+        _clients = rows;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao carregar: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar: $e')),
+      );
     }
   }
 
