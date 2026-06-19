@@ -299,23 +299,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     SupabaseClient supabase,
     DateTime month,
   ) async {
+    final now = DateTime.now();
+    final todayStr = _dateOnly(now);
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
     var query = supabase
         .from('appointments')
         .select(
-          'barber_id, appointment_date, user_id, customer_phone, '
+          'barber_id, appointment_date, appointment_time, user_id, customer_phone, '
           'customer_name, service_id, total_price, '
           'barbers:barber_id(name), services:service_id(price)',
         )
         .gte('appointment_date', _dateOnly(start))
         .lt('appointment_date', _dateOnly(end))
+        .lte('appointment_date', todayStr) // não contar datas futuras
         .neq('status', 'cancelled');
     if (AdminSession.isBarber) {
       query = query.eq('barber_id', AdminSession.barberId!);
     }
-    final rows = await query;
-    return List<Map<String, dynamic>>.from(rows);
+    final rows = List<Map<String, dynamic>>.from(await query);
+
+    // Para agendamentos de hoje: excluir horários que ainda não ocorreram
+    return rows.where((r) {
+      final dateStr = (r['appointment_date'] as String?) ?? '';
+      if (dateStr != todayStr) return true;
+      final raw = (r['appointment_time'] as String? ?? '00:00');
+      final timeStr = raw.length >= 5 ? raw.substring(0, 5) : raw;
+      final dt = DateTime.tryParse('$dateStr $timeStr');
+      if (dt == null) return true;
+      return !dt.isAfter(now);
+    }).toList();
   }
 
   @override
