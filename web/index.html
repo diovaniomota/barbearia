@@ -61,11 +61,6 @@
       margin: -4px 0 20px; color: rgba(240, 237, 232, 0.42);
       text-align: center; font-size: 14px;
     }
-    #boot .native-choice .iab-note {
-      display: none; margin: -8px 0 12px; color: rgba(240, 237, 232, 0.72);
-      text-align: center; font-size: 13px; line-height: 1.35;
-    }
-    #boot.in-app .native-choice .iab-note { display: block; }
     #boot .native-choice button {
       width: 100%; min-height: 54px; border-radius: 14px;
       font-size: 16px; font-weight: 800; cursor: pointer;
@@ -83,7 +78,6 @@
     }
     @keyframes bspin { to { transform: rotate(360deg); } }
     #boot .msg { color: #9b9b9b; font-size: 14px; }
-    #boot.in-app .sp, #boot.in-app .msg { display: none; }
     #boot .err {
       display: none; flex-direction: column; align-items: center;
       gap: 14px; padding: 0 28px; text-align: center;
@@ -94,17 +88,53 @@
       background: #F5C200; color: #080808; border: 0; border-radius: 10px;
       padding: 12px 24px; font-size: 15px; font-weight: 700;
     }
+    /* Tela de in-app browser (Instagram, Facebook, etc.) */
+    #iab-screen {
+      display: none; position: fixed; inset: 0; z-index: 10000;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: #080808; font-family: sans-serif;
+      padding: 32px 24px; box-sizing: border-box; text-align: center; gap: 0;
+    }
+    #iab-screen img { width: 90px; height: 90px; border-radius: 50%; margin-bottom: 24px; }
+    #iab-screen h2 { color: #F0EDE8; font-size: 22px; font-weight: 800; margin: 0 0 10px; }
+    #iab-screen .iab-sub {
+      color: #9ca3af; font-size: 14px; line-height: 1.55; margin: 0 0 28px;
+    }
+    #iab-open-btn {
+      display: block; width: 100%; max-width: 360px;
+      background: #F5C200; color: #080808; border: 0; border-radius: 14px;
+      padding: 16px 0; font-size: 17px; font-weight: 800;
+      cursor: pointer; text-decoration: none; margin-bottom: 20px;
+    }
+    #iab-screen .iab-hint {
+      color: #6b7280; font-size: 13px; line-height: 1.5; max-width: 320px;
+    }
+    #iab-screen .iab-hint strong { color: #9ca3af; }
   </style>
 </head>
 <body>
+  <!-- Tela exclusiva para in-app browsers (Instagram, Facebook, Messenger).
+       Mostrada via JS antes do Flutter carregar; oculta por padrão. -->
+  <div id="iab-screen">
+    <img src="icons/Icon-192.png" alt="TD Barbearia">
+    <h2>Abrir no navegador</h2>
+    <p class="iab-sub">
+      O agendamento não funciona dentro do Instagram.<br>
+      Toque no botão abaixo para abrir no navegador.
+    </p>
+    <a id="iab-open-btn" href="#">Agendar horário</a>
+    <p class="iab-hint">
+      Não abriu? Toque nos <strong>três pontinhos ···</strong> no canto
+      superior direito e escolha <strong>"Abrir no Chrome"</strong>
+      ou <strong>"Abrir no Safari"</strong>.
+    </p>
+  </div>
+
   <div id="boot">
     <img src="icons/Icon-192.png" alt="TD Barbearia">
     <div class="native-choice">
       <h1>Você é cliente<br>ou admin?</h1>
       <p>Selecione para continuar</p>
-      <div class="iab-note">
-        No Instagram, abriremos pelo navegador do celular para o agendamento carregar certinho.
-      </div>
       <button class="client" type="button" onclick="window.__bootGo('/agendamentocliente', true)">Cliente</button>
       <button class="admin" type="button" onclick="window.__bootGo('/admin')">Admin</button>
     </div>
@@ -124,29 +154,53 @@
     (function () {
       var booted = false;
       var ua = navigator.userAgent || '';
-      var inAppBrowser = /Instagram|FBAN|FBAV|FB_IAB|FB4A|FB_IOS|Messenger/i.test(ua);
-      function sessionValue(key) {
-        try { return sessionStorage.getItem(key); } catch (e) { return null; }
-      }
+      // Detecta in-app browsers de redes sociais — todos bloqueiam WASM/WebGL
+      // necessário para o Flutter CanvasKit funcionar corretamente.
+      var inAppBrowser = /Instagram|FBAN|FBAV|FB_IAB|FB4A|FB_IOS|Messenger|LinkedInApp|Twitter|TikTok/i.test(ua);
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+
       window.__isInAppBrowser = inAppBrowser;
-      window.__keepNativeBoot = inAppBrowser && !sessionValue('tdb-force-inapp-flutter');
-      function fullUrl(path) {
-        return new URL(path, window.location.origin).toString();
+      // Quando em in-app browser: NÃO carrega Flutter. Mostra tela própria.
+      window.__keepNativeBoot = inAppBrowser;
+
+      var TARGET_PATH = '/agendamentocliente';
+      var TARGET_URL = window.location.origin + TARGET_PATH;
+
+      function intentUrl() {
+        // Android: abre no Chrome (ou browser padrão como fallback)
+        var host = TARGET_URL.replace(/^https?:\/\//, '');
+        return 'intent://' + host +
+          '#Intent;scheme=https;' +
+          'S.browser_fallback_url=' + encodeURIComponent(TARGET_URL) + ';' +
+          'end';
       }
-      function externalUrl(path) {
-        var url = fullUrl(path);
-        if (/Android/i.test(ua)) {
-          return 'intent://' + url.replace(/^https?:\/\//, '') +
-            '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
-            encodeURIComponent(url) + ';end';
-        }
-        return url;
-      }
-      window.__bootExternalUrl = externalUrl;
+
       if (inAppBrowser) {
+        // Esconde o boot normal; exibe a tela dedicada de in-app browser
         var boot = document.getElementById('boot');
-        if (boot) boot.className = (boot.className ? boot.className + ' ' : '') + 'in-app';
+        if (boot) boot.style.display = 'none';
+        var iab = document.getElementById('iab-screen');
+        if (iab) iab.style.display = 'flex';
+
+        // Configura o botão de abertura externa
+        var btn = document.getElementById('iab-open-btn');
+        if (btn) {
+          if (isAndroid) {
+            // Android: intent abre no app de browser padrão (não force Chrome)
+            btn.href = intentUrl();
+          } else if (isIOS) {
+            // iOS: target _blank às vezes abre no Safari fora do in-app browser
+            btn.href = TARGET_URL;
+            btn.target = '_blank';
+            btn.rel = 'noopener noreferrer';
+          } else {
+            btn.href = TARGET_URL;
+            btn.target = '_blank';
+          }
+        }
       }
+
       function errorText(error) {
         if (!error) return 'Erro ao carregar o aplicativo.';
         if (typeof error === 'string') return error;
@@ -200,14 +254,6 @@
             localStorage.removeItem('sb-uebvtbgvsyzbyzdilren-auth-token');
           } catch (e) {}
         }
-        if (window.__keepNativeBoot) {
-          var note = document.querySelector('#boot .native-choice .iab-note');
-          if (note) {
-            note.textContent = 'Tentando abrir no navegador. Se não abrir, toque nos três pontinhos do Instagram e escolha abrir no navegador.';
-          }
-          window.location.assign(externalUrl(path));
-          return;
-        }
         window.location.assign(path);
       };
       window.__bootRetry = function () {
@@ -235,7 +281,7 @@
       // Rede de segurança: 25s sem montar = mostra o erro. Se o app montar
       // depois disso (conexão lenta), o first-frame remove tudo mesmo assim.
       setTimeout(function () {
-        showError('Tempo esgotado - conexão lenta ou indisponível.');
+        if (!booted) showError('Tempo esgotado - conexão lenta ou indisponível.');
       }, 25000);
     })();
   </script>
