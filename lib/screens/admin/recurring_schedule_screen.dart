@@ -1,3 +1,4 @@
+import 'package:barbearia/utils/admin_picker_theme.dart';
 import 'package:barbearia/utils/admin_session.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -125,10 +126,12 @@ class _RecurringScheduleScreenState extends State<RecurringScheduleScreen> {
             final t = await showTimePicker(
               context: ctx,
               initialTime: selTime ?? const TimeOfDay(hour: 9, minute: 0),
-              builder: (c, child) => MediaQuery(
-                data: MediaQuery.of(c)
-                    .copyWith(textScaler: const TextScaler.linear(1.0)),
-                child: child!,
+              builder: (c, child) => adminPickerTheme(
+                c,
+                MediaQuery(
+                  data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.0)),
+                  child: child!,
+                ),
               ),
             );
             if (t != null) setSt(() => selTime = t);

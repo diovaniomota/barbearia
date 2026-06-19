@@ -1,3 +1,4 @@
+import 'package:barbearia/utils/admin_picker_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -1305,15 +1306,7 @@ class _RescheduleModalState extends State<_RescheduleModal> {
                   firstDate: now,
                   lastDate: now.add(const Duration(days: 60)),
                   initialDate: now,
-                  builder: (ctx, child) => Theme(
-                    data: Theme.of(ctx).copyWith(
-                      colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                        primary: _P.gold,
-                        onPrimary: _P.bg,
-                      ),
-                    ),
-                    child: child!,
-                  ),
+                  builder: (ctx, child) => adminPickerTheme(ctx, child!),
                 );
                 if (picked == null || !mounted) return;
                 final date = DateTime(picked.year, picked.month, picked.day);

@@ -1,3 +1,4 @@
+import 'package:barbearia/utils/admin_picker_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -871,6 +872,7 @@ extension on _BarbersAdminScreenState {
                       final picked = await showTimePicker(
                         context: context,
                         initialTime: data.start,
+                        builder: (ctx, child) => adminPickerTheme(ctx, child!),
                       );
                       if (picked != null) {
                         setStateDialog(
@@ -890,6 +892,7 @@ extension on _BarbersAdminScreenState {
                       final picked = await showTimePicker(
                         context: context,
                         initialTime: data.end,
+                        builder: (ctx, child) => adminPickerTheme(ctx, child!),
                       );
                       if (picked != null) {
                         setStateDialog(
@@ -920,6 +923,7 @@ extension on _BarbersAdminScreenState {
                         final picked = await showTimePicker(
                           context: context,
                           initialTime: data.breakStart,
+                          builder: (ctx, child) => adminPickerTheme(ctx, child!),
                         );
                         if (picked != null) {
                           setStateDialog(
@@ -943,6 +947,7 @@ extension on _BarbersAdminScreenState {
                         final picked = await showTimePicker(
                           context: context,
                           initialTime: data.breakEnd,
+                          builder: (ctx, child) => adminPickerTheme(ctx, child!),
                         );
                         if (picked != null) {
                           setStateDialog(

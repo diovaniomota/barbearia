@@ -1,3 +1,4 @@
+import 'package:barbearia/utils/admin_picker_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -552,9 +553,12 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       context: context,
       initialTime: const TimeOfDay(hour: 19, minute: 0),
       helpText: 'Horário extra para este dia',
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
+      builder: (context, child) => adminPickerTheme(
+        context,
+        MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        ),
       ),
     );
     if (picked == null || !mounted) return;

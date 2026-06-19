@@ -28,23 +28,12 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
       List<Map<String, dynamic>> rows;
 
       if (AdminSession.isBarber) {
-        // Barbeiro-admin: buscar apenas clientes plano com recorrente vinculado a ele
-        final schedules = await client
-            .from('recurring_schedules')
-            .select('plan_client_id')
-            .eq('barber_id', AdminSession.barberId!);
-        final ids = (schedules as List)
-            .map((s) => s['plan_client_id'])
-            .whereType<String>()
-            .toSet()
-            .toList();
-        if (ids.isEmpty) {
-          if (!mounted) return;
-          setState(() { _clients = []; _loading = false; });
-          return;
-        }
         rows = List<Map<String, dynamic>>.from(
-          await client.from('plan_clients').select().inFilter('id', ids).order('name'),
+          await client
+              .from('plan_clients')
+              .select()
+              .eq('barber_id', AdminSession.barberId!)
+              .order('name'),
         );
       } else {
         rows = List<Map<String, dynamic>>.from(
@@ -111,7 +100,20 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
     );
 
     String? selectedPayment = client?['payment_method']?.toString();
+    String? selectedBarberId = client?['barber_id']?.toString()
+        ?? (AdminSession.isBarber ? AdminSession.barberId : null);
 
+    // Super-admin: carregar lista de barbeiros para o seletor
+    List<Map<String, dynamic>> allBarbers = [];
+    if (AdminSession.isSuperAdmin) {
+      final rows = await Supabase.instance.client
+          .from('barbers')
+          .select('id,name')
+          .order('name');
+      allBarbers = List<Map<String, dynamic>>.from(rows);
+    }
+
+    if (!mounted) return;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -193,6 +195,25 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                     prefixIcon: Icon(Icons.notes_outlined),
                   ),
                 ),
+                if (AdminSession.isSuperAdmin) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: selectedBarberId,
+                    decoration: const InputDecoration(
+                      labelText: 'Barbeiro responsável',
+                      prefixIcon: Icon(Icons.content_cut_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    hint: const Text('Sem vínculo'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Sem vínculo')),
+                      ...allBarbers.map(
+                        (b) => DropdownMenuItem(value: b['id'].toString(), child: Text(b['name'].toString())),
+                      ),
+                    ],
+                    onChanged: (v) => setStateDialog(() => selectedBarberId = v),
+                  ),
+                ],
               ],
             ),
           ),
@@ -239,6 +260,7 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                     'notes': notesCtrl.text.trim().isEmpty
                         ? null
                         : notesCtrl.text.trim(),
+                    'barber_id': selectedBarberId,
                     'updated_at': DateTime.now().toIso8601String(),
                   };
                   if (isEdit) {

@@ -1,7 +1,8 @@
+import 'package:barbearia/utils/admin_picker_theme.dart';
+import 'package:barbearia/utils/admin_session.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:barbearia/utils/admin_session.dart';
 
 class FinancialAdminScreen extends StatefulWidget {
   const FinancialAdminScreen({super.key});
@@ -353,11 +354,12 @@ class _FinancialAdminScreenState extends State<FinancialAdminScreen> {
       initialDatePickerMode: _period == _Period.year
           ? DatePickerMode.year
           : DatePickerMode.day,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(textScaler: const TextScaler.linear(1.0)),
-        child: child!,
+      builder: (context, child) => adminPickerTheme(
+        context,
+        MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)),
+          child: child!,
+        ),
       ),
     );
     if (d != null) {
