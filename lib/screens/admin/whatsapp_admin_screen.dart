@@ -20,6 +20,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
   final _normal24hCtr  = TextEditingController();
   final _plan24hCtr    = TextEditingController();
   final _plan1hCtr     = TextEditingController();
+  final _planDueWeekCtr  = TextEditingController();
+  final _planDueTodayCtr = TextEditingController();
 
   bool _enabled = false;
   int  _reminderHours = 1;
@@ -47,6 +49,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     _normal24hCtr.dispose();
     _plan24hCtr.dispose();
     _plan1hCtr.dispose();
+    _planDueWeekCtr.dispose();
+    _planDueTodayCtr.dispose();
     super.dispose();
   }
 
@@ -60,6 +64,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
       _normal24hCtr.text  = config.normalTemplate24h;
       _plan24hCtr.text    = config.planTemplate24h;
       _plan1hCtr.text     = config.planTemplate1h;
+      _planDueWeekCtr.text  = config.planDueWeekTemplate;
+      _planDueTodayCtr.text = config.planDueTodayTemplate;
       _enabled         = config.enabled;
       _reminderHours   = config.reminderNormalHours;
       _loading         = false;
@@ -76,6 +82,8 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
     normalTemplate24h:   _normal24hCtr.text.trim(),
     planTemplate24h:     _plan24hCtr.text.trim(),
     planTemplate1h:      _plan1hCtr.text.trim(),
+    planDueWeekTemplate:  _planDueWeekCtr.text.trim(),
+    planDueTodayTemplate: _planDueTodayCtr.text.trim(),
   );
 
   // Verifica status + QR a cada 4 segundos enquanto não conectado
@@ -455,6 +463,67 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
               hintText: 'Texto da mensagem…',
             ),
           ),
+          const SizedBox(height: 24),
+
+          // Vencimento do plano — uma semana antes
+          Text(
+            'Vencimento do plano — uma semana antes',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enviado 7 dias antes do dia de vencimento cadastrado no cliente do plano.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _VariableChips(
+            controller: _planDueWeekCtr,
+            variables: const ['{{cliente}}', '{{plano}}'],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _planDueWeekCtr,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Texto da mensagem…',
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Vencimento do plano — no dia
+          Text(
+            'Vencimento do plano — no dia',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enviado no dia de vencimento da mensalidade. Inclui a chave Pix do '
+            'cliente automaticamente quando a forma de pagamento dele for PIX.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _VariableChips(
+            controller: _planDueTodayCtr,
+            variables: const ['{{cliente}}', '{{plano}}', '{{pix}}'],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _planDueTodayCtr,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Texto da mensagem…',
+            ),
+          ),
           const SizedBox(height: 28),
 
           // ── Teste ────────────────────────────────────────
@@ -670,9 +739,15 @@ class _QrCard extends StatelessWidget {
 // ── Chips de variáveis ────────────────────────────────────────────────────────
 
 class _VariableChips extends StatelessWidget {
-  const _VariableChips({required this.controller, this.extra = const []});
+  const _VariableChips({
+    required this.controller,
+    this.extra = const [],
+    this.variables,
+  });
   final TextEditingController controller;
   final List<String> extra;
+  // Quando informado, substitui totalmente a lista padrão de variáveis.
+  final List<String>? variables;
 
   void _insert(String variable) {
     final sel = controller.selection;
@@ -692,7 +767,8 @@ class _VariableChips extends StatelessWidget {
       spacing: 6,
       runSpacing: 4,
       children:
-          [
+          (variables ??
+              [
                 '{{cliente}}',
                 '{{data}}',
                 '{{hora}}',
@@ -700,7 +776,7 @@ class _VariableChips extends StatelessWidget {
                 '{{barbeiro}}',
                 '{{valor}}',
                 ...extra,
-              ]
+              ])
               .map(
                 (v) => ActionChip(
                   label: Text(v, style: const TextStyle(fontSize: 11)),

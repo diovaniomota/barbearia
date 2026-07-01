@@ -1,0 +1,10 @@
+#!/bin/sh
+# Copie para run-billing.sh, preencha os valores e dê: chmod +x run-billing.sh
+# O cron executa este arquivo (ele carrega as variáveis e roda o script).
+
+export SUPABASE_URL="https://uebvtbgvsyzbyzdilren.supabase.co"
+export SUPABASE_SERVICE_KEY="COLE_AQUI_A_SERVICE_ROLE_KEY"
+export WA_URL="http://localhost:3001"
+# export WA_API_KEY="opcional — se vazio, lê de app_settings"
+
+/usr/bin/node "$(dirname "$0")/plan-billing-reminder.js"

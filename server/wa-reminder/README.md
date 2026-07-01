@@ -59,6 +59,30 @@ Adicione a linha:
 Pronto. A cada 5 minutos o script verifica e envia os lembretes da próxima hora.
 Acompanhe o log com: `tail -f /var/log/wa-reminder.log`
 
+## 6. Lembrete de vencimento do plano (plan-billing-reminder.js)
+
+Script separado — não é sobre agendamento, é sobre a **mensalidade do plano**
+vencer (campo `due_day` de cada cliente do plano). Manda uma mensagem 7 dias
+antes do vencimento e outra no dia (com a chave Pix do cliente, se a forma de
+pagamento dele for PIX). Usa as mesmas variáveis de ambiente do `reminder.js`
+(`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `WA_URL`, `WA_API_KEY`).
+
+Copie `plan-billing-reminder.js` para `/opt/wa-reminder/` também e crie um
+`run-billing.sh` igual ao `run.sh`, trocando a última linha para:
+
+```sh
+/usr/bin/node "$(dirname "$0")/plan-billing-reminder.js"
+```
+
+Adicione no cron, rodando 1x por dia ao meio-dia:
+
+```cron
+0 12 * * * /opt/wa-reminder/run-billing.sh >> /var/log/wa-plan-billing.log 2>&1
+```
+
+Personalize as mensagens em Configurações → WhatsApp (chaves
+`wa_plan_due_week_template` e `wa_plan_due_today_template` em `app_settings`).
+
 ---
 
 ## Variáveis (run.sh)
