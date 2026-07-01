@@ -418,7 +418,7 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          _VariableChips(controller: _plan24hCtr),
+          _VariableChips(controller: _plan24hCtr, extra: const ['{{pix}}']),
           const SizedBox(height: 8),
           TextField(
             controller: _plan24hCtr,
@@ -445,7 +445,7 @@ class _WhatsappAdminScreenState extends State<WhatsappAdminScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          _VariableChips(controller: _plan1hCtr),
+          _VariableChips(controller: _plan1hCtr, extra: const ['{{pix}}']),
           const SizedBox(height: 8),
           TextField(
             controller: _plan1hCtr,
@@ -670,8 +670,9 @@ class _QrCard extends StatelessWidget {
 // ── Chips de variáveis ────────────────────────────────────────────────────────
 
 class _VariableChips extends StatelessWidget {
-  const _VariableChips({required this.controller});
+  const _VariableChips({required this.controller, this.extra = const []});
   final TextEditingController controller;
+  final List<String> extra;
 
   void _insert(String variable) {
     final sel = controller.selection;
@@ -698,6 +699,7 @@ class _VariableChips extends StatelessWidget {
                 '{{servico}}',
                 '{{barbeiro}}',
                 '{{valor}}',
+                ...extra,
               ]
               .map(
                 (v) => ActionChip(

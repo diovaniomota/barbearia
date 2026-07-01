@@ -42,14 +42,16 @@ const DEFAULT_PLAN_TPL_24H =
   '📅 Lembrete do seu plano!\n\n' +
   'Olá {{cliente}}! Seu horário de plano é amanhã às {{hora}}.\n' +
   '✂️ Serviço: {{servico}}\n' +
-  '💈 Profissional: {{barbeiro}}\n\n' +
+  '💈 Profissional: {{barbeiro}}\n' +
+  '{{pix}}\n' +
   'Te esperamos amanhã! 👋';
 
 const DEFAULT_PLAN_TPL_1H =
   '⏰ Quase na hora!\n\n' +
   'Olá {{cliente}}! Seu horário de plano é hoje às {{hora}}.\n' +
   '✂️ Serviço: {{servico}}\n' +
-  '💈 Profissional: {{barbeiro}}\n\n' +
+  '💈 Profissional: {{barbeiro}}\n' +
+  '{{pix}}\n' +
   'Te esperamos daqui a pouco! 🙌';
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -92,12 +94,15 @@ function timeToMin(t) {
 // ── Mensagem ──────────────────────────────────────────────────────────────────
 
 function buildMessage(tpl, v) {
-  return tpl
+  const msg = tpl
     .replaceAll('{{cliente}}', v.cliente)
     .replaceAll('{{data}}',    v.data)
     .replaceAll('{{hora}}',    v.hora)
     .replaceAll('{{servico}}', v.servico)
-    .replaceAll('{{barbeiro}}',v.barbeiro);
+    .replaceAll('{{barbeiro}}',v.barbeiro)
+    .replaceAll('{{pix}}',     v.pix || '');
+  // Remove a linha em branco deixada quando {{pix}} veio vazio (cliente paga no cartão).
+  return msg.replace(/\n[ \t]*\n/g, '\n');
 }
 
 async function sendWhatsapp(phone, message) {
@@ -149,6 +154,31 @@ async function loadSettings() {
   return map;
 }
 
+// ── Clientes de plano (forma de pagamento / chave Pix) ────────────────────────
+
+async function loadPlanClients() {
+  const res = await sb('plan_clients?select=phone,payment_method,pix_key');
+  const rows = await res.json();
+  const map = new Map();
+  if (Array.isArray(rows)) {
+    for (const r of rows) {
+      const digits = String(r.phone || '').replace(/[^0-9]/g, '');
+      if (digits) map.set(digits, r);
+    }
+  }
+  return map;
+}
+
+function pixLineFor(planClients, phone) {
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  const pc = planClients.get(digits);
+  const isPix = (pc?.payment_method || '').toUpperCase() === 'PIX';
+  if (!isPix) return '';
+  return pc.pix_key
+    ? `🔑 Pagamento via Pix: ${pc.pix_key}`
+    : '🔑 Pagamento via Pix — confirme a chave com o barbeiro.';
+}
+
 // ── Patch de flags de lembrete ────────────────────────────────────────────────
 
 async function markReminder(ids, field) {
@@ -166,7 +196,8 @@ async function markReminder(ids, field) {
 // ── Principal ─────────────────────────────────────────────────────────────────
 
 async function main() {
-  const settings = await loadSettings();
+  const settings    = await loadSettings();
+  const planClients = await loadPlanClients();
 
   if (settings.wa_enabled !== 'true') {
     console.log('[reminder] WhatsApp desativado. Nada a fazer.');
@@ -232,6 +263,7 @@ async function main() {
         hora,
         servico:  servicos || 'serviço',
         barbeiro: first.barbers?.name || '',
+        pix:      isPlan ? pixLineFor(planClients, first.customer_phone) : '',
       };
 
       // ── Lembrete de 24h (só para agendamentos que NÃO são hoje) ──

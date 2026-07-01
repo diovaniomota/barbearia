@@ -46,14 +46,16 @@ class WhatsappConfig {
       '📅 Lembrete do seu plano!\n\n'
       'Olá {{cliente}}! Seu horário é amanhã às {{hora}}.\n'
       '✂️ Serviço: {{servico}}\n'
-      '💈 Profissional: {{barbeiro}}\n\n'
+      '💈 Profissional: {{barbeiro}}\n'
+      '{{pix}}\n'
       'Te esperamos amanhã! 👋';
 
   static const defaultPlanTemplate1h =
       '⏰ Quase na hora!\n\n'
       'Olá {{cliente}}! Seu horário de plano é hoje às {{hora}}.\n'
       '✂️ Serviço: {{servico}}\n'
-      '💈 Profissional: {{barbeiro}}\n\n'
+      '💈 Profissional: {{barbeiro}}\n'
+      '{{pix}}\n'
       'Te esperamos daqui a pouco! 🙌';
 
   factory WhatsappConfig.empty() => const WhatsappConfig(

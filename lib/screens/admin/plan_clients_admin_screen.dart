@@ -90,6 +90,7 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
           ? (client!['monthly_value'] as num).toStringAsFixed(2).replaceAll('.', ',')
           : '',
     );
+    final pixKeyCtrl = TextEditingController(text: client?['pix_key'] ?? '');
 
     final rawPhone = client != null ? _displayPhone(client['phone'] ?? '') : '';
     final phoneCtrl = TextEditingController(text: rawPhone);
@@ -176,6 +177,17 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                       .toList(),
                   onChanged: (v) => setStateDialog(() => selectedPayment = v),
                 ),
+                if (selectedPayment == 'PIX') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: pixKeyCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Chave Pix a enviar para este cliente',
+                      hintText: 'CPF, e-mail, telefone ou chave aleatória',
+                      prefixIcon: Icon(Icons.key_outlined),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: dueDayCtrl,
@@ -256,6 +268,9 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                         : planCtrl.text.trim(),
                     'monthly_value': monthlyValueRaw,
                     'payment_method': selectedPayment,
+                    'pix_key': selectedPayment == 'PIX' && pixKeyCtrl.text.trim().isNotEmpty
+                        ? pixKeyCtrl.text.trim()
+                        : null,
                     'due_day': dueDayRaw,
                     'notes': notesCtrl.text.trim().isEmpty
                         ? null
@@ -385,6 +400,7 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                 final c = _clients[i];
                 final planName = c['plan_name']?.toString();
                 final paymentMethod = c['payment_method']?.toString();
+                final pixKey = c['pix_key']?.toString();
                 final dueDay = c['due_day'];
                 final notes = c['notes']?.toString();
                 final monthlyValue = c['monthly_value'] != null
@@ -468,6 +484,14 @@ class _PlanClientsAdminScreenState extends State<PlanClientsAdminScreen> {
                                       _InfoChip(
                                         icon: Icons.payment_outlined,
                                         label: paymentMethod,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                    if (paymentMethod == 'PIX' &&
+                                        pixKey != null &&
+                                        pixKey.isNotEmpty)
+                                      _InfoChip(
+                                        icon: Icons.key_outlined,
+                                        label: pixKey,
                                         color: theme.colorScheme.onSurface,
                                       ),
                                     if (dueDay != null)
