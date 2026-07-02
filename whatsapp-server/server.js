@@ -56,6 +56,20 @@ let phoneNumber = null;
 let retryCount  = 0;
 const MAX_RETRIES = 10;
 
+// Cache das últimas mensagens enviadas. Quando o destinatário não consegue
+// descriptografar ("Aguardando mensagem"), o WhatsApp pede reenvio e o Baileys
+// busca o conteúdo aqui (getMessage) para reenviar com chaves novas.
+const messageStore = new Map();
+const MESSAGE_STORE_MAX = 500;
+
+function storeMessage(msg) {
+  if (!msg?.key?.id || !msg.message) return;
+  messageStore.set(msg.key.id, msg.message);
+  if (messageStore.size > MESSAGE_STORE_MAX) {
+    messageStore.delete(messageStore.keys().next().value);
+  }
+}
+
 // ── Express ───────────────────────────────────────────────────────────────────
 
 const app = express();
@@ -105,7 +119,8 @@ app.post('/send', async (req, res) => {
     }
 
     // Usa o JID verificado (pode diferir do informado — números com/sem 9)
-    await sock.sendMessage(result.jid, { text: message });
+    const sent = await sock.sendMessage(result.jid, { text: message });
+    storeMessage(sent);
     console.log(`Mensagem enviada para ${result.jid}`);
     res.json({ ok: true });
   } catch (err) {
@@ -162,6 +177,8 @@ async function connect() {
       version,
       logger: pino({ level: 'silent' }),
       auth: state,
+      // Atende pedidos de reenvio quando o destinatário fica "Aguardando mensagem"
+      getMessage: async (key) => messageStore.get(key.id),
     });
 
     sock.ev.on('creds.update', saveCreds);
