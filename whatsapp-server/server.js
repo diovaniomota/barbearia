@@ -70,6 +70,22 @@ function storeMessage(msg) {
   }
 }
 
+// Watchdog: se ficar desconectado por muito tempo sem QR aguardando leitura
+// (conexão zumbi que não dispara evento de desconexão), encerra o processo —
+// o Docker (restart: unless-stopped) sobe o container de novo.
+const WATCHDOG_MS = 10 * 60 * 1000;
+let disconnectedSince = Date.now();
+setInterval(() => {
+  if (connected || qrBase64 !== null) {
+    disconnectedSince = null;
+  } else if (disconnectedSince === null) {
+    disconnectedSince = Date.now();
+  } else if (Date.now() - disconnectedSince > WATCHDOG_MS) {
+    console.error('Watchdog: desconectado há mais de 10 min. Encerrando para reiniciar.');
+    process.exit(1);
+  }
+}, 30_000);
+
 // ── Express ───────────────────────────────────────────────────────────────────
 
 const app = express();
@@ -178,7 +194,11 @@ async function connect() {
       logger: pino({ level: 'silent' }),
       auth: state,
       // Atende pedidos de reenvio quando o destinatário fica "Aguardando mensagem"
-      getMessage: async (key) => messageStore.get(key.id),
+      getMessage: async (key) => {
+        const msg = messageStore.get(key.id);
+        console.log(`Pedido de reenvio (msg ${key.id}): ${msg ? 'encontrada no cache, reenviando' : 'não encontrada no cache'}`);
+        return msg;
+      },
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -221,7 +241,8 @@ async function connect() {
           console.log(`Tentativa ${retryCount}/${MAX_RETRIES} em ${delay / 1000}s...`);
           setTimeout(connect, delay);
         } else {
-          console.error(`Máximo de ${MAX_RETRIES} tentativas atingido. Reinicie o servidor.`);
+          console.error(`Máximo de ${MAX_RETRIES} tentativas atingido. Encerrando — o Docker reinicia o container.`);
+          process.exit(1);
         }
       }
     });

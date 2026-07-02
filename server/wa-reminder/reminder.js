@@ -105,6 +105,8 @@ function buildMessage(tpl, v) {
   return msg.replace(/\n[ \t]*\n/g, '\n');
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function sendWhatsapp(phone, message) {
   const clean = String(phone).replace(/[^0-9]/g, '');
   if (!clean) return false;
@@ -120,6 +122,9 @@ async function sendWhatsapp(phone, message) {
   } catch (e) {
     console.warn(`[reminder] erro /send: ${e.message}`);
     return false;
+  } finally {
+    // Espaça envios consecutivos para reduzir risco de bloqueio do número
+    await sleep(2500);
   }
 }
 
