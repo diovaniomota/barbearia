@@ -6,8 +6,10 @@ import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/admin/admin_navigation.dart';
 import 'package:barbearia/utils/user_bootstrap.dart';
 import 'package:barbearia/utils/admin_session.dart';
+import 'package:barbearia/utils/pwa_helper.dart';
 
 const _kSavedEmail = 'login_saved_email';
+const _kInstallHintDismissed = 'login_install_hint_dismissed';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,12 +26,29 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _checkingSession = true;
   bool _rememberEmail = false;
+  bool _showInstallHint = false;
 
   @override
   void initState() {
     super.initState();
     _loadSavedEmail();
     _redirectIfLogged();
+    _checkInstallHint();
+  }
+
+  Future<void> _checkInstallHint() async {
+    if (!PwaHelper.shouldPromptInstall) return;
+    final prefs = await SharedPreferences.getInstance();
+    final dismissed = prefs.getBool(_kInstallHintDismissed) ?? false;
+    if (!dismissed && mounted) {
+      setState(() => _showInstallHint = true);
+    }
+  }
+
+  Future<void> _dismissInstallHint() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kInstallHintDismissed, true);
+    if (mounted) setState(() => _showInstallHint = false);
   }
 
   Future<void> _loadSavedEmail() async {
@@ -168,6 +187,39 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _text = Color(0xFFF0EDE8);
   static const _muted = Color(0xFF6B7280);
 
+  Widget _buildInstallHintBanner() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _gold.withValues(alpha: 0.08),
+        border: Border.all(color: _gold.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.ios_share, color: _gold, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Instale este app na tela de início pra não precisar logar '
+              'toda vez: toque em compartilhar e escolha '
+              '"Adicionar à Tela de Início".',
+              style: TextStyle(color: _text, fontSize: 13, height: 1.4),
+            ),
+          ),
+          GestureDetector(
+            onTap: _dismissInstallHint,
+            child: const Padding(
+              padding: EdgeInsets.only(left: 8, top: 2),
+              child: Icon(Icons.close_rounded, color: _muted, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   InputDecoration _field(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
@@ -244,6 +296,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: _muted, fontSize: 14),
                 ),
               ),
+
+              if (_showInstallHint) ...[
+                const SizedBox(height: 24),
+                _buildInstallHintBanner(),
+              ],
 
               const SizedBox(height: 48),
 
