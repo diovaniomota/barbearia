@@ -106,16 +106,37 @@
       padding: 16px 0; font-size: 17px; font-weight: 800;
       cursor: pointer; text-decoration: none; margin-bottom: 20px;
     }
-    #iab-screen .iab-hint {
-      color: #6b7280; font-size: 13px; line-height: 1.5; max-width: 320px;
+    #iab-screen .iab-hint-box {
+      display: flex; align-items: center; gap: 10px; max-width: 340px;
+      background: rgba(245, 194, 0, 0.1);
+      border: 1.5px solid rgba(245, 194, 0, 0.55);
+      border-radius: 14px; padding: 14px 16px;
     }
-    #iab-screen .iab-hint strong { color: #9ca3af; }
+    #iab-screen .iab-hint {
+      color: #F0EDE8; font-size: 15px; line-height: 1.5; margin: 0; text-align: left;
+    }
+    #iab-screen .iab-hint strong { color: #F5C200; }
+    /* Seta apontando para o menu "⋮" do navegador in-app (canto superior direito) */
+    .iab-corner-arrow {
+      position: fixed; top: 2px; right: 6px; width: 62px; height: 74px;
+      z-index: 10001; pointer-events: none;
+      animation: iabArrowBounce 1.4s ease-in-out infinite;
+    }
+    @keyframes iabArrowBounce {
+      0%, 100% { transform: translateY(0); opacity: 1; }
+      50% { transform: translateY(8px); opacity: 0.65; }
+    }
   </style>
 </head>
 <body>
   <!-- Tela exclusiva para in-app browsers (Instagram, Facebook, Messenger).
        Mostrada via JS antes do Flutter carregar; oculta por padrão. -->
   <div id="iab-screen">
+    <!-- Seta apontando para o "⋮" do navegador in-app, no canto superior direito -->
+    <svg class="iab-corner-arrow" viewBox="0 0 62 74" aria-hidden="true">
+      <path d="M6 68 C 6 32, 18 10, 50 6" fill="none" stroke="#F5C200" stroke-width="5" stroke-linecap="round"/>
+      <path d="M34 3 L54 5 L50 24" fill="none" stroke="#F5C200" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     <img src="icons/Icon-192.png" alt="TD Barbearia">
     <h2>Abrir no navegador</h2>
     <p class="iab-sub">
@@ -123,11 +144,13 @@
       Toque no botão abaixo para abrir no navegador.
     </p>
     <a id="iab-open-btn" href="#">Agendar horário</a>
-    <p class="iab-hint">
-      Não abriu? Toque nos <strong>três pontinhos ···</strong> no canto
-      superior direito e escolha <strong>"Abrir no Chrome"</strong>
-      ou <strong>"Abrir no Safari"</strong>.
-    </p>
+    <div class="iab-hint-box">
+      <p class="iab-hint">
+        Não abriu? Toque nos <strong>três pontinhos ···</strong> no canto
+        superior direito e escolha <strong>"Abrir no Chrome"</strong>
+        ou <strong>"Abrir no Safari"</strong>.
+      </p>
+    </div>
   </div>
 
   <div id="boot">
