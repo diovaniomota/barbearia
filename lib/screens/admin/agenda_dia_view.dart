@@ -900,6 +900,12 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       );
 
       return null;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505' ||
+          e.message.toLowerCase().contains('duplicate key')) {
+        return 'Este horário acabou de ser ocupado por outro agendamento. Escolha outro horário.';
+      }
+      return 'Erro ao agendar: ${e.message}';
     } catch (e) {
       return 'Erro ao agendar: $e';
     }
