@@ -49,28 +49,6 @@
       background: #080808; font-family: sans-serif;
     }
     #boot img { width: 110px; height: 110px; border-radius: 50%; }
-    #boot .native-choice {
-      width: 100%; max-width: 420px;
-      display: flex; flex-direction: column; gap: 12px;
-    }
-    #boot .native-choice h1 {
-      margin: 14px 0 0; color: #F0EDE8; text-align: center;
-      font-size: 24px; line-height: 1.25; font-weight: 800;
-    }
-    #boot .native-choice p {
-      margin: -4px 0 20px; color: rgba(240, 237, 232, 0.42);
-      text-align: center; font-size: 14px;
-    }
-    #boot .native-choice button {
-      width: 100%; min-height: 54px; border-radius: 14px;
-      font-size: 16px; font-weight: 800; cursor: pointer;
-    }
-    #boot .native-choice .client {
-      border: 0; background: #F5C200; color: #080808;
-    }
-    #boot .native-choice .admin {
-      border: 1.5px solid #F5C200; background: transparent; color: #F5C200;
-    }
     #boot .sp {
       width: 18px; height: 18px; border-radius: 50%;
       border: 2px solid #2a2a2a; border-top-color: #F5C200;
@@ -155,12 +133,6 @@
 
   <div id="boot">
     <img src="icons/Icon-192.png" alt="TD Barbearia">
-    <div class="native-choice">
-      <h1>Você é cliente<br>ou admin?</h1>
-      <p>Selecione para continuar</p>
-      <button class="client" type="button" onclick="window.__bootGo('/agendamentocliente', true)">Cliente</button>
-      <button class="admin" type="button" onclick="window.__bootGo('/admin')">Admin</button>
-    </div>
     <div class="sp"></div>
     <div class="msg">Carregando&hellip;</div>
     <div class="err" id="boot-err">
@@ -186,17 +158,6 @@
       window.__isInAppBrowser = inAppBrowser;
       // Quando em in-app browser: NÃO carrega Flutter. Mostra tela própria.
       window.__keepNativeBoot = inAppBrowser;
-
-      // A escolha "Cliente ou Admin?" só faz sentido na raiz ("/"), que é
-      // ambígua. Em atalhos de PWA que já abrem direto em /admin ou
-      // /agendamentocliente, mostrar esses botões só criava risco de o
-      // usuário tocar em "Cliente" sem querer enquanto o Flutter carrega —
-      // e isso apaga o token de sessão do Supabase, forçando login de novo
-      // toda vez que o app fecha.
-      if (window.location.pathname !== '/') {
-        var nativeChoice = document.querySelector('#boot .native-choice');
-        if (nativeChoice) nativeChoice.style.display = 'none';
-      }
 
       var TARGET_PATH = '/agendamentocliente';
       var TARGET_URL = window.location.origin + TARGET_PATH;
@@ -278,18 +239,6 @@
         }
       }
       window.__bootShowError = showError;
-      window.__bootGo = function (path, clearSession) {
-        try {
-          sessionStorage.removeItem('sw-cleaned');
-          sessionStorage.removeItem('tdb-sw-cleaned-v2');
-        } catch (e) {}
-        if (clearSession) {
-          try {
-            localStorage.removeItem('sb-uebvtbgvsyzbyzdilren-auth-token');
-          } catch (e) {}
-        }
-        window.location.assign(path);
-      };
       window.__bootRetry = function () {
         try {
           sessionStorage.removeItem('sw-cleaned');
