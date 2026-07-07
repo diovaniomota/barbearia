@@ -187,6 +187,17 @@
       // Quando em in-app browser: NÃO carrega Flutter. Mostra tela própria.
       window.__keepNativeBoot = inAppBrowser;
 
+      // A escolha "Cliente ou Admin?" só faz sentido na raiz ("/"), que é
+      // ambígua. Em atalhos de PWA que já abrem direto em /admin ou
+      // /agendamentocliente, mostrar esses botões só criava risco de o
+      // usuário tocar em "Cliente" sem querer enquanto o Flutter carrega —
+      // e isso apaga o token de sessão do Supabase, forçando login de novo
+      // toda vez que o app fecha.
+      if (window.location.pathname !== '/') {
+        var nativeChoice = document.querySelector('#boot .native-choice');
+        if (nativeChoice) nativeChoice.style.display = 'none';
+      }
+
       var TARGET_PATH = '/agendamentocliente';
       var TARGET_URL = window.location.origin + TARGET_PATH;
 
