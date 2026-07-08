@@ -17,17 +17,22 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Agende seu horário na Toni Dinis Barbearia.">
 
   <!-- Cor da barra do navegador / tema PWA -->
   <meta name="theme-color" content="#080808">
 
-  <!-- iOS meta tags & icons -->
+  <!-- iOS meta tags & icons.
+       status-bar-style "black" (opaque) em vez de "black-translucent", e sem
+       viewport-fit=cover: no modo standalone/instalado, desenhar por baixo da
+       status bar fazia o Flutter Web errar o mapeamento de toque (o visual
+       fica certo, mas o toque cai desalinhado o tempo todo). Como o fundo do
+       app já é preto, a barra opaca não muda o visual perceptivelmente. -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="TD Barbearia">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
@@ -224,26 +229,7 @@
         booted = true;
         var b = document.getElementById('boot');
         if (b && b.parentNode) b.parentNode.removeChild(b);
-        // No iOS o WKWebView (Safari normal ou app instalado via "Adicionar
-        // à Tela de Início") às vezes só assenta o tamanho final da tela
-        // (área segura / status bar) um instante depois do primeiro frame
-        // do Flutter, sem disparar um resize "de verdade". Isso deixa o
-        // toque desalinhado do visual por um momento logo na abertura.
-        // Forçar um resize sintético aqui faz o Flutter recalcular.
-        if (isIOS) {
-          setTimeout(function () {
-            window.dispatchEvent(new Event('resize'));
-          }, 300);
-        }
       });
-
-      // Cobre também o caso do Safari normal (não instalado), onde a barra
-      // de endereço recolhe/aparece pouco depois do carregamento.
-      if (isIOS && window.visualViewport) {
-        window.visualViewport.addEventListener('resize', function () {
-          window.dispatchEvent(new Event('resize'));
-        });
-      }
       function showError(detail) {
         if (booted) return;
         var sp = document.querySelector('#boot .sp');
