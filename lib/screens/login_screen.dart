@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:barbearia/services/auth_service.dart';
 import 'package:barbearia/screens/admin/admin_navigation.dart';
+import 'package:barbearia/screens/role_choice_screen.dart';
 import 'package:barbearia/utils/user_bootstrap.dart';
 import 'package:barbearia/utils/admin_session.dart';
 import 'package:barbearia/utils/pwa_helper.dart';
@@ -83,6 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _redirectIfLogged() async {
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
+      // Sem sessão e sem ter passado pela escolha "cliente ou admin" nesta
+      // sessão do app: provavelmente caiu direto aqui ao abrir o app (ex:
+      // atalho de PWA apontando pra /admin). Volta pra escolha em vez de
+      // mostrar o formulário de login vazio.
+      if (!RoleChoiceScreen.visitedThisSession) {
+        if (mounted) context.go('/');
+        return;
+      }
       if (mounted) setState(() => _checkingSession = false);
       return;
     }

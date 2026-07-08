@@ -9,8 +9,17 @@ class RoleChoiceScreen extends StatelessWidget {
   static const _gold = Color(0xFFF5C200);
   static const _text = Color(0xFFF0EDE8);
 
+  // Marca que a escolha "cliente ou admin" já apareceu nesta sessão do app.
+  // A tela de login usa isso pra saber se o usuário chegou em /admin
+  // navegando de propósito (visitedThisSession == true) ou se caiu direto
+  // ali ao abrir o app (ex: atalho de PWA apontando pra /admin) — nesse
+  // segundo caso, sem sessão ativa, deve voltar pra esta tela em vez de
+  // mostrar o formulário de login vazio.
+  static bool visitedThisSession = false;
+
   @override
   Widget build(BuildContext context) {
+    visitedThisSession = true;
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
