@@ -1,0 +1,17 @@
+/canvaskit/*
+  Cache-Control: no-store
+
+/main.dart.js
+  Cache-Control: no-store
+
+/flutter_bootstrap.js
+  Cache-Control: no-store
+
+/flutter.js
+  Cache-Control: no-store
+
+/flutter_service_worker.js
+  Cache-Control: no-store
+
+/version.json
+  Cache-Control: no-store
