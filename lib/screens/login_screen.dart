@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _checkingSession = true;
   bool _rememberEmail = false;
   bool _showInstallHint = false;
+  Timer? _androidInstallPoll;
 
   @override
   void initState() {
@@ -42,15 +45,42 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!PwaHelper.shouldPromptInstall) return;
     final prefs = await SharedPreferences.getInstance();
     final dismissed = prefs.getBool(_kInstallHintDismissed) ?? false;
-    if (!dismissed && mounted) {
-      setState(() => _showInstallHint = true);
+    if (dismissed || !mounted) return;
+
+    if (PwaHelper.isAndroid) {
+      // O Chrome dispara `beforeinstallprompt` de forma assíncrona (às vezes
+      // um pouco depois do primeiro frame), então espera aparecer em vez de
+      // checar só uma vez.
+      _androidInstallPoll = Timer.periodic(const Duration(milliseconds: 400), (
+        timer,
+      ) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (PwaHelper.canInstallAndroid) {
+          timer.cancel();
+          setState(() => _showInstallHint = true);
+        }
+      });
+      Future.delayed(const Duration(seconds: 8), () {
+        _androidInstallPoll?.cancel();
+      });
+      return;
     }
+
+    setState(() => _showInstallHint = true);
   }
 
   Future<void> _dismissInstallHint() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kInstallHintDismissed, true);
     if (mounted) setState(() => _showInstallHint = false);
+  }
+
+  Future<void> _installAndroid() async {
+    await PwaHelper.promptAndroidInstall();
+    await _dismissInstallHint();
   }
 
   Future<void> _loadSavedEmail() async {
@@ -75,6 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _androidInstallPoll?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -198,6 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _muted = Color(0xFF6B7280);
 
   Widget _buildInstallHintBanner() {
+    final isAndroid = PwaHelper.isAndroid;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -205,26 +237,58 @@ class _LoginScreenState extends State<LoginScreen> {
         border: Border.all(color: _gold.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.ios_share, color: _gold, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Instale este app na tela de início pra não precisar logar '
-              'toda vez: toque em compartilhar e escolha '
-              '"Adicionar à Tela de Início".',
-              style: TextStyle(color: _text, fontSize: 13, height: 1.4),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isAndroid ? Icons.install_mobile : Icons.ios_share,
+                color: _gold,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isAndroid
+                      ? 'Instale este app na tela de início pra não precisar '
+                            'logar toda vez.'
+                      : 'Instale este app na tela de início pra não precisar '
+                            'logar toda vez: toque em compartilhar e escolha '
+                            '"Adicionar à Tela de Início".',
+                  style: const TextStyle(
+                    color: _text,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _dismissInstallHint,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 8, top: 2),
+                  child: Icon(Icons.close_rounded, color: _muted, size: 18),
+                ),
+              ),
+            ],
           ),
-          GestureDetector(
-            onTap: _dismissInstallHint,
-            child: const Padding(
-              padding: EdgeInsets.only(left: 8, top: 2),
-              child: Icon(Icons.close_rounded, color: _muted, size: 18),
+          if (isAndroid) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _installAndroid,
+                style: TextButton.styleFrom(
+                  foregroundColor: _gold,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Instalar app'),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

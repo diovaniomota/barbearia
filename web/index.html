@@ -164,6 +164,31 @@
       // Quando em in-app browser: NÃO carrega Flutter. Mostra tela própria.
       window.__keepNativeBoot = inAppBrowser;
 
+      // Android/Chrome: captura o prompt nativo de instalação do PWA pra
+      // poder disparar sob demanda (botão "Instalar app" dentro do app),
+      // em vez de depender só do menu "⋮" do navegador.
+      window.__canInstallPWA = false;
+      window.__deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (ev) {
+        ev.preventDefault();
+        window.__deferredInstallPrompt = ev;
+        window.__canInstallPWA = true;
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__deferredInstallPrompt = null;
+        window.__canInstallPWA = false;
+      });
+      window.__promptPWAInstall = function () {
+        var ev = window.__deferredInstallPrompt;
+        if (!ev) return Promise.resolve(false);
+        window.__deferredInstallPrompt = null;
+        window.__canInstallPWA = false;
+        ev.prompt();
+        return ev.userChoice.then(function (choice) {
+          return choice.outcome === 'accepted';
+        });
+      };
+
       var TARGET_PATH = '/agendamentocliente';
       var TARGET_URL = window.location.origin + TARGET_PATH;
 
