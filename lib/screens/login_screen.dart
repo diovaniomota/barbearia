@@ -374,7 +374,22 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 56),
+              const SizedBox(height: 12),
+
+              // ── Voltar: quem caiu aqui sem querer (ex: tocou "Admin" por
+              // engano na tela de cliente/admin) precisa de um jeito
+              // explícito de sair — o botão "voltar" do navegador nem
+              // sempre retorna pra dentro do app.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => context.go('/'),
+                  icon: const Icon(Icons.arrow_back_rounded, color: _muted),
+                  tooltip: 'Voltar',
+                ),
+              ),
+
+              const SizedBox(height: 4),
 
               // ── Logo ────────────────────────────────────────
               Center(
