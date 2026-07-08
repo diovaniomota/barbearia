@@ -28,7 +28,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _checkingSession = true;
   bool _rememberEmail = false;
   bool _showInstallHint = false;
-  bool _confirmIdentity = false;
 
   @override
   void initState() {
@@ -94,22 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Dispositivo compartilhado (ex: celular do balcão): o barbeiro fica
-    // logado, mas um cliente pode abrir o app e cair direto no admin sem
-    // querer. Em vez de entrar direto, confirma quem está usando — assim dá
-    // pra escapar pro agendamento sem deslogar o barbeiro (ele continua
-    // logado da próxima vez que abrir o /admin).
-    await AdminSession.loadFromCurrentUser();
-    if (mounted) {
-      setState(() {
-        _checkingSession = false;
-        _confirmIdentity = true;
-      });
-    }
-  }
-
-  void _goToClientBooking() {
-    context.go('/agendamentocliente');
+    await _navigateAfterLogin();
+    if (mounted) setState(() => _checkingSession = false);
   }
 
   Future<void> _signIn() async {
@@ -263,96 +248,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildConfirmIdentity() {
-    final name = AdminSession.isBarber
-        ? (AdminSession.barberName ?? 'barbeiro')
-        : 'administrador';
-
-    return Scaffold(
-      backgroundColor: _bg,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 72),
-              Center(
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  width: 100,
-                  height: 100,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _gold, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.content_cut_rounded,
-                      color: _gold,
-                      size: 40,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                'Continuar conectado como $name?',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _text,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  height: 1.3,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Este aparelho já está logado no painel administrativo.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _muted, fontSize: 14),
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() => _confirmIdentity = false);
-                    _navigateAfterLogin();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _gold,
-                    foregroundColor: _bg,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  child: const Text('Entrar no painel'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: _goToClientBooking,
-                child: const Text(
-                  'Não sou eu · Ir para agendamento',
-                  style: TextStyle(color: _gold, fontSize: 14),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_checkingSession) {
@@ -360,10 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: _bg,
         body: Center(child: CircularProgressIndicator(color: _gold)),
       );
-    }
-
-    if (_confirmIdentity) {
-      return _buildConfirmIdentity();
     }
 
     return Scaffold(
