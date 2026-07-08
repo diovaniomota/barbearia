@@ -13,7 +13,9 @@ import 'package:barbearia/utils/admin_session.dart';
 import 'package:barbearia/utils/pwa_helper.dart';
 
 const _kSavedEmail = 'login_saved_email';
-const _kInstallHintDismissed = 'login_install_hint_dismissed';
+// _v2: reseta marcações antigas de "dispensado" causadas pelo bug em que o
+// modal podia aparecer (e ser fechado) sobre a tela de escolha cliente/admin.
+const _kInstallHintDismissed = 'login_install_hint_dismissed_v2';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
