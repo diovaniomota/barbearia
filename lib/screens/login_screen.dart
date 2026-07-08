@@ -38,7 +38,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     _loadSavedEmail();
     _redirectIfLogged();
-    _checkInstallHint();
   }
 
   Future<void> _checkInstallHint() async {
@@ -128,6 +127,11 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       if (mounted) setState(() => _checkingSession = false);
+      // Só checa/mostra o convite pra instalar o app depois de confirmar que
+      // vamos mesmo ficar na tela de login — senão a chamada assíncrona
+      // podia terminar depois do redirect acima e o modal aparecer por
+      // cima da tela de escolha "cliente ou admin".
+      _checkInstallHint();
       return;
     }
 
