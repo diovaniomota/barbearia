@@ -9,6 +9,7 @@ import 'package:barbearia/screens/admin/whatsapp_admin_screen.dart';
 import 'package:barbearia/screens/admin/plan_clients_admin_screen.dart';
 import 'package:barbearia/screens/admin/remarcar_admin_screen.dart';
 import 'package:barbearia/utils/admin_session.dart';
+import 'package:barbearia/utils/app_updater.dart';
 import 'package:barbearia/screens/login_screen.dart';
 
 class _AP {
@@ -313,6 +314,10 @@ class _AdminNavigationState extends State<AdminNavigation> {
               ],
               const Spacer(),
               const Divider(color: _AP.border),
+              _DrawerItem(Icons.refresh_rounded, 'Atualizar app', () {
+                Navigator.pop(context);
+                reloadApp();
+              }),
               _DrawerItem(Icons.logout_rounded, 'Sair', () async {
                 Navigator.pop(context);
                 AdminSession.clear();

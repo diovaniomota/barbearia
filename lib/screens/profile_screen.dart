@@ -1,4 +1,5 @@
 import 'package:barbearia/screens/edit_Profile.dart';
+import 'package:barbearia/utils/app_updater.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -278,11 +279,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 _buildMenuOption(
                   context,
-                  icon: Icons.info_outline,
-                  title: 'Sobre o App',
-                  onTap: () {
-                    // TODO
-                  },
+                  icon: Icons.refresh_rounded,
+                  title: 'Atualizar app',
+                  onTap: reloadApp,
                 ),
                 const SizedBox(height: 32),
 
