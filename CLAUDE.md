@@ -16,7 +16,7 @@ Flutter **Web** PWA for **TD Barbearia** (Toni Dinis). Stack: Flutter → Cloudf
 flutter run -d chrome
 ```
 
-**Deploy is via GitHub push** — Vercel builds on every push using the `buildCommand` in `vercel.json` (clones Flutter stable, runs `flutter build web --release --base-href / --no-web-resources-cdn`). Do **not** suggest `npx wrangler deploy` or manual builds for deploying; just commit and push.
+**Deploy is via GitHub push** — Cloudflare Pages/Workers auto-builds on every push to `main` (clones Flutter stable, runs `flutter build web --release --base-href / --no-web-resources-cdn`, serves `build/web` per `wrangler.jsonc`). `vercel.json` exists in the repo but is **not** what serves the live site — the live site is Cloudflare, not Vercel. Do **not** suggest `npx wrangler deploy` or manual builds for deploying; just commit and push.
 
 > `--no-web-resources-cdn` is required: it bundles CanvasKit from the site's own domain instead of gstatic.com, which some mobile carriers/DNS block (symptom: app stuck on the splash logo forever).
 
