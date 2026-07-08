@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class RoleChoiceScreen extends StatelessWidget {
+class RoleChoiceScreen extends StatefulWidget {
   const RoleChoiceScreen({super.key});
-
-  static const _bg = Color(0xFF080808);
-  static const _gold = Color(0xFFF5C200);
-  static const _text = Color(0xFFF0EDE8);
 
   // Marca que a escolha "cliente ou admin" já apareceu nesta sessão do app.
   // A tela de login usa isso pra saber se o usuário chegou em /admin
@@ -18,8 +14,44 @@ class RoleChoiceScreen extends StatelessWidget {
   static bool visitedThisSession = false;
 
   @override
+  State<RoleChoiceScreen> createState() => _RoleChoiceScreenState();
+}
+
+class _RoleChoiceScreenState extends State<RoleChoiceScreen> {
+  static const _bg = Color(0xFF080808);
+  static const _gold = Color(0xFFF5C200);
+  static const _text = Color(0xFFF0EDE8);
+
+  bool _checkingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  // Se o atalho instalado abre em "/" e o usuário já logou como admin antes,
+  // pula direto pro painel — não faz sentido pedir "cliente ou admin?" de
+  // novo pra quem já está autenticado.
+  void _checkSession() {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null && !session.user.isAnonymous) {
+      context.go('/admin');
+      return;
+    }
+    RoleChoiceScreen.visitedThisSession = true;
+    setState(() => _checkingSession = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    visitedThisSession = true;
+    if (_checkingSession) {
+      return const Scaffold(
+        backgroundColor: _bg,
+        body: Center(child: CircularProgressIndicator(color: _gold)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
