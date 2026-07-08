@@ -224,14 +224,21 @@
         booted = true;
         var b = document.getElementById('boot');
         if (b && b.parentNode) b.parentNode.removeChild(b);
+        // No iOS o WKWebView (Safari normal ou app instalado via "Adicionar
+        // à Tela de Início") às vezes só assenta o tamanho final da tela
+        // (área segura / status bar) um instante depois do primeiro frame
+        // do Flutter, sem disparar um resize "de verdade". Isso deixa o
+        // toque desalinhado do visual por um momento logo na abertura.
+        // Forçar um resize sintético aqui faz o Flutter recalcular.
+        if (isIOS) {
+          setTimeout(function () {
+            window.dispatchEvent(new Event('resize'));
+          }, 300);
+        }
       });
 
-      // No Safari/iOS a barra de endereço some/aparece pouco depois do
-      // carregamento, mudando a altura da viewport. O Flutter às vezes
-      // atualiza o desenho mas não o mapeamento de toque na mesma hora,
-      // fazendo o usuário precisar tocar um pouco acima do botão logo na
-      // abertura do app. Forçar um "resize" sintético quando a viewport
-      // visual muda faz o Flutter recalcular o toque também.
+      // Cobre também o caso do Safari normal (não instalado), onde a barra
+      // de endereço recolhe/aparece pouco depois do carregamento.
       if (isIOS && window.visualViewport) {
         window.visualViewport.addEventListener('resize', function () {
           window.dispatchEvent(new Event('resize'));
