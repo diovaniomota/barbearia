@@ -30,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _checkingSession = true;
   bool _rememberEmail = false;
-  bool _showInstallHint = false;
+  bool _installModalShown = false;
   Timer? _androidInstallPoll;
 
   @override
@@ -50,7 +50,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (PwaHelper.isAndroid) {
       // O Chrome dispara `beforeinstallprompt` de forma assíncrona (às vezes
       // um pouco depois do primeiro frame), então espera aparecer em vez de
-      // checar só uma vez.
+      // checar só uma vez. Sem isso disparar, não tem prompt nativo pra
+      // acionar — não faz sentido mostrar o modal nesse caso.
       _androidInstallPoll = Timer.periodic(const Duration(milliseconds: 400), (
         timer,
       ) {
@@ -60,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         if (PwaHelper.canInstallAndroid) {
           timer.cancel();
-          setState(() => _showInstallHint = true);
+          _showInstallModal();
         }
       });
       Future.delayed(const Duration(seconds: 8), () {
@@ -69,18 +70,21 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() => _showInstallHint = true);
+    _showInstallModal();
   }
 
-  Future<void> _dismissInstallHint() async {
+  Future<void> _markInstallDismissed() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kInstallHintDismissed, true);
-    if (mounted) setState(() => _showInstallHint = false);
   }
 
-  Future<void> _installAndroid() async {
-    await PwaHelper.promptAndroidInstall();
-    await _dismissInstallHint();
+  void _showInstallModal() {
+    if (!mounted || _installModalShown) return;
+    _installModalShown = true;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _InstallAppDialog(isAndroid: PwaHelper.isAndroid),
+    ).then((_) => _markInstallDismissed());
   }
 
   Future<void> _loadSavedEmail() async {
@@ -228,71 +232,6 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _text = Color(0xFFF0EDE8);
   static const _muted = Color(0xFF6B7280);
 
-  Widget _buildInstallHintBanner() {
-    final isAndroid = PwaHelper.isAndroid;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _gold.withValues(alpha: 0.08),
-        border: Border.all(color: _gold.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                isAndroid ? Icons.install_mobile : Icons.ios_share,
-                color: _gold,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  isAndroid
-                      ? 'Instale este app na tela de início pra não precisar '
-                            'logar toda vez.'
-                      : 'Instale este app na tela de início pra não precisar '
-                            'logar toda vez: toque em compartilhar e escolha '
-                            '"Adicionar à Tela de Início".',
-                  style: const TextStyle(
-                    color: _text,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: _dismissInstallHint,
-                child: const Padding(
-                  padding: EdgeInsets.only(left: 8, top: 2),
-                  child: Icon(Icons.close_rounded, color: _muted, size: 18),
-                ),
-              ),
-            ],
-          ),
-          if (isAndroid) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _installAndroid,
-                style: TextButton.styleFrom(
-                  foregroundColor: _gold,
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(0, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('Instalar app'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   InputDecoration _field(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
@@ -385,11 +324,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: _muted, fontSize: 14),
                 ),
               ),
-
-              if (_showInstallHint) ...[
-                const SizedBox(height: 24),
-                _buildInstallHintBanner(),
-              ],
 
               const SizedBox(height: 48),
 
@@ -575,6 +509,169 @@ class _LoginScreenState extends State<LoginScreen> {
             child: const Text('Enviar'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InstallAppDialog extends StatelessWidget {
+  const _InstallAppDialog({required this.isAndroid});
+
+  final bool isAndroid;
+
+  static const _bg = Color(0xFF080808);
+  static const _card = Color(0xFF111111);
+  static const _border = Color(0xFF222222);
+  static const _gold = Color(0xFFF5C200);
+  static const _text = Color(0xFFF0EDE8);
+  static const _muted = Color(0xFF6B7280);
+
+  Widget _step(int number, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _gold.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$number',
+              style: const TextStyle(
+                color: _gold,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: _text, fontSize: 14, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: _border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _gold.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isAndroid ? Icons.install_mobile : Icons.ios_share,
+                  color: _gold,
+                  size: 28,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Instalar o app',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _text,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (isAndroid)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Instale na tela de início pra abrir mais rápido e não '
+                  'precisar logar toda vez.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted, fontSize: 14, height: 1.4),
+                ),
+              )
+            else ...[
+              const SizedBox(height: 6),
+              _step(1, 'Toque no ícone de compartilhar na barra do Safari.'),
+              _step(2, 'Escolha "Adicionar à Tela de Início".'),
+              _step(3, 'Toque em "Adicionar" no canto superior direito.'),
+            ],
+            const SizedBox(height: 22),
+            if (isAndroid) ...[
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    PwaHelper.promptAndroidInstall();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: _bg,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: const Text('Instalar'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Agora não',
+                  style: TextStyle(color: _muted),
+                ),
+              ),
+            ] else
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: _bg,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: const Text('Entendi'),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
