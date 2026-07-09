@@ -15,7 +15,8 @@ import 'package:barbearia/utils/pwa_helper.dart';
 const _kSavedEmail = 'login_saved_email';
 // _v2: reseta marcações antigas de "dispensado" causadas pelo bug em que o
 // modal podia aparecer (e ser fechado) sobre a tela de escolha cliente/admin.
-const _kInstallHintDismissed = 'login_install_hint_dismissed_v2';
+const _kInstallModalDismissed = 'login_install_hint_dismissed_v2';
+const _kInstallBannerDismissed = 'login_install_banner_dismissed';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,6 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _checkingSession = true;
   bool _rememberEmail = false;
   bool _installModalShown = false;
+  bool _showInstallBanner = false;
   Timer? _androidInstallPoll;
 
   @override
@@ -45,14 +47,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkInstallHint() async {
     if (!PwaHelper.shouldPromptInstall) return;
     final prefs = await SharedPreferences.getInstance();
-    final dismissed = prefs.getBool(_kInstallHintDismissed) ?? false;
-    if (dismissed || !mounted) return;
+    final modalDismissed = prefs.getBool(_kInstallModalDismissed) ?? false;
+    final bannerDismissed = prefs.getBool(_kInstallBannerDismissed) ?? false;
+    if (!mounted || (modalDismissed && bannerDismissed)) return;
 
     if (PwaHelper.isAndroid) {
       // O Chrome dispara `beforeinstallprompt` de forma assíncrona (às vezes
       // um pouco depois do primeiro frame), então espera aparecer em vez de
       // checar só uma vez. Sem isso disparar, não tem prompt nativo pra
-      // acionar — não faz sentido mostrar o modal nesse caso.
+      // acionar — não faz sentido mostrar nada nesse caso.
       _androidInstallPoll = Timer.periodic(const Duration(milliseconds: 400), (
         timer,
       ) {
@@ -62,7 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         if (PwaHelper.canInstallAndroid) {
           timer.cancel();
-          _showInstallModal();
+          _revealInstallPrompts(
+            modalDismissed: modalDismissed,
+            bannerDismissed: bannerDismissed,
+          );
         }
       });
       Future.delayed(const Duration(seconds: 8), () {
@@ -71,12 +77,35 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    _showInstallModal();
+    _revealInstallPrompts(
+      modalDismissed: modalDismissed,
+      bannerDismissed: bannerDismissed,
+    );
   }
 
-  Future<void> _markInstallDismissed() async {
+  void _revealInstallPrompts({
+    required bool modalDismissed,
+    required bool bannerDismissed,
+  }) {
+    if (!mounted) return;
+    if (!bannerDismissed) setState(() => _showInstallBanner = true);
+    if (!modalDismissed) _showInstallModal();
+  }
+
+  Future<void> _markModalDismissed() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kInstallHintDismissed, true);
+    await prefs.setBool(_kInstallModalDismissed, true);
+  }
+
+  Future<void> _dismissInstallBanner() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kInstallBannerDismissed, true);
+    if (mounted) setState(() => _showInstallBanner = false);
+  }
+
+  Future<void> _installAndroidFromBanner() async {
+    await PwaHelper.promptAndroidInstall();
+    await _dismissInstallBanner();
   }
 
   void _showInstallModal() {
@@ -85,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => _InstallAppDialog(isAndroid: PwaHelper.isAndroid),
-    ).then((_) => _markInstallDismissed());
+    ).then((_) => _markModalDismissed());
   }
 
   Future<void> _loadSavedEmail() async {
@@ -238,6 +267,71 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _text = Color(0xFFF0EDE8);
   static const _muted = Color(0xFF6B7280);
 
+  Widget _buildInstallBanner() {
+    final isAndroid = PwaHelper.isAndroid;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _gold.withValues(alpha: 0.08),
+        border: Border.all(color: _gold.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isAndroid ? Icons.install_mobile : Icons.ios_share,
+                color: _gold,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isAndroid
+                      ? 'Instale este app na tela de início pra não precisar '
+                            'logar toda vez.'
+                      : 'Instale este app na tela de início pra não precisar '
+                            'logar toda vez: toque em compartilhar e escolha '
+                            '"Adicionar à Tela de Início".',
+                  style: const TextStyle(
+                    color: _text,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _dismissInstallBanner,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 8, top: 2),
+                  child: Icon(Icons.close_rounded, color: _muted, size: 18),
+                ),
+              ),
+            ],
+          ),
+          if (isAndroid) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _installAndroidFromBanner,
+                style: TextButton.styleFrom(
+                  foregroundColor: _gold,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Instalar app'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   InputDecoration _field(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
@@ -330,6 +424,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: _muted, fontSize: 14),
                 ),
               ),
+
+              if (_showInstallBanner) ...[
+                const SizedBox(height: 24),
+                _buildInstallBanner(),
+              ],
 
               const SizedBox(height: 48),
 
