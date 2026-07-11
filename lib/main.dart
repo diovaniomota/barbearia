@@ -4,6 +4,7 @@ import 'package:barbearia/router.dart';
 import 'package:barbearia/supabase/supabase_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/utils/user_bootstrap.dart';
+import 'package:barbearia/utils/auth_refresh.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -19,6 +20,7 @@ void main() async {
       anonKey:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlYnZ0Ymd2c3l6Ynl6ZGlscmVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzM4MTMsImV4cCI6MjA5NTc0OTgxM30.KilnvJtRntdp3LO_mrTKBxpVcaEgOoJSPNEjBGXsrC4',
     );
+    authRefreshNotifier.ensureStarted();
   } catch (e, st) {
     debugPrint('Erro ao inicializar o Supabase: $e');
     debugPrintStack(stackTrace: st);
@@ -45,9 +47,9 @@ class BarbeariaApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Barbearia',
       debugShowCheckedModeBanner: false,
-      theme: lightTheme,
+      theme: darkTheme,
       darkTheme: darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
       locale: const Locale('pt', 'BR'),
       supportedLocales: const [Locale('pt', 'BR')],
       localizationsDelegates: const [

@@ -223,6 +223,15 @@ class WhatsappService {
     }
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
     final fullPhone = clean.startsWith('55') ? clean : '55$clean';
+    String? outboxId;
+    try {
+      outboxId = await _logOutbox(
+        phone: fullPhone,
+        message: message,
+        status: 'pending',
+      );
+    } catch (_) {}
+
     try {
       final res = await http
           .post(
@@ -235,34 +244,71 @@ class WhatsappService {
           )
           .timeout(const Duration(seconds: 10));
 
-      if (res.statusCode == 200) return const WhatsappResult(ok: true);
+      if (res.statusCode == 200) {
+        await _finishOutbox(outboxId, ok: true);
+        return const WhatsappResult(ok: true);
+      }
 
       // Tenta decodificar JSON; se falhar, usa mensagem genérica com código HTTP
+      String errMsg;
       try {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final msg = body['error']?.toString() ?? 'Erro ${res.statusCode}';
-        return WhatsappResult(ok: false, error: msg);
+        errMsg = body['error']?.toString() ?? 'Erro ${res.statusCode}';
       } catch (_) {
         if (res.statusCode == 503) {
-          return const WhatsappResult(
-            ok: false,
-            error: 'WhatsApp desconectado — escaneie o QR code primeiro.',
-          );
+          errMsg = 'WhatsApp desconectado — escaneie o QR code primeiro.';
+        } else if (res.statusCode == 401) {
+          errMsg = 'API Key inválida. Verifique a chave nas configurações.';
+        } else {
+          errMsg = 'Servidor retornou erro ${res.statusCode}.';
         }
-        if (res.statusCode == 401) {
-          return const WhatsappResult(
-            ok: false,
-            error: 'API Key inválida. Verifique a chave nas configurações.',
-          );
-        }
-        return WhatsappResult(
-          ok: false,
-          error: 'Servidor retornou erro ${res.statusCode}.',
-        );
       }
+      await _finishOutbox(outboxId, ok: false, error: errMsg);
+      return WhatsappResult(ok: false, error: errMsg);
     } catch (e) {
+      await _finishOutbox(outboxId, ok: false, error: e.toString());
       return WhatsappResult(ok: false, error: e.toString());
     }
+  }
+
+  /// Grava tentativa na tabela `whatsapp_outbox` (ignora se a tabela não existir).
+  static Future<String?> _logOutbox({
+    required String phone,
+    required String message,
+    required String status,
+  }) async {
+    try {
+      final row = await Supabase.instance.client
+          .from('whatsapp_outbox')
+          .insert({
+            'phone': phone,
+            'message': message,
+            'status': status,
+            'attempts': 1,
+            'last_attempt_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .select('id')
+          .maybeSingle();
+      return row?['id']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> _finishOutbox(
+    String? id, {
+    required bool ok,
+    String? error,
+  }) async {
+    if (id == null) return;
+    try {
+      await Supabase.instance.client.from('whatsapp_outbox').update({
+        'status': ok ? 'sent' : 'failed',
+        'error': error,
+        'sent_at': ok ? DateTime.now().toUtc().toIso8601String() : null,
+        'last_attempt_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', id);
+    } catch (_) {}
   }
 
   // ── Verificar status do servidor ─────────────────────────────────────────

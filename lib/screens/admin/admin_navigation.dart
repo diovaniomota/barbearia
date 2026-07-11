@@ -8,9 +8,10 @@ import 'package:barbearia/screens/admin/financial_admin_screen.dart';
 import 'package:barbearia/screens/admin/whatsapp_admin_screen.dart';
 import 'package:barbearia/screens/admin/plan_clients_admin_screen.dart';
 import 'package:barbearia/screens/admin/remarcar_admin_screen.dart';
+import 'package:barbearia/screens/admin/clients_admin_screen.dart';
 import 'package:barbearia/utils/admin_session.dart';
 import 'package:barbearia/utils/app_updater.dart';
-import 'package:barbearia/screens/login_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class _AP {
   static const Color bg = Color(0xFF080808);
@@ -44,8 +45,17 @@ class _AdminNavigationState extends State<AdminNavigation> {
 
   /// Carrega o papel (super-admin vs barbeiro) antes de mostrar as telas.
   Future<void> _ensureSession() async {
-    if (Supabase.instance.client.auth.currentUser != null) {
-      await AdminSession.loadFromCurrentUser();
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null || user.isAnonymous) {
+      if (mounted) context.go('/admin');
+      return;
+    }
+    final allowed = await AdminSession.loadFromCurrentUser();
+    if (!allowed) {
+      AdminSession.clear();
+      await Supabase.instance.client.auth.signOut();
+      if (mounted) context.go('/admin');
+      return;
     }
     if (mounted) setState(() => _sessionReady = true);
   }
@@ -294,6 +304,11 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 ),
               ],
               _DrawerItem(
+                Icons.people_outline_rounded,
+                'Clientes',
+                () => _pushScreen(const ClientsAdminScreen()),
+              ),
+              _DrawerItem(
                 Icons.card_membership_outlined,
                 'Clientes Plano',
                 () => _pushScreen(const PlanClientsAdminScreen()),
@@ -323,10 +338,7 @@ class _AdminNavigationState extends State<AdminNavigation> {
                 AdminSession.clear();
                 await Supabase.instance.client.auth.signOut();
                 if (!mounted) return;
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (_) => false,
-                );
+                context.go('/admin');
               }),
               const SizedBox(height: 8),
             ],

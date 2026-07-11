@@ -600,6 +600,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             'total_price': k == 0 ? s.price : 0.0,
             'is_plan_client': _isPlanClient,
             'source': isAdmin ? 'admin' : 'client',
+            if (authUser != null && !authUser.isAnonymous)
+              'created_by': authUser.id,
           });
           slotOffset++;
         }

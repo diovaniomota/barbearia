@@ -61,23 +61,35 @@ npx wrangler deploy
 - Foto do serviço funcionando (bucket `service-images` público + coluna `image_url`)
 - Favicon + ícones PWA com a logo TD; PWA ativado
 
-## Pendente (pedido do cliente)
-1. **Dashboard de clientes** — tela listando todos os clientes (nome, telefone, nº de visitas, última visita). Dá pra montar de `appointments` agrupando por `customer_phone` (ver `remarcar_admin_screen.dart`, que já agrupa assim).
-2. **Agenda colorida por tipo** (a maior — precisa de schema novo):
-   - 🩶 Cinza claro + nome = cliente agendou normal
-   - 🟥 Vermelho = horário **bloqueado** (precisa feature de bloqueio)
-   - ⬛ Cinza escuro = horário vago
-   - 🟪 Roxo = **encaixe manual** (precisa campo `source`/`created_by`)
-   - 🟦 Azul claro = **cliente novo** (1ª vez — calcular do histórico)
+## Feito (2026-07 — pacote de melhorias)
+1. **Dashboard de clientes** — menu Admin → Clientes (`clients_admin_screen.dart`): nome, telefone, visitas, última visita, busca, WhatsApp.
+2. **Agenda colorida** — já em `agenda_dia_view.dart` + schema `source` / `created_by` / `blocked_slots` / encaixe admin (roxo).
+3. **Auth + guards** — GoRouter protege `/admin/dashboard`; acesso exige `users.is_admin` ou barbeiro linkado (`AdminSession`).
+4. **Repositories** — `lib/repositories/` (clients, appointments, agenda) + `slot_logic.dart`.
+5. **Realtime** — agenda do dia escuta `appointments` / `blocked_slots` / `extra_slots`.
+6. **WhatsApp outbox** — log em `whatsapp_outbox` (sent/failed).
+7. **Testes** — `test/slot_logic_test.dart`; deploy script `scripts/deploy.ps1`.
+8. **Tema** — `ThemeMode.dark` forçado (marca TD).
+
+## Migration obrigatória (SQL Editor Supabase)
+Arquivo: `supabase/migrations/20260711_roles_agenda_outbox.sql`  
+(cópia em `lib/supabase/20260711_roles_agenda_outbox.sql`)  
+Depois: `NOTIFY pgrst, 'reload schema';`
 
 ## Arquivos-chave
 - `lib/screens/book_appointment_screen.dart` — fluxo de agendamento (cliente) + envio WhatsApp
 - `lib/screens/home_screen.dart` — home do cliente (lista de serviços)
 - `lib/screens/admin/admin_navigation.dart` — navegação admin + tema escuro
-- `lib/screens/admin/appointments_admin_screen.dart` — agenda admin (alvo da feature #3)
+- `lib/screens/admin/appointments_admin_screen.dart` — agenda admin
+- `lib/screens/admin/agenda_dia_view.dart` — agenda do dia colorida + bloqueio + encaixe
+- `lib/screens/admin/clients_admin_screen.dart` — dashboard de clientes
 - `lib/screens/admin/barbers_admin_screen.dart` — CRUD barbeiros (tem `phone`)
 - `lib/screens/admin/services_admin_screen.dart` — CRUD serviços
-- `lib/screens/admin/remarcar_admin_screen.dart` — agrupa clientes por telefone (base p/ feature #1 dashboard)
-- `lib/services/whatsapp_service.dart` — chamadas ao servidor WhatsApp
+- `lib/screens/admin/remarcar_admin_screen.dart` — clientes inativos / reativação
+- `lib/repositories/` — camada de dados
+- `lib/router.dart` — rotas + redirect auth
+- `lib/utils/admin_session.dart` — papel super-admin / barbeiro
+- `lib/services/whatsapp_service.dart` — WhatsApp + outbox
 - `lib/main.dart` + `lib/supabase/supabase_config.dart` — config Supabase
 - `server/wa-reminder/` — script do lembrete (VPS)
+- `scripts/deploy.ps1` — build web + wrangler

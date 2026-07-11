@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:barbearia/services/auth_service.dart';
-import 'package:barbearia/screens/admin/admin_navigation.dart';
 import 'package:barbearia/screens/role_choice_screen.dart';
 import 'package:barbearia/utils/user_bootstrap.dart';
 import 'package:barbearia/utils/admin_session.dart';
@@ -216,10 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _navigateAfterLogin() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      final isAdmin = user != null && !user.isAnonymous;
-      if (!mounted) return;
-      if (!isAdmin) {
-        await Supabase.instance.client.auth.signOut();
+      if (user == null || user.isAnonymous) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -230,14 +226,27 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      await AdminSession.loadFromCurrentUser();
+      final allowed = await AdminSession.loadFromCurrentUser();
       if (!mounted) return;
+      if (!allowed) {
+        AdminSession.clear();
+        await Supabase.instance.client.auth.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Esta conta não tem permissão de admin/barbeiro.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AdminNavigation()),
-      );
+      if (mounted) context.go('/admin/dashboard');
     } catch (_) {
       if (!mounted) return;
+      AdminSession.clear();
       await Supabase.instance.client.auth.signOut();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

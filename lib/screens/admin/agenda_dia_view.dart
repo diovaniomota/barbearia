@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:barbearia/utils/admin_picker_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:barbearia/models/service.dart';
 import 'package:barbearia/services/whatsapp_service.dart';
+import 'package:barbearia/repositories/appointments_repository.dart';
+import 'package:barbearia/utils/slot_logic.dart';
 
 /// Estados possíveis de um slot de 30 min na agenda do dia.
 enum _SlotState { free, client, newClient, admin, blocked }
@@ -57,10 +61,26 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
   // id do registro em barber_blocked_days que cobre esta data (null = dia livre)
   String? _dayBlockId;
 
+  final _appointmentsRepo = AppointmentsRepository();
+  RealtimeChannel? _realtime;
+  Timer? _realtimeDebounce;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _bindRealtime();
+  }
+
+  @override
+  void dispose() {
+    _realtimeDebounce?.cancel();
+    final ch = _realtime;
+    _realtime = null;
+    if (ch != null) {
+      Supabase.instance.client.removeChannel(ch);
+    }
+    super.dispose();
   }
 
   @override
@@ -70,7 +90,28 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
       _selectMode = false;
       _selectedLabels.clear();
       _load();
+      _bindRealtime();
     }
+  }
+
+  void _bindRealtime() {
+    final ch = _realtime;
+    _realtime = null;
+    if (ch != null) {
+      Supabase.instance.client.removeChannel(ch);
+    }
+    final barberId = widget.barberId;
+    if (barberId == null) return;
+    _realtime = _appointmentsRepo.subscribeDayChanges(
+      barberId: barberId,
+      dateYmd: _dateStr,
+      onChange: () {
+        _realtimeDebounce?.cancel();
+        _realtimeDebounce = Timer(const Duration(milliseconds: 400), () {
+          if (mounted) _load();
+        });
+      },
+    );
   }
 
   String get _dateStr => DateFormat('yyyy-MM-dd').format(widget.date);
@@ -257,13 +298,17 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
           slot.appointmentId = m['id']?.toString();
           if (rowPrice > 0) slot.totalPrice = rowPrice;
         }
-        if (source == 'admin') {
-          slot.state = _SlotState.admin;
-        } else if (ph.isNotEmpty && !returning.contains(ph)) {
-          slot.state = _SlotState.newClient;
-        } else {
-          slot.state = _SlotState.client;
-        }
+        final classified = SlotLogic.classifyState(
+          source: source,
+          isReturningClient: ph.isEmpty || returning.contains(ph),
+          isBlocked: false,
+        );
+        slot.state = switch (classified) {
+          'admin' => _SlotState.admin,
+          'newClient' => _SlotState.newClient,
+          'blocked' => _SlotState.blocked,
+          _ => _SlotState.client,
+        };
       }
 
       // Ordena por horário (labels "HH:mm" já são comparáveis como string),
@@ -875,6 +920,9 @@ class _AgendaDiaViewState extends State<AgendaDiaView> {
             'total_price': rowPrice,
             'is_plan_client': isPlan,
             'source': 'admin',
+            if (sb.auth.currentUser != null &&
+                !(sb.auth.currentUser!.isAnonymous))
+              'created_by': sb.auth.currentUser!.id,
           });
           slotOffset++;
         }
